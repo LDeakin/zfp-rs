@@ -157,8 +157,8 @@ pub fn hash_strided_array64(arr: &[u64], n: [usize; 4], s: [isize; 4]) -> u64 {
 
 #[derive(Clone, Copy)]
 pub enum TestType {
-    // BlockFull = 0,
-    // BlockPartial = 1,
+    BlockFull = 0,
+    BlockPartial = 1,
     Array = 2,
 }
 
