@@ -1,7 +1,7 @@
 [package]
 name = "zfp-rs-ffi"
 authors = ["Lachlan Deakin <ljdgit@gmail.com>"]
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 description = "C ABI bindings layer around zfp-rs: mirrors the zfp-sys API"
 license = "MIT OR Apache-2.0"
