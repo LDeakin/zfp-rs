@@ -1,0 +1,24 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 3ea95e537cca778fa46f17e36a2a7bde041aa7a1e3fee05fc2dafe4de351116b # shrinks to nx = 1, mode = Reversible, data = [2.545618666999009e102]
+cc 383006acbf4a0b139af9548902afe406e0abf56f13b4b17f774d1e176d8a0749 # shrinks to nx = 1, mode = FixedAccuracy(0), data = [8.334157e-8]
+cc 1a080b5ec090798ed25087b45a510542d74b2e06ddd48f0782c28fc6116173a1 # shrinks to nx = 1, mode = FixedRate(129), data = [0]
+cc 1c36644b2602968c426415dc5ddd74f6a4788699f5ac8f4032694a062afd1fba # shrinks to nx = 1, mode = FixedRate(1), data = [1]
+cc 65da8bbe4ffaca363e526073519b9e8e3704ba2cfb231f16b777e580f841329a # shrinks to nx = 1, ny = 2, nz = 1, nw = 1, mode = Reversible, data = [1.9100225, 0.0]
+cc b04c3cdbf54fdb3393425cb6e5d12ad6216677107acba0c487562f351a3c3d3f # shrinks to nx = 1, ny = 2, nz = 1, mode = Reversible, data = [0.0, -1.8229207e31]
+cc 3494efc3e1667bba69d8d56bd9e2a3ac5ee9a597b1eaa7aa36593b5728e51c97 # shrinks to nx = 1, ny = 1, nz = 2, nw = 1, mode = Reversible, data = [0, -1]
+cc 34c1e83dde3968df0aac456f98959796c94e3156791c90ed29590bad0ae8910b # shrinks to nx = 1, ny = 2, nz = 1, mode = Reversible, data = [0.0, 2.4291205626578165e-228]
+cc 0b1cd50ad7350e40e3a595e76833e6c94a5546c5b930f637fabdaec5aa5a64ed # shrinks to nx = 1, ny = 1, nz = 2, nw = 1, mode = Reversible, data = [0.0, 8.536393099230592e226]
+cc 23a8c7534073b9d9fb0d05a6f726366900a257c432e45d43433dc65d3c5b0d6d # shrinks to nx = 1, ny = 1, nz = 6, mode = Reversible, data = [0, 0, 0, 0, 0, -1]
+cc 56db91b7ec64636b78e8fea790922d48f9c1616f25bfcbdf7214d87c59eec0de # shrinks to nx = 1, ny = 1, nz = 2, nw = 1, mode = Reversible, data = [0, -1]
+cc f52d4f769c3d6d30854b8cb9f5761cb76d97deff9051a4e19a0ad6279da583bc # shrinks to nx = 6, ny = 1, nz = 1, mode = Reversible, data = [0, 0, 0, 0, 0, 1]
+cc eb38eaa94524a92026845addae986be619471405ed92dda05eea442ed2aeb2e6 # shrinks to nx = 31, mode = FixedRate(12), data = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 9.736307e-31, -0.0]
+cc a1d321835e417c64fe07123fd8c00c2a76d5225d7be2352d4125ed4ea47730a5 # shrinks to nx = 1, ny = 1, nz = 1, nw = 1, mode = FixedPrecision(31), data = [9.279004e-34]
+cc 4ab0d556f2eecc4825c0dcd4638d59c2f33db7ba71d30335bf3413a69ba45c83 # shrinks to nx = 2, ny = 6, nz = 5, mode = FixedRate(21), data = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0, 0.0, -0.0, -7.237622e-32]
+cc f36b1a942c9423f689c99de6e7569993cd2d915c9686882bf3893a7b6933dc3c # shrinks to nx = 2, ny = 1, mode = FixedRate(12), data = [3.2299398e-34, 0.0]
+cc bd61401d634132e98efafb980a2756a647de9275b8c1aa8773d036363eb62076 # shrinks to nx = 1, ny = 6, mode = FixedRate(13), data = [0.0, 0.0, 0.0, 0.0, -1.9486481272061192e-306, -0.0]
+cc 67a0d4d80b1c63e0484a32a305f06140b921cc8a60f6367dcb4b99dbf2cb9136 # shrinks to nx = 1, mode = FixedRate(262), data = [1.1483203850210945e-303]

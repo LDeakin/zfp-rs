@@ -1,0 +1,32 @@
+[package]
+name = "zfp-rs-ffi"
+authors = ["Lachlan Deakin <ljdgit@gmail.com>"]
+version = "0.1.0"
+edition = "2024"
+description = "C ABI bindings layer around zfp-rs: mirrors the zfp-sys API"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/LDeakin/zfp-rs"
+readme = "README.md"
+keywords = ["compression", "scientific", "array", "numeric", "zfp"]
+categories = ["algorithms", "science", "mathematics"]
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+# ABI functions are exported with their upstream-compatible `zfp_*` and
+# `stream_*` C symbol names.
+[features]
+default = []
+rayon = ["dep:rayon", "zfp-rs/rayon"]
+
+[dependencies]
+zfp-rs = { workspace = true, features = ["ffi"] }
+rayon = { version = "1", optional = true }
+
+[build-dependencies]
+zfp-sys = "0.1"
+
+[dev-dependencies]
+bytemuck = "1"
+libloading = "0.8"
+proptest = "1"

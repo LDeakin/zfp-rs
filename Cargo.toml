@@ -1,0 +1,38 @@
+[workspace]
+members = [".", "zfp-test-utils", "zfp-rs-ffi", "zfp-benchmarks"]
+
+[package]
+name = "zfp-rs"
+authors = ["Lachlan Deakin <ljdgit@gmail.com>"]
+version = "0.1.0"
+edition = "2024"
+description = "A pure-Rust implementation of the ZFP compression algorithm"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/LDeakin/zfp-rs"
+readme = "README.md"
+keywords = ["compression", "scientific", "array", "numeric", "zfp"]
+categories = ["algorithms", "science", "mathematics"]
+
+[features]
+default = []
+# Expose low-level APIs needed by the C-ABI FFI bindings layer:
+# parameter query functions, block encode/decode with explicit params,
+# and type promotion functions.
+ffi = []
+# Optional Rayon-based parallel execution support.
+rayon = ["dep:rayon"]
+
+[dependencies]
+bitflags = "2"
+bytemuck = "1"
+libm = "0.2"
+rayon = { version = "1", optional = true }
+
+[dev-dependencies]
+proptest = "1"
+zfp-sys = "0.1"
+zfp-test-utils = { path = "zfp-test-utils" }
+
+[workspace.dependencies.zfp-rs]
+version = "0.1.0"
+path = "."

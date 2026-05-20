@@ -1,0 +1,8 @@
+/target
+/docs/benchmarks/*.svg
+/docs/benchmarks/*.json
+/docs/benchmarks/*.csv
+*.pyc
+.cargo_vcs_info.json
+Cargo.toml.orig
+Cargo.lock

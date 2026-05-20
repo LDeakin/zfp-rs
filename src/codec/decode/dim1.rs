@@ -1,0 +1,310 @@
+//! 1-D block decode (operates on a 4-element block).
+//!
+//! Reference: `zfp/src/template/decode1.c`
+
+#![allow(clippy::cast_possible_truncation)]
+
+use crate::bitstream::ZfpBitStreamOps;
+use crate::codec::decode::float::{
+    DOUBLE_MINEXP, FLOAT_MINEXP, decode_block_1d_f32, decode_block_1d_f64,
+};
+use crate::codec::decode::integer::{decode_block_1d_i32, decode_block_1d_i64};
+
+const MINBITS: u32 = 0;
+const INT32_MAXBITS: u32 = 32 * 4 + 1;
+const INT64_MAXBITS: u32 = 64 * 4 + 1;
+const INT32_MAXPREC: u32 = 32;
+const INT64_MAXPREC: u32 = 64;
+const FLOAT_MAXBITS: u32 = (8 + 1) + 32 * 4;
+const DOUBLE_MAXBITS: u32 = (11 + 1) + 64 * 4;
+const FLOAT_MAXPREC: u32 = 32;
+const DOUBLE_MAXPREC: u32 = 64;
+
+// ---------------------------------------------------------------------------
+// Scatter helpers
+// ---------------------------------------------------------------------------
+
+#[allow(clippy::cast_possible_wrap)] // usize→isize for pointer offset
+fn scatter_1d<T: Copy>(block: &[T; 4], data: &mut [T], sx: isize) {
+    let p = data.as_mut_ptr();
+    for (x, &val) in block.iter().enumerate() {
+        // SAFETY: caller guarantees data spans 4 elements with stride sx
+        unsafe { *p.offset(x as isize * sx) = val };
+    }
+}
+
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for pointer offset
+fn scatter_partial_1d<T: Copy>(block: &[T; 4], data: &mut [T], nx: usize, sx: isize) {
+    let p = data.as_mut_ptr();
+    for (x, &val) in block[..nx].iter().enumerate() {
+        unsafe { *p.offset(x as isize * sx) = val };
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Contiguous block decode
+// ---------------------------------------------------------------------------
+
+/// Decode a contiguous 1-D block of 4 `i32` values; return bits read.
+pub fn decode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i32; 4]) -> usize {
+    let before = bs.read_pos();
+    let decoded = decode_block_1d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
+    *block = decoded;
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a contiguous 1-D block of 4 `i64` values; return bits read.
+pub fn decode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i64; 4]) -> usize {
+    let before = bs.read_pos();
+    let decoded = decode_block_1d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
+    *block = decoded;
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a contiguous 1-D block of 4 `f32` values; return bits read.
+pub fn decode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f32; 4]) -> usize {
+    let before = bs.read_pos();
+    let decoded = decode_block_1d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
+    *block = decoded;
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a contiguous 1-D block of 4 `f64` values; return bits read.
+pub fn decode_block_1d_f64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f64; 4]) -> usize {
+    let before = bs.read_pos();
+    let decoded = decode_block_1d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
+    *block = decoded;
+    (bs.read_pos() - before) as usize
+}
+
+// ---------------------------------------------------------------------------
+// Strided block decode
+// ---------------------------------------------------------------------------
+
+/// Decode a strided 1-D block of 4 `f64` values; return bits read.
+pub fn decode_block_strided_1d_f64(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f64],
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a strided 1-D block of 4 `f32` values; return bits read.
+pub fn decode_block_strided_1d_f32(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f32],
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a strided 1-D block of 4 `i32` values; return bits read.
+pub fn decode_block_strided_1d_i32(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i32],
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a strided 1-D block of 4 `i64` values; return bits read.
+pub fn decode_block_strided_1d_i64(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i64],
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+// ---------------------------------------------------------------------------
+// Partial strided block decode
+// ---------------------------------------------------------------------------
+
+/// Decode a partial strided 1-D block (nx ≤ 4); return bits read.
+pub fn decode_partial_block_strided_1d_f64(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f64],
+    nx: usize,
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a partial strided 1-D block (nx ≤ 4); return bits read.
+pub fn decode_partial_block_strided_1d_f32(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f32],
+    nx: usize,
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a partial strided 1-D block (nx ≤ 4); return bits read.
+pub fn decode_partial_block_strided_1d_i32(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i32],
+    nx: usize,
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
+
+/// Decode a partial strided 1-D block (nx ≤ 4); return bits read.
+pub fn decode_partial_block_strided_1d_i64(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i64],
+    nx: usize,
+    sx: isize,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
+
+// ---------------------------------------------------------------------------
+// Rate-constrained strided block decode (for checksum tests)
+// ---------------------------------------------------------------------------
+
+pub fn decode_block_strided_1d_f64_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f64],
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+    minexp: i32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f64(bs, minbits, maxbits, maxprec, minexp);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+pub fn decode_block_strided_1d_f32_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f32],
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+    minexp: i32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f32(bs, minbits, maxbits, maxprec, minexp);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+pub fn decode_block_strided_1d_i32_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i32],
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i32(bs, minbits, maxbits, maxprec);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+pub fn decode_block_strided_1d_i64_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i64],
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i64(bs, minbits, maxbits, maxprec);
+    scatter_1d(&block, data, sx);
+    (bs.read_pos() - before) as usize
+}
+
+pub fn decode_partial_block_strided_1d_f64_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f64],
+    nx: usize,
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+    minexp: i32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f64(bs, minbits, maxbits, maxprec, minexp);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
+
+pub fn decode_partial_block_strided_1d_f32_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [f32],
+    nx: usize,
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+    minexp: i32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_f32(bs, minbits, maxbits, maxprec, minexp);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
+
+pub fn decode_partial_block_strided_1d_i32_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i32],
+    nx: usize,
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i32(bs, minbits, maxbits, maxprec);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
+
+pub fn decode_partial_block_strided_1d_i64_rate(
+    bs: &mut dyn ZfpBitStreamOps,
+    data: &mut [i64],
+    nx: usize,
+    sx: isize,
+    minbits: u32,
+    maxbits: u32,
+    maxprec: u32,
+) -> usize {
+    let before = bs.read_pos();
+    let block = decode_block_1d_i64(bs, minbits, maxbits, maxprec);
+    scatter_partial_1d(&block, data, nx, sx);
+    (bs.read_pos() - before) as usize
+}
