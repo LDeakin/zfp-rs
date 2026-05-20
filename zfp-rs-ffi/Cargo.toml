@@ -23,10 +23,8 @@ rayon = ["dep:rayon", "zfp-rs/rayon"]
 zfp-rs = { workspace = true, features = ["ffi"] }
 rayon = { version = "1", optional = true }
 
-[build-dependencies]
-zfp-sys = "0.1"
-
 [dev-dependencies]
 bytemuck = "1"
 libloading = "0.8"
 proptest = "1"
+zfp-sys = "0.1"

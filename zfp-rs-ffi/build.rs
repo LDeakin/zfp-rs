@@ -15,17 +15,19 @@ struct FnSig {
 
 fn main() {
     let out_dir = PathBuf::from(env::var_os("OUT_DIR").expect("OUT_DIR is set"));
-    let bindings = find_zfp_sys_bindings(&out_dir).unwrap_or_else(|| {
-        panic!(
-            "could not find zfp-sys bindings.rs under {}",
-            out_dir.display()
-        )
-    });
-    println!("cargo:rerun-if-changed={}", bindings.display());
 
-    let source = fs::read_to_string(&bindings).expect("read zfp-sys bindings");
-    let signatures = parse_bindings(&source);
-    let generated = render_assertions(&signatures);
+    // zfp-sys is a dev-dependency, so its bindings may not exist during a
+    // regular `cargo build`.  In that case we emit an empty file; the
+    // assertions are only exercised when running tests.
+    let generated = match find_zfp_sys_bindings(&out_dir) {
+        Some(bindings) => {
+            println!("cargo:rerun-if-changed={}", bindings.display());
+            let source = fs::read_to_string(&bindings).expect("read zfp-sys bindings");
+            let signatures = parse_bindings(&source);
+            render_assertions(&signatures)
+        }
+        None => "// zfp-sys bindings not available at build time\n".to_owned(),
+    };
     fs::write(out_dir.join("abi_signature_assertions.rs"), generated)
         .expect("write generated ABI signature assertions");
 }
