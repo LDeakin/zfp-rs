@@ -699,7 +699,7 @@ pub(crate) fn decode_float_block<const N: usize>(
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
         let prec = precision_f(emax, maxprec, minexp, u32::from(dims));
         let remaining_min = minbits.saturating_sub(bits);
-        let remaining_max = maxbits - bits;
+        let remaining_max = maxbits.saturating_sub(bits);
         let iblock_bits = match dims {
             ZfpDimensionality::D1 => {
                 let iblock = decode_block_1d_i32_core(bs, remaining_min, remaining_max, prec);
@@ -749,7 +749,7 @@ pub(crate) fn decode_double_block<const N: usize>(
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
         let prec = precision_f(emax, maxprec, minexp, u32::from(dims));
         let remaining_min = minbits.saturating_sub(bits);
-        let remaining_max = maxbits - bits;
+        let remaining_max = maxbits.saturating_sub(bits);
         match dims {
             ZfpDimensionality::D1 => {
                 let iblock = decode_block_1d_i64_core(bs, remaining_min, remaining_max, prec);

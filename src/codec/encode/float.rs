@@ -54,7 +54,7 @@ where
         let mut iblock = [0i32; N];
         fwd_cast_f32(&mut iblock, fblock, emax);
         let remaining_min = minbits.saturating_sub(header_bits);
-        let remaining_max = maxbits - header_bits;
+        let remaining_max = maxbits.saturating_sub(header_bits);
         header_bits as usize + encode_int(&mut iblock, bs, remaining_min, remaining_max, prec)
     } else {
         bs.write_bit(0);
@@ -99,7 +99,7 @@ where
         let mut iblock = [0i64; N];
         fwd_cast_f64(&mut iblock, fblock, emax);
         let remaining_min = minbits.saturating_sub(header_bits);
-        let remaining_max = maxbits - header_bits;
+        let remaining_max = maxbits.saturating_sub(header_bits);
         header_bits as usize + encode_int(&mut iblock, bs, remaining_min, remaining_max, prec)
     } else {
         bs.write_bit(0);
