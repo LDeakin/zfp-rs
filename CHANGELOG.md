@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/LDeakin/zfp-rs/compare/v0.1.1...HEAD)
 
+### Changed
+- **Breaking**: Add `InvalidField` variant to `ZfpCompressionError` and mark `#[non_exhaustive]`
+
+### Fixed
+- Validate `ZfpField` length in `CompressInfo::new` and `DecompressInfo::new`
+
 ## [0.1.1](https://github.com/LDeakin/zfp-rs/releases/tag/v0.1.1) - 2026-05-21
 
 ### Added

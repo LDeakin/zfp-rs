@@ -60,6 +60,12 @@ impl CompressInfo {
             return Err(ZfpCompressionError::NoData);
         }
 
+        let required = field.checked_size_bytes().unwrap_or(usize::MAX);
+        let actual = field.data().len();
+        if actual < required {
+            return Err(ZfpCompressionError::InvalidField { required, actual });
+        }
+
         let [nx, ny, nz, nw] = field.dims();
         let dims = field.dimensionality();
         let dim_count = usize::from(dims);

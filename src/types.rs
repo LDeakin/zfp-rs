@@ -94,18 +94,34 @@ impl std::error::Error for ZfpBlockError {}
 /// [`ZfpBitStream::compress_with_execution`][crate::ZfpBitStream::compress_with_execution],
 /// and `compress_bitstream` when the `ffi` feature is enabled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ZfpCompressionError {
     /// The input field has no data buffer.
     ///
     /// This occurs when a `ZfpField` was created with empty data
     /// or from a null pointer or zero byte count.
     NoData,
+    /// The input field's data buffer is smaller than its dimensions and
+    /// strides require.
+    ///
+    /// Compressing such a field would read out of bounds, so it is rejected.
+    InvalidField {
+        /// Bytes spanned by the field's dimensions and strides. `usize::MAX`
+        /// if the span itself overflows `usize`.
+        required: usize,
+        /// Bytes actually available in the field's data buffer.
+        actual: usize,
+    },
 }
 
 impl fmt::Display for ZfpCompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ZfpCompressionError::NoData => write!(f, "input field has no data buffer"),
+            ZfpCompressionError::InvalidField { required, actual } => write!(
+                f,
+                "input field spans {required} bytes but its data buffer holds only {actual}"
+            ),
         }
     }
 }
@@ -118,18 +134,35 @@ impl std::error::Error for ZfpCompressionError {}
 /// [`ZfpBitStream::decompress_with_execution`][crate::ZfpBitStream::decompress_with_execution],
 /// and `decompress_bitstream` when the `ffi` feature is enabled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ZfpDecompressionError {
     /// The output field has no data buffer.
     ///
     /// This occurs when a `ZfpFieldMut` was created from a null pointer or
     /// zero byte count.
     NoData,
+    /// The output field's data buffer is smaller than its dimensions and
+    /// strides require.
+    ///
+    /// Decompressing into such a field would write out of bounds, so it is
+    /// rejected.
+    InvalidField {
+        /// Bytes spanned by the field's dimensions and strides. `usize::MAX`
+        /// if the span itself overflows `usize`.
+        required: usize,
+        /// Bytes actually available in the field's data buffer.
+        actual: usize,
+    },
 }
 
 impl fmt::Display for ZfpDecompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ZfpDecompressionError::NoData => write!(f, "output field has no data buffer"),
+            ZfpDecompressionError::InvalidField { required, actual } => write!(
+                f,
+                "output field spans {required} bytes but its data buffer holds only {actual}"
+            ),
         }
     }
 }

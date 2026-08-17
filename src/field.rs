@@ -255,6 +255,12 @@ impl ZfpField<'_> {
         let size = self.scalar_type.size();
         (imax - imin + 1) as usize * size
     }
+
+    /// [`size_bytes`][Self::size_bytes] with overflow checking; `None` if the
+    /// span does not fit in a `usize`.
+    pub(crate) fn checked_size_bytes(&self) -> Option<usize> {
+        checked_size_bytes(&self.dims, &self.strides, self.scalar_type)
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -451,6 +457,12 @@ impl ZfpFieldMut<'_> {
         (imax - imin + 1) as usize * size
     }
 
+    /// [`size_bytes`][Self::size_bytes] with overflow checking; `None` if the
+    /// span does not fit in a `usize`.
+    pub(crate) fn checked_size_bytes(&self) -> Option<usize> {
+        checked_size_bytes(&self.dims, &self.strides, self.scalar_type)
+    }
+
     /// Create a mutable field from a raw byte pointer in a single call.
     ///
     /// This constructor accepts the total byte count directly, avoiding the
@@ -607,6 +619,50 @@ fn field_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isize, isize) {
     (imin, imax)
 }
 
+/// Number of bytes a field with these dimensions and strides spans, using
+/// checked arithmetic throughout.
+///
+/// Returns `None` if the span overflows, which callers treat as "no buffer can
+/// possibly be large enough".
+pub(crate) fn checked_size_bytes(
+    dims: &[usize; 4],
+    strides: &[isize; 4],
+    scalar_type: ZfpScalarType,
+) -> Option<usize> {
+    let effective = [
+        if strides[0] != 0 { strides[0] } else { 1 },
+        if strides[1] != 0 {
+            strides[1]
+        } else {
+            isize::try_from(dims[0]).ok()?
+        },
+        if strides[2] != 0 {
+            strides[2]
+        } else {
+            isize::try_from(dims[0].checked_mul(dims[1])?).ok()?
+        },
+        if strides[3] != 0 {
+            strides[3]
+        } else {
+            isize::try_from(dims[0].checked_mul(dims[1])?.checked_mul(dims[2])?).ok()?
+        },
+    ];
+
+    let mut imin: isize = 0;
+    let mut imax: isize = 0;
+    for (stride, &dim) in effective.iter().zip(dims.iter()) {
+        if dim == 0 {
+            continue;
+        }
+        let extent = stride.checked_mul(isize::try_from(dim).ok()?.checked_sub(1)?)?;
+        imin = imin.checked_add(extent.min(0))?;
+        imax = imax.checked_add(extent.max(0))?;
+    }
+
+    let span = imax.checked_sub(imin)?.checked_add(1)?;
+    usize::try_from(span).ok()?.checked_mul(scalar_type.size())
+}
+
 /// Compute the 52-bit metadata word for a field with the given type and dims.
 ///
 /// # Errors
@@ -715,4 +771,103 @@ pub(crate) fn decode_metadata(meta: u64) -> Option<[usize; 4]> {
         _ => return None,
     };
     Some(dims)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::checked_size_bytes;
+    use crate::types::ZfpScalarType;
+    use crate::{
+        ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut,
+        types::{ZfpCompressionError, ZfpDecompressionError},
+    };
+
+    #[test]
+    fn checked_size_bytes_matches_size_bytes_for_ordinary_fields() {
+        let data = [0f64; 64];
+        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        assert_eq!(field.checked_size_bytes(), Some(field.size_bytes()));
+
+        // Negative and permuted strides still span the same buffer.
+        let strided = ZfpField::new_strided(&data, [4usize, 4, 4], [1isize, -4, 16]);
+        assert_eq!(strided.checked_size_bytes(), Some(strided.size_bytes()));
+    }
+
+    #[test]
+    fn checked_size_bytes_reports_overflow_instead_of_wrapping() {
+        // The natural stride for the second axis is nx, so the span is
+        // nx * ny elements, which overflows isize here.
+        assert_eq!(
+            checked_size_bytes(
+                &[usize::MAX, usize::MAX, 0, 0],
+                &[0; 4],
+                ZfpScalarType::Double
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn compress_rejects_a_field_larger_than_its_buffer() {
+        // 1000 declared elements over a 4-element slice: compressing this used
+        // to read out of bounds from entirely safe code.
+        let data = [0f64; 4];
+        let field = ZfpField::new(&data, [1000usize]);
+        let config = ZfpConfig::reversible();
+        let mut bs = ZfpBitStream::new(4096);
+
+        assert_eq!(
+            bs.compress(&config, &field),
+            Err(ZfpCompressionError::InvalidField {
+                required: 8000,
+                actual: 32,
+            })
+        );
+    }
+
+    #[test]
+    fn decompress_rejects_a_field_larger_than_its_buffer() {
+        let mut data = [0f64; 4];
+        let mut field = ZfpFieldMut::new(&mut data, [1000usize]);
+        let config = ZfpConfig::reversible();
+        let mut bs = ZfpBitStream::new(4096);
+
+        assert_eq!(
+            bs.decompress(&config, &mut field),
+            Err(ZfpDecompressionError::InvalidField {
+                required: 8000,
+                actual: 32,
+            })
+        );
+    }
+
+    #[test]
+    fn strides_that_overrun_the_buffer_are_rejected() {
+        let data = [0f64; 16];
+        // A 4x4 field with sy = 100 spans 1 + 3*1 + 3*100 = 304 elements.
+        let field = ZfpField::new_strided(&data, [4usize, 4], [1isize, 100]);
+        let config = ZfpConfig::reversible();
+        let mut bs = ZfpBitStream::new(4096);
+
+        assert_eq!(
+            bs.compress(&config, &field),
+            Err(ZfpCompressionError::InvalidField {
+                required: 304 * 8,
+                actual: 128,
+            })
+        );
+    }
+
+    #[test]
+    fn exactly_sized_fields_are_accepted() {
+        let data = [1.5f64; 64];
+        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let config = ZfpConfig::reversible();
+        let mut bs = ZfpBitStream::new(config.maximum_size(ZfpScalarType::Double, &[4, 4, 4]));
+
+        let written = bs
+            .compress(&config, &field)
+            .expect("exact fit must compress");
+        assert!(written > 0);
+    }
 }
