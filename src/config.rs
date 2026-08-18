@@ -204,7 +204,8 @@ fn encode_expert_mode(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32)
     let min_bits = u64::from(min_bits.clamp(1, 0x8000) - 1);
     let max_bits = u64::from(max_bits.clamp(1, 0x8000) - 1);
     let max_prec = u64::from(max_prec.clamp(1, 0x0080) - 1);
-    let min_exp = (min_exp + 16495).clamp(0, 0x7fff) as u64;
+    // Saturating: `ZfpConfig::expert` accepts any `i32`.
+    let min_exp = min_exp.saturating_add(16495).clamp(0, 0x7fff) as u64;
     let mut mode = 0u64;
     mode = (mode << 15) | min_exp;
     mode = (mode << 7) | max_prec;
@@ -485,11 +486,21 @@ impl ZfpConfig {
         extra_bits += values - 1 + values * self.max_prec.min(type_prec);
         let maxbits = extra_bits.min(self.max_bits).max(self.min_bits);
 
-        let blocks: usize = dims.iter().map(|&n| n.div_ceil(4)).product();
+        let Some(blocks) = dims
+            .iter()
+            .try_fold(1usize, |acc, &n| acc.checked_mul(n.div_ceil(4)))
+        else {
+            return 0;
+        };
         // Maximum header size in bits (mirrors ZFP_HEADER_MAX_BITS / zfp_stream_maximum_size in zfp.c).
         let header_max: u64 = 148;
-        let total_bits = header_max + blocks as u64 * u64::from(maxbits);
-        let total_bits = total_bits.next_multiple_of(u64::from(STREAM_WORD_BITS));
+        let Some(total_bits) = (blocks as u64)
+            .checked_mul(u64::from(maxbits))
+            .and_then(|bits| bits.checked_add(header_max))
+            .and_then(|bits| bits.checked_next_multiple_of(u64::from(STREAM_WORD_BITS)))
+        else {
+            return 0;
+        };
         let bytes = total_bits / 8;
         if bytes as usize as u64 != bytes {
             return 0;

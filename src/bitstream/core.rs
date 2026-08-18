@@ -53,7 +53,8 @@ pub(super) fn cast_bytes_to_words_mut(buf: &mut [u8]) -> Option<&mut [ZfpBitStre
 
 fn read_word_raw<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u64 {
     let pos = stream.state().word_pos;
-    let w = stream.words()[pos];
+    // Zero past the end rather than panicking; C reads out of bounds here.
+    let w = stream.words().get(pos).copied().unwrap_or(0);
     stream.state_mut().word_pos += 1;
     w
 }
@@ -65,7 +66,10 @@ fn write_word_raw<S: BitStreamStorageMut + ?Sized>(stream: &mut S, value: u64) {
 }
 
 pub(super) fn as_committed_bytes<S: BitStreamStorage + ?Sized>(stream: &S) -> &[u8] {
-    bytemuck::cast_slice(&stream.words()[..stream.state().word_pos])
+    // Clamped: a seek past the end is permitted, so `word_pos` may exceed the buffer.
+    let words = stream.words();
+    let end = stream.state().word_pos.min(words.len());
+    bytemuck::cast_slice(&words[..end])
 }
 
 pub(super) fn backing_bytes<S: BitStreamStorage + ?Sized>(stream: &S) -> &[u8] {
@@ -129,7 +133,9 @@ pub(super) fn read_bit_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u32
 #[allow(clippy::cast_possible_truncation)]
 pub(super) fn seek_read_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offset: u64) {
     let n = (offset % u64::from(WSIZE)) as u32;
-    stream.state_mut().word_pos = (offset / u64::from(WSIZE)) as usize;
+    // Clamped to the buffer; C's `stream_rseek` stores the offset unchecked.
+    let limit = stream.words().len();
+    stream.state_mut().word_pos = ((offset / u64::from(WSIZE)) as usize).min(limit);
     if n != 0 {
         let word = read_word_raw(stream);
         let state = stream.state_mut();
@@ -199,10 +205,17 @@ pub(super) fn write_bit_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, bi
 #[allow(clippy::cast_possible_truncation)]
 pub(super) fn seek_write_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offset: u64) {
     let n = (offset % u64::from(WSIZE)) as u32;
-    stream.state_mut().word_pos = (offset / u64::from(WSIZE)) as usize;
+    // Clamped, as in `seek_read_impl`.
+    let limit = stream.words().len();
+    stream.state_mut().word_pos = ((offset / u64::from(WSIZE)) as usize).min(limit);
     if n != 0 {
         let pos = stream.state().word_pos;
-        let buf = stream.words()[pos];
+        let Some(&buf) = stream.words().get(pos) else {
+            let state = stream.state_mut();
+            state.buffer = 0;
+            state.bits = n;
+            return;
+        };
         let state = stream.state_mut();
         state.buffer = buf & ((1u64 << n) - 1);
         state.bits = n;
@@ -218,15 +231,23 @@ pub(super) fn rewind_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) {
 }
 
 pub(super) fn write_pos_impl<S: BitStreamStorage + ?Sized>(stream: &S) -> u64 {
-    stream.state().word_pos as u64 * u64::from(WSIZE) + u64::from(stream.state().bits)
+    // Wrapping, as in `read_pos_impl`: a wrapped read position can be seeked to.
+    (stream.state().word_pos as u64)
+        .wrapping_mul(u64::from(WSIZE))
+        .wrapping_add(u64::from(stream.state().bits))
 }
 
 pub(super) fn read_pos_impl<S: BitStreamStorage + ?Sized>(stream: &S) -> u64 {
-    stream.state().word_pos as u64 * u64::from(WSIZE) - u64::from(stream.state().bits)
+    // `bits` is shared with the write path, so `word_pos == 0` with `bits > 0`
+    // is reachable (e.g. after one `write_bits`). C's `stream_rtell` wraps too.
+    (stream.state().word_pos as u64)
+        .wrapping_mul(u64::from(WSIZE))
+        .wrapping_sub(u64::from(stream.state().bits))
 }
 
 pub(super) fn skip_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: usize) {
-    let pos = read_pos_impl(stream) + n as u64;
+    // Wrapping, as in `read_pos_impl`.
+    let pos = read_pos_impl(stream).wrapping_add(n as u64);
     seek_read_impl(stream, pos);
 }
 
