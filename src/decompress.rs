@@ -285,16 +285,7 @@ pub(crate) fn decompress_rayon(
     // the full buffer length to cover all compressed data.
     let words = bs.words();
 
-    // Capture values needed by parallel closure.
-    let dim_count = info.dim_count;
-    let imin = info.imin;
-    let elem_size = info.elem_size;
-    let strides = info.strides;
-    let dims_arr = info.dims;
-    let dims_enum = field.dimensionality();
-    let ty = field.scalar_type();
-    // Data pointer as usize (not *mut) so it can be sent to threads.
-    let data_ptr = field.data_mut().as_mut_ptr() as usize;
+    let base = FieldPtr(field.data_mut().as_mut_ptr());
 
     if threads > 0 {
         let pool = rayon::ThreadPoolBuilder::new()
@@ -310,14 +301,7 @@ pub(crate) fn decompress_rayon(
                 blocks,
                 bits_per_block,
                 start_read_bit,
-                dim_count,
-                imin,
-                elem_size,
-                strides,
-                dims_arr,
-                dims_enum,
-                ty,
-                data_ptr,
+                base,
             );
         });
     } else {
@@ -329,30 +313,44 @@ pub(crate) fn decompress_rayon(
             blocks,
             bits_per_block,
             start_read_bit,
-            dim_count,
-            imin,
-            elem_size,
-            strides,
-            dims_arr,
-            dims_enum,
-            ty,
-            data_ptr,
+            base,
         );
     }
 
     Ok(bs.size())
 }
 
-/// Run the parallel decompression loop.
+/// A `*mut u8` into the field's data buffer, handed to worker threads.
+///
+/// Carrying the real pointer rather than a `usize` round-trip keeps its
+/// provenance intact, which `-Zmiri-strict-provenance` requires.
 #[cfg(feature = "rayon")]
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_lines)]
-#[allow(
-    clippy::cast_ptr_alignment,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss
-)]
-#[allow(clippy::ptr_as_ptr)] // data_ptr cast from usize needed for thread safety
+#[derive(Clone, Copy)]
+struct FieldPtr(*mut u8);
+
+#[cfg(feature = "rayon")]
+impl FieldPtr {
+    /// Take `self` by value so closures capture the whole `FieldPtr` rather
+    /// than the bare `*mut u8` inside it: precise capture would otherwise grab
+    /// `base.0`, and `&*mut u8` is not `Sync`.
+    fn ptr(self) -> *mut u8 {
+        self.0
+    }
+}
+
+// SAFETY: chunks cover disjoint ranges of block indices and blocks map to
+// disjoint byte ranges, so no two threads write the same byte and no thread
+// reads a byte another thread writes.
+#[cfg(feature = "rayon")]
+unsafe impl Send for FieldPtr {}
+#[cfg(feature = "rayon")]
+unsafe impl Sync for FieldPtr {}
+
+/// Decompress chunks of blocks in parallel.
+///
+/// Each chunk gets its own bitstream view and seeks directly to its blocks' bit
+/// positions, then defers to the same `decompress_block` the serial path uses.
+#[cfg(feature = "rayon")]
 fn decompress_chunks(
     words: &[u64],
     chunk_starts: &[usize],
@@ -361,20 +359,9 @@ fn decompress_chunks(
     blocks: usize,
     bits_per_block: u32,
     start_read_bit: u64,
-    dim_count: usize,
-    imin: isize,
-    elem_size: usize,
-    strides: [isize; 4],
-    dims_arr: [usize; 4],
-    dims_enum: crate::types::ZfpDimensionality,
-    ty: ZfpScalarType,
-    data_ptr: usize,
+    base: FieldPtr,
 ) {
     use crate::bitstream::borrowed::ZfpBitStreamRef;
-    use crate::codec::block::{
-        decode_block_strided_reversible, decode_block_strided_with_params,
-        decode_partial_block_strided_with_params,
-    };
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     (0..chunk_starts.len()).into_par_iter().for_each(|chunk| {
@@ -388,208 +375,11 @@ fn decompress_chunks(
         let mut local_bs = ZfpBitStreamRef::from_words(words);
 
         for block_idx in start_block..end_block {
-            let block_bit_offset = start_read_bit + block_idx as u64 * u64::from(bits_per_block);
-            local_bs.seek_read(block_bit_offset);
-
-            let (ix, iy, iz, iw) = info.block_coords(block_idx);
-            let [nx, ny, nz, nw] = dims_arr;
-
-            let elem_off = -imin
-                + (ix as isize) * 4 * strides[0]
-                + (iy as isize) * 4 * strides[1]
-                + (iz as isize) * 4 * strides[2]
-                + (iw as isize) * 4 * strides[3];
-
-            let lx = (nx - ix * 4).min(4);
-            let ly = if dim_count >= 2 {
-                (ny - iy * 4).min(4)
-            } else {
-                0
-            };
-            let lz = if dim_count >= 3 {
-                (nz - iz * 4).min(4)
-            } else {
-                0
-            };
-            let lw = if dim_count >= 4 {
-                (nw - iw * 4).min(4)
-            } else {
-                0
-            };
-            let lengths = [lx, ly, lz, lw];
-            let full = lx == 4
-                && (dim_count < 2 || ly == 4)
-                && (dim_count < 3 || lz == 4)
-                && (dim_count < 4 || lw == 4);
-
-            let byte_off = (elem_off as usize) * elem_size;
-
-            match ty {
-                ZfpScalarType::Int32 => {
-                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<i32>() };
-                    // SAFETY: `block` covers this block's span within the field buffer,
-                    // which `DecompressInfo::new` validated against the field's index
-                    // range; blocks are non-overlapping so each thread writes distinct
-                    // memory.
-                    unsafe {
-                        if config.min_exp() < ZFP_MIN_EXP {
-                            decode_block_strided_reversible(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                lengths,
-                            );
-                        } else if full {
-                            decode_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        } else {
-                            decode_partial_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &lengths,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        }
-                    }
-                }
-                ZfpScalarType::Int64 => {
-                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<i64>() };
-                    // SAFETY: `block` covers this block's span within the field buffer,
-                    // which `DecompressInfo::new` validated against the field's index
-                    // range; blocks are non-overlapping so each thread writes distinct
-                    // memory.
-                    unsafe {
-                        if config.min_exp() < ZFP_MIN_EXP {
-                            decode_block_strided_reversible(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                lengths,
-                            );
-                        } else if full {
-                            decode_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        } else {
-                            decode_partial_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &lengths,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        }
-                    }
-                }
-                ZfpScalarType::Float => {
-                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<f32>() };
-                    // SAFETY: `block` covers this block's span within the field buffer,
-                    // which `DecompressInfo::new` validated against the field's index
-                    // range; blocks are non-overlapping so each thread writes distinct
-                    // memory.
-                    unsafe {
-                        if config.min_exp() < ZFP_MIN_EXP {
-                            decode_block_strided_reversible(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                lengths,
-                            );
-                        } else if full {
-                            decode_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        } else {
-                            decode_partial_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &lengths,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        }
-                    }
-                }
-                ZfpScalarType::Double => {
-                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<f64>() };
-                    // SAFETY: `block` covers this block's span within the field buffer,
-                    // which `DecompressInfo::new` validated against the field's index
-                    // range; blocks are non-overlapping so each thread writes distinct
-                    // memory.
-                    unsafe {
-                        if config.min_exp() < ZFP_MIN_EXP {
-                            decode_block_strided_reversible(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                lengths,
-                            );
-                        } else if full {
-                            decode_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        } else {
-                            decode_partial_block_strided_with_params(
-                                &mut local_bs,
-                                block,
-                                dims_enum,
-                                &lengths,
-                                &strides,
-                                config.min_bits(),
-                                config.max_bits(),
-                                config.max_prec(),
-                                config.min_exp(),
-                            );
-                        }
-                    }
-                }
-            }
+            local_bs.seek_read(start_read_bit + block_idx as u64 * u64::from(bits_per_block));
+            // SAFETY: `base` is the buffer `DecompressInfo::new` validated for
+            // length and alignment, and chunks cover disjoint blocks, so this
+            // thread writes only bytes no other thread touches.
+            unsafe { decompress_block(&mut local_bs, base.ptr(), info, config, block_idx) };
         }
     });
 }
