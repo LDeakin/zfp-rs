@@ -62,3 +62,7 @@ fuzz_coverage target:
 # Lint the fuzz crate (it is outside the workspace, so `just clippy` misses it)
 fuzz_clippy:
 	cargo +nightly clippy --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
+
+# Check the strided codec for provenance UB under Miri (needs the miri component)
+miri:
+	MIRIFLAGS="-Zmiri-strict-provenance" cargo +nightly miri test -p zfp-fuzz-common --test miri
