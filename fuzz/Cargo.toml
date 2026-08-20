@@ -1,0 +1,83 @@
+[package]
+name = "zfp-rs-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+# Deliberately NOT part of the root workspace: this crate needs a nightly
+# toolchain and libFuzzer, and must not be pulled into `cargo build --workspace`
+# or `cargo clippy --workspace --all-targets`. The root manifest also lists
+# `fuzz` under `workspace.exclude`.
+[workspace]
+members = ["."]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+zfp-fuzz-common = { path = "../zfp-fuzz-common" }
+
+[dependencies.zfp-rs]
+path = ".."
+features = ["ffi"]
+
+[features]
+default = []
+# Fuzz the Rayon execution paths. Run these under ThreadSanitizer:
+# `cargo +nightly fuzz run --features rayon -s thread roundtrip`
+rayon = ["zfp-rs/rayon", "zfp-fuzz-common/rayon"]
+
+# libFuzzer builds in release mode. `debug = 1` gives symbolized stack traces;
+# `debug-assertions` and `overflow-checks` turn silent integer wraparound in
+# `maximum_size`, `field_index_span` and `read_pos` into reportable crashes.
+# Setting these here rather than passing `--debug-assertions` keeps behaviour
+# identical across cargo-fuzz versions and between CI and local runs.
+[profile.release]
+debug = 1
+debug-assertions = true
+overflow-checks = true
+incremental = false
+codegen-units = 1
+
+[[bin]]
+name = "roundtrip"
+path = "fuzz_targets/roundtrip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "decompress_stream"
+path = "fuzz_targets/decompress_stream.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "block_codec"
+path = "fuzz_targets/block_codec.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "header_decode"
+path = "fuzz_targets/header_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "config_mode"
+path = "fuzz_targets/config_mode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "bitstream_ops"
+path = "fuzz_targets/bitstream_ops.rs"
+test = false
+doc = false
+bench = false

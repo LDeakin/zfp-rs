@@ -25,3 +25,40 @@ bench:
 # Generate SVG plots and CSV from existing benchmark results only
 bench_plot:
 	uv run scripts/plot_benchmarks.py
+
+# Build all fuzz targets (requires nightly + `cargo install cargo-fuzz`)
+fuzz_build:
+	cargo +nightly fuzz build
+
+# Run one fuzz target: `just fuzz roundtrip 60`
+fuzz target time='60':
+	mkdir -p fuzz/corpus/{{target}}
+	cargo +nightly fuzz run {{target}} fuzz/corpus/{{target}} fuzz/seeds/{{target}} -- -max_total_time={{time}} -max_len=4096 -rss_limit_mb=2048 -malloc_limit_mb=1024 -timeout=10
+
+# Briefly run every fuzz target (mirrors the CI smoke job)
+fuzz_smoke:
+	for t in $(cargo +nightly fuzz list); do just fuzz $t 30; done
+
+# Replay all committed crash regressions (stable; also runs in `just test`)
+fuzz_regressions:
+	cargo test -p zfp-fuzz-common --test regressions
+
+# Minimize a crash input before committing it as a regression
+fuzz_tmin target input:
+	cargo +nightly fuzz tmin {{target}} {{input}}
+
+# Minimize every corpus
+fuzz_cmin:
+	for t in $(cargo +nightly fuzz list); do cargo +nightly fuzz cmin $t; done
+
+# Regenerate the committed seed corpora
+fuzz_seeds:
+	cargo run -p zfp-fuzz-common --bin gen_seeds
+
+# Coverage report for a fuzz target (checks the fuzzer is not stuck)
+fuzz_coverage target:
+	cargo +nightly fuzz coverage {{target}}
+
+# Lint the fuzz crate (it is outside the workspace, so `just clippy` misses it)
+fuzz_clippy:
+	cargo +nightly clippy --manifest-path fuzz/Cargo.toml --all-targets -- -D warnings
