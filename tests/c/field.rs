@@ -50,12 +50,10 @@ macro_rules! field_tests {
                 let n = ($sx) * ($nx - 1) + 1;
                 let data = vec![<$ty>::default(); n];
                 let field = ZfpField::new_strided(&data, [$nx], [-($sx as isize)]);
-                let imin: isize = (-($sx as isize)) * ($nx as isize - 1);
-                // SAFETY: `imin` is negative but the Vec was allocated with
-                // `n` elements to cover the full strided span, so
-                // `data.as_ptr().offset(imin)` remains within the allocation.
-                let expected = unsafe { data.as_ptr().offset(imin) }.cast();
-                assert_eq!(field.begin().unwrap(), expected);
+                // `data` covers the whole strided span starting at its lowest
+                // address, so `begin` is the slice start whatever the stride
+                // signs; the element at index 0 is the *last* one here.
+                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
             }
 
             #[test]
@@ -122,11 +120,9 @@ macro_rules! field_tests {
                 let data = vec![<$ty>::default(); n];
                 let field =
                     ZfpField::new_strided(&data, [$nx, $ny], [-($sx as isize), -($sy as isize)]);
-                let imin: isize =
-                    (-($sx as isize)) * ($nx as isize - 1) + (-($sy as isize)) * ($ny as isize - 1);
-                // SAFETY: `imin` is negative but within the allocation.
-                let expected = unsafe { data.as_ptr().offset(imin) }.cast();
-                assert_eq!(field.begin().unwrap(), expected);
+                // `begin` is the slice start: `data` covers the whole strided
+                // span from its lowest address.
+                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
             }
 
             #[test]
@@ -201,12 +197,9 @@ macro_rules! field_tests {
                     [$nx, $ny, $nz],
                     [-($sx as isize), -($sy as isize), -($sz as isize)],
                 );
-                let imin: isize = (-($sx as isize)) * ($nx as isize - 1)
-                    + (-($sy as isize)) * ($ny as isize - 1)
-                    + (-($sz as isize)) * ($nz as isize - 1);
-                // SAFETY: `imin` is negative but within the allocation.
-                let expected = unsafe { data.as_ptr().offset(imin) }.cast();
-                assert_eq!(field.begin().unwrap(), expected);
+                // `begin` is the slice start: `data` covers the whole strided
+                // span from its lowest address.
+                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
             }
 
             #[test]
@@ -298,13 +291,9 @@ macro_rules! field_tests {
                         -($sw as isize),
                     ],
                 );
-                let imin: isize = (-($sx as isize)) * ($nx as isize - 1)
-                    + (-($sy as isize)) * ($ny as isize - 1)
-                    + (-($sz as isize)) * ($nz as isize - 1)
-                    + (-($sw as isize)) * ($nw as isize - 1);
-                // SAFETY: `imin` is negative but within the allocation.
-                let expected = unsafe { data.as_ptr().offset(imin) }.cast();
-                assert_eq!(field.begin().unwrap(), expected);
+                // `begin` is the slice start: `data` covers the whole strided
+                // span from its lowest address.
+                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
             }
 
             #[test]
