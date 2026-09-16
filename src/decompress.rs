@@ -211,34 +211,25 @@ pub(crate) fn decompress_rayon(
 
     let base = FieldPtr(field.data_mut().as_mut_ptr());
 
-    if threads > 0 {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads as usize)
-            .build()
-            .expect("rayon thread pool creation failed");
-        pool.install(|| {
-            decompress_chunks(
-                words,
-                &chunk_starts,
-                &info,
-                config,
-                blocks,
-                bits_per_block,
-                start_read_bit,
-                base,
-            );
-        });
-    } else {
+    let run = || {
         decompress_chunks(
             words,
             &chunk_starts,
             &info,
             config,
-            blocks,
             bits_per_block,
             start_read_bit,
             base,
         );
+    };
+    if threads > 0 {
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(threads as usize)
+            .build()
+            .expect("rayon thread pool creation failed");
+        pool.install(run);
+    } else {
+        run();
     }
 
     Ok(bs.size())
@@ -280,7 +271,6 @@ fn decompress_chunks(
     chunk_starts: &[usize],
     info: &FieldPlan,
     config: &ZfpConfig,
-    blocks: usize,
     bits_per_block: u32,
     start_read_bit: u64,
     base: FieldPtr,
@@ -293,7 +283,7 @@ fn decompress_chunks(
         let end_block = if chunk + 1 < chunk_starts.len() {
             chunk_starts[chunk + 1]
         } else {
-            blocks
+            info.num_blocks
         };
 
         let mut local_bs = ZfpBitStreamRef::from_words(words);
