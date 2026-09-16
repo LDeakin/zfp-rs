@@ -238,6 +238,7 @@ macro_rules! reversible_dispatch {
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
+#[cfg(feature = "ffi")]
 pub unsafe fn encode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: &[T],
@@ -288,6 +289,7 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
+#[cfg(feature = "ffi")]
 pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: &[T],
@@ -341,6 +343,7 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
+#[cfg(feature = "ffi")]
 pub unsafe fn decode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [T],
@@ -391,6 +394,7 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
+#[cfg(feature = "ffi")]
 pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [T],
@@ -442,6 +446,10 @@ pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
 /// `dims` is 1–4, `strides` has effective (non-zero) strides.
 /// For partial blocks, `lengths` gives the count per dimension (≤ 4), and
 /// elements outside the field boundary are padded with the nearest value.
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
 unsafe fn gather_block<T: ZfpScalar>(
     data: &[T],
@@ -549,6 +557,10 @@ unsafe fn gather_block<T: ZfpScalar>(
 ///
 /// Only the `lengths` elements in each dimension are written; padding elements
 /// are discarded.
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
 unsafe fn scatter_block<T: ZfpScalar>(
     block: &[T],

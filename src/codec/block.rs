@@ -29,7 +29,13 @@ use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
 mod strided;
 
+// Public only with `ffi`, which the C-ABI layer enables. Without it these stay
+// crate-internal: they are unsafe, and the safe whole-field API covers every
+// use a Rust caller has.
+#[cfg(feature = "ffi")]
 pub use strided::*;
+#[cfg(not(feature = "ffi"))]
+pub(crate) use strided::*;
 
 // ---------------------------------------------------------------------------
 // Contiguous block encode

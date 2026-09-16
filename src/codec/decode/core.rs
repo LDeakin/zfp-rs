@@ -806,6 +806,7 @@ macro_rules! strided_decode_wrappers {
         /// # Safety
         /// `data` must be valid for every offset the strides generate. See
         /// [`crate::codec::block`].
+        #[cfg(feature = "ffi")]
         pub unsafe fn $full(
             bs: &mut dyn ZfpBitStreamOps,
             data: &mut [$ty],
@@ -822,6 +823,7 @@ macro_rules! strided_decode_wrappers {
         /// # Safety
         /// `data` must be valid for every offset the strides generate. See
         /// [`crate::codec::block`].
+        #[cfg(feature = "ffi")]
         pub unsafe fn $partial(
             bs: &mut dyn ZfpBitStreamOps,
             data: &mut [$ty],

@@ -12,8 +12,8 @@ rayon = ["zfp-rs/rayon"]
 [dependencies]
 arbitrary = { version = "1", features = ["derive"] }
 libm = "0.2"
-# The `block_codec` target drives `codec::block::*_strided_with_params`, which a
-# later commit makes `ffi`-only. `zfp-benchmarks` already unifies `ffi` into
-# `cargo test --workspace`, so asking for it here changes nothing that the
-# workspace build resolves today.
+# `ffi` is required: the `block_codec` target drives
+# `codec::block::*_strided_with_params`, which is public only with that feature.
+# `zfp-benchmarks` already unifies `ffi` into `cargo test --workspace`, so this
+# does not change what the workspace build resolves.
 zfp-rs = { workspace = true, features = ["ffi"] }
