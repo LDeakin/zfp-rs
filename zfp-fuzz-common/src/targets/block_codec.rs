@@ -19,8 +19,8 @@
 use zfp_rs::{
     ZfpBitStream, ZfpConfig,
     codec::block::{
-        decode_block_strided_with_params, decode_partial_block_strided_with_params,
-        encode_block_strided_with_params, encode_partial_block_strided_with_params,
+        decode_block_strided, decode_partial_block_strided, encode_block_strided,
+        encode_partial_block_strided,
     },
     types::ZFP_MIN_EXP,
     types::ZfpDimensionality,
@@ -59,8 +59,8 @@ pub fn run(data: &[u8]) {
     };
     // Reversible mode is signalled by `min_exp < ZFP_MIN_EXP`, and
     // `src/compress.rs` routes it to `encode_block_strided_reversible` rather
-    // than the `_with_params` entry points this target drives. Passing
-    // reversible parameters to `_with_params` runs the ordinary lossy codec, so
+    // than the parameterised entry points this target drives. Passing
+    // reversible parameters to those runs the ordinary lossy codec, so
     // the config would not mean what it says. Skip those inputs.
     if config.min_exp() < ZFP_MIN_EXP {
         return;
@@ -150,7 +150,7 @@ fn typed<T: FuzzScalar>(
     let written = unsafe {
         let block = src.as_ptr().add(origin);
         if partial {
-            encode_partial_block_strided_with_params(
+            encode_partial_block_strided(
                 &mut bs,
                 block,
                 dims,
@@ -162,7 +162,7 @@ fn typed<T: FuzzScalar>(
                 min_exp,
             )
         } else {
-            encode_block_strided_with_params(
+            encode_block_strided(
                 &mut bs,
                 block,
                 dims,
@@ -193,7 +193,7 @@ fn typed<T: FuzzScalar>(
     unsafe {
         let block = dst.as_mut_ptr().add(origin);
         if partial {
-            decode_partial_block_strided_with_params(
+            decode_partial_block_strided(
                 &mut bs,
                 block,
                 dims,
@@ -205,7 +205,7 @@ fn typed<T: FuzzScalar>(
                 min_exp,
             )
         } else {
-            decode_block_strided_with_params(
+            decode_block_strided(
                 &mut bs,
                 block,
                 dims,

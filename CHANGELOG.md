@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: Add `InvalidField` variant to `ZfpCompressionError` and mark `#[non_exhaustive]`
 - **Breaking**: The `codec::block::*_strided*` entry points are now `unsafe`
   - They index through caller-supplied strides with no bounds check, so calling them from safe Rust could read or write out of bounds. The precondition is documented once on the `codec::block` module
+- **Breaking**: Drop the `_with_params` suffix from the strided block dispatchers
+  - With the parameterless forms gone the suffix distinguishes nothing, and the shorter names mirror the C symbols these stand in for
 - **Breaking**: Remove the parameterless `codec::block::{encode,decode}_[partial_]block_strided` dispatchers
   - No caller anywhere: the C ABI and the whole-field driver both go through the `*_with_params` forms, and they encoded with lossless defaults, which mirrors nothing in the C API — `zfp_encode_block_strided_*` reads its parameters from the `zfp_stream`
   - The `dim*`-level parameterless wrappers stay, behind `internals`, for the C-port tests

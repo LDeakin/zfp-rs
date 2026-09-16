@@ -568,13 +568,10 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
 
 /// Encode a strided 4^d block with explicit stream parameters; return bits written.
 ///
-/// Unlike `encode_block_strided`, this uses the caller-supplied `min_bits`,
-/// `max_bits`, `max_prec`, and `min_exp` instead of the lossless defaults.
-///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
-pub unsafe fn encode_block_strided_with_params<T: ZfpScalar>(
+pub unsafe fn encode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: *const T,
     dims: ZfpDimensionality,
@@ -624,7 +621,7 @@ pub unsafe fn encode_block_strided_with_params<T: ZfpScalar>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
-pub unsafe fn encode_partial_block_strided_with_params<T: ZfpScalar>(
+pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: *const T,
     dims: ZfpDimensionality,
@@ -679,7 +676,7 @@ pub unsafe fn encode_partial_block_strided_with_params<T: ZfpScalar>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
-pub unsafe fn decode_block_strided_with_params<T: ZfpScalar>(
+pub unsafe fn decode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: *mut T,
     dims: ZfpDimensionality,
@@ -729,7 +726,7 @@ pub unsafe fn decode_block_strided_with_params<T: ZfpScalar>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
-pub unsafe fn decode_partial_block_strided_with_params<T: ZfpScalar>(
+pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: *mut T,
     dims: ZfpDimensionality,

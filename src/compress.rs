@@ -74,8 +74,7 @@ unsafe fn compress_block(
     block_idx: usize,
 ) {
     use crate::codec::block::{
-        encode_block_strided_reversible, encode_block_strided_with_params,
-        encode_partial_block_strided_with_params,
+        encode_block_strided, encode_block_strided_reversible, encode_partial_block_strided,
     };
 
     let (ix, iy, iz, iw) = info.block_coords(block_idx);
@@ -131,12 +130,12 @@ unsafe fn compress_block(
                                     bs, block, dims, &info.strides, lengths,
                                 );
                             } else if full {
-                                encode_block_strided_with_params(
+                                encode_block_strided(
                                     bs, block, dims, &info.strides, config.min_bits(),
                                     config.max_bits(), config.max_prec(), config.min_exp(),
                                 );
                             } else {
-                                encode_partial_block_strided_with_params(
+                                encode_partial_block_strided(
                                     bs, block, dims, &lengths, &info.strides,
                                     config.min_bits(), config.max_bits(), config.max_prec(),
                                     config.min_exp(),
