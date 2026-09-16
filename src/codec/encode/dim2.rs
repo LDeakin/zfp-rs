@@ -4,6 +4,7 @@
 
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::encode::core::pad_strided;
+use crate::codec::encode::core::strided_encode_wrappers;
 use crate::codec::encode::float::{encode_block_2d_f32, encode_block_2d_f64};
 use crate::codec::encode::integer::{encode_block_2d_i32, encode_block_2d_i64};
 
@@ -106,225 +107,65 @@ pub fn encode_block_2d_f64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64
 }
 
 // ---------------------------------------------------------------------------
-// Public API: strided
+// Strided block encode (generated)
 // ---------------------------------------------------------------------------
 
-/// Encode a strided 2-D block; return bits written.
-pub fn encode_block_strided_2d_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f64],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_f64_default(bs, &block)
+strided_encode_wrappers! {
+    ty: f64,
+    gather: gather_2d,
+    gather_partial: gather_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: encode_block_strided_2d_f64,
+    partial: encode_partial_block_strided_2d_f64,
+    full_rate: encode_block_strided_2d_f64_rate,
+    partial_rate: encode_partial_block_strided_2d_f64_rate,
+    encode: encode_block_2d_f64,
+    encode_default: encode_block_2d_f64_default,
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
 }
 
-/// Encode a strided 2-D block; return bits written.
-pub fn encode_block_strided_2d_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f32],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_f32_default(bs, &block)
+strided_encode_wrappers! {
+    ty: f32,
+    gather: gather_2d,
+    gather_partial: gather_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: encode_block_strided_2d_f32,
+    partial: encode_partial_block_strided_2d_f32,
+    full_rate: encode_block_strided_2d_f32_rate,
+    partial_rate: encode_partial_block_strided_2d_f32_rate,
+    encode: encode_block_2d_f32,
+    encode_default: encode_block_2d_f32_default,
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
 }
 
-/// Encode a strided 2-D block; return bits written.
-pub fn encode_block_strided_2d_i32(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i32],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_i32_default(bs, &block)
+strided_encode_wrappers! {
+    ty: i32,
+    gather: gather_2d,
+    gather_partial: gather_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: encode_block_strided_2d_i32,
+    partial: encode_partial_block_strided_2d_i32,
+    full_rate: encode_block_strided_2d_i32_rate,
+    partial_rate: encode_partial_block_strided_2d_i32_rate,
+    encode: encode_block_2d_i32,
+    encode_default: encode_block_2d_i32_default,
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
 }
 
-/// Encode a strided 2-D block; return bits written.
-pub fn encode_block_strided_2d_i64(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i64],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_i64_default(bs, &block)
-}
-
-// ---------------------------------------------------------------------------
-// Public API: partial strided
-// ---------------------------------------------------------------------------
-
-/// Encode a partial strided 2-D block (nx, ny ≤ 4); return bits written.
-pub fn encode_partial_block_strided_2d_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_f64_default(bs, &block)
-}
-
-/// Encode a partial strided 2-D block (nx, ny ≤ 4); return bits written.
-pub fn encode_partial_block_strided_2d_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_f32_default(bs, &block)
-}
-
-/// Encode a partial strided 2-D block (nx, ny ≤ 4); return bits written.
-pub fn encode_partial_block_strided_2d_i32(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_i32_default(bs, &block)
-}
-
-/// Encode a partial strided 2-D block (nx, ny ≤ 4); return bits written.
-pub fn encode_partial_block_strided_2d_i64(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_i64_default(bs, &block)
-}
-
-// ---------------------------------------------------------------------------
-// Rate-constrained strided block encode (for checksum tests)
-// ---------------------------------------------------------------------------
-
-pub fn encode_block_strided_2d_f64_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f64],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_f64(bs, &block, minbits, maxbits, maxprec, minexp)
-}
-
-pub fn encode_block_strided_2d_f32_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f32],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_f32(bs, &block, minbits, maxbits, maxprec, minexp)
-}
-
-pub fn encode_block_strided_2d_i32_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i32],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_i32(bs, &block, minbits, maxbits, maxprec)
-}
-
-pub fn encode_block_strided_2d_i64_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i64],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let block = gather_2d(data, sx, sy);
-    encode_block_2d_i64(bs, &block, minbits, maxbits, maxprec)
-}
-
-pub fn encode_partial_block_strided_2d_f64_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_f64(bs, &block, minbits, maxbits, maxprec, minexp)
-}
-
-pub fn encode_partial_block_strided_2d_f32_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[f32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_f32(bs, &block, minbits, maxbits, maxprec, minexp)
-}
-
-pub fn encode_partial_block_strided_2d_i32_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_i32(bs, &block, minbits, maxbits, maxprec)
-}
-
-pub fn encode_partial_block_strided_2d_i64_rate(
-    bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[i64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let block = gather_partial_2d(data, nx, ny, sx, sy);
-    encode_block_2d_i64(bs, &block, minbits, maxbits, maxprec)
+strided_encode_wrappers! {
+    ty: i64,
+    gather: gather_2d,
+    gather_partial: gather_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: encode_block_strided_2d_i64,
+    partial: encode_partial_block_strided_2d_i64,
+    full_rate: encode_block_strided_2d_i64_rate,
+    partial_rate: encode_partial_block_strided_2d_i64_rate,
+    encode: encode_block_2d_i64,
+    encode_default: encode_block_2d_i64_default,
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
 }

@@ -775,3 +775,83 @@ pub(crate) fn decode_double_block<const N: usize>(
     }
     (fblock, bits as usize)
 }
+
+// ---------------------------------------------------------------------------
+// Strided wrapper generation
+// ---------------------------------------------------------------------------
+
+/// Generate the four strided decode entry points for one dimensionality and
+/// scalar type.
+///
+/// Each decodes into a contiguous block, then scatters it through the caller's
+/// strides. The `_rate` variants serve the whole-field driver; the other two
+/// exist for the C ABI and the port tests.
+macro_rules! strided_decode_wrappers {
+    (
+        ty: $ty:ty,
+        scatter: $scatter:ident,
+        scatter_partial: $scatter_partial:ident,
+        strides: [$($s:ident),+],
+        lengths: [$($n:ident),+],
+        full: $full:ident,
+        partial: $partial:ident,
+        full_rate: $full_rate:ident,
+        partial_rate: $partial_rate:ident,
+        decode: $decode:ident,
+        defaults: [$($d:expr),+],
+        rate_params: [$($p:ident: $pty:ty),+] $(,)?
+    ) => {
+        /// Decode a strided block; return bits read.
+        pub fn $full(
+            bs: &mut dyn ZfpBitStreamOps,
+            data: &mut [$ty],
+            $($s: isize,)+
+        ) -> usize {
+            let before = bs.read_pos();
+            let block = $decode(bs, $($d),+);
+            $scatter(&block, data, $($s),+);
+            (bs.read_pos() - before) as usize
+        }
+
+        /// Decode a partial (boundary) strided block; return bits read.
+        pub fn $partial(
+            bs: &mut dyn ZfpBitStreamOps,
+            data: &mut [$ty],
+            $($n: usize,)+
+            $($s: isize,)+
+        ) -> usize {
+            let before = bs.read_pos();
+            let block = $decode(bs, $($d),+);
+            $scatter_partial(&block, data, $($n,)+ $($s),+);
+            (bs.read_pos() - before) as usize
+        }
+
+        /// Decode a strided block with explicit stream parameters.
+        pub fn $full_rate(
+            bs: &mut dyn ZfpBitStreamOps,
+            data: &mut [$ty],
+            $($s: isize,)+
+            $($p: $pty,)+
+        ) -> usize {
+            let before = bs.read_pos();
+            let block = $decode(bs, $($p),+);
+            $scatter(&block, data, $($s),+);
+            (bs.read_pos() - before) as usize
+        }
+
+        /// Decode a partial strided block with explicit stream parameters.
+        pub fn $partial_rate(
+            bs: &mut dyn ZfpBitStreamOps,
+            data: &mut [$ty],
+            $($n: usize,)+
+            $($s: isize,)+
+            $($p: $pty,)+
+        ) -> usize {
+            let before = bs.read_pos();
+            let block = $decode(bs, $($p),+);
+            $scatter_partial(&block, data, $($n,)+ $($s),+);
+            (bs.read_pos() - before) as usize
+        }
+    };
+}
+pub(crate) use strided_decode_wrappers;
