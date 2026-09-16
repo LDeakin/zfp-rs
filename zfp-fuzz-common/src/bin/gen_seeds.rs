@@ -10,6 +10,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use zfp_fuzz_common::targets::block_codec::HEADER_LEN as BLOCK_HEADER_LEN;
 use zfp_fuzz_common::targets::decompress_stream::HEADER_LEN;
 use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpField, types::ZfpScalarType};
 
@@ -53,13 +54,12 @@ fn main() {
 /// bytes in field-declaration order from the front, producing exactly the same
 /// layout that `config_mode` parses by hand.
 fn gen_structured(dir: &Path, payloads: &[(&str, &[u8])]) -> usize {
-    const PREFIX_LEN: usize = 12;
     let mut count = 0;
     for kind in 0u8..4 {
         for rank in 0u8..4 {
             for family in 0u8..5 {
                 for (name, payload) in payloads {
-                    let mut buf = vec![0u8; PREFIX_LEN];
+                    let mut buf = vec![0u8; HEADER_LEN];
                     buf[0] = kind;
                     buf[1] = rank;
                     // 6 elements per axis: `Shape::from_bytes` maps byte `b`
@@ -102,7 +102,7 @@ fn gen_block_codec(dir: &Path) -> usize {
                         (2, "accuracy"),
                         (4, "expert"),
                     ] {
-                        let mut buf = vec![0u8; 15];
+                        let mut buf = vec![0u8; BLOCK_HEADER_LEN];
                         buf[0] = kind;
                         buf[1] = rank;
                         for s in &mut buf[2..6] {

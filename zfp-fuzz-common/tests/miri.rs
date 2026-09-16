@@ -248,7 +248,7 @@ fn strided_reversible() {
 fn strided_fixed_rate() {
     for case in CASES {
         let rank = rank_of(case);
-        let dims = ZfpDimensionalityFor::of(rank);
+        let dims = zfp_fuzz_common::input::dimensionality_of(rank);
         roundtrip::<f64>(
             case,
             &ZfpConfig::fixed_rate(16.0, ZfpScalarType::Double, dims, ZfpStreamAlignment::None),
@@ -288,19 +288,4 @@ fn undersized_field_is_rejected() {
         bs.decompress(&config, &mut out).is_err(),
         "decompressing into a 4-element buffer declared as 1000 elements must fail"
     );
-}
-
-struct ZfpDimensionalityFor;
-
-impl ZfpDimensionalityFor {
-    fn of(rank: usize) -> zfp_rs::ZfpDimensionality {
-        use zfp_rs::ZfpDimensionality::{D1, D2, D3, D4};
-        match rank {
-            1 => D1,
-            2 => D2,
-            3 => D3,
-            4 => D4,
-            _ => unreachable!("rank is 1..=4"),
-        }
-    }
 }
