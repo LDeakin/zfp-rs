@@ -29,16 +29,15 @@ const DOUBLE_MINEXP: i32 = -1074;
 /// # Safety
 /// The caller must ensure the array spans at least 4 elements in each
 /// dimension with the given strides.
-unsafe fn gather_3d<T: Copy>(data: &[T], sx: isize, sy: isize, sz: isize) -> [T; 64] {
+unsafe fn gather_3d<T: Copy>(data: *const T, sx: isize, sy: isize, sz: isize) -> [T; 64] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 64] = unsafe { std::mem::zeroed() };
-    let p = data.as_ptr();
     let mut q = 0usize;
     for z in 0isize..4 {
         for y in 0isize..4 {
             for x in 0isize..4 {
                 // SAFETY: caller guarantees valid strides
-                block[q] = unsafe { *p.offset(z * sz + y * sy + x * sx) };
+                block[q] = unsafe { *data.offset(z * sz + y * sy + x * sx) };
                 q += 1;
             }
         }
@@ -52,7 +51,7 @@ unsafe fn gather_3d<T: Copy>(data: &[T], sx: isize, sy: isize, sz: isize) -> [T;
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 unsafe fn gather_partial_3d<T: Copy + Default>(
-    data: &[T],
+    data: *const T,
     nx: usize,
     ny: usize,
     nz: usize,
@@ -61,13 +60,12 @@ unsafe fn gather_partial_3d<T: Copy + Default>(
     sz: isize,
 ) -> [T; 64] {
     let mut block = [T::default(); 64];
-    let p = data.as_ptr();
     for z in 0..nz {
         for y in 0..ny {
             for x in 0..nx {
                 // SAFETY: caller guarantees valid strides
                 block[16 * z + 4 * y + x] = unsafe {
-                    *p.offset(z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx)
+                    *data.offset(z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx)
                 };
             }
             pad_strided!(block, 16 * z + 4 * y, nx, 1, T::default());

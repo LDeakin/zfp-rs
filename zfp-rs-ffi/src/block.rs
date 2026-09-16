@@ -38,18 +38,6 @@ fn get_ctx(stream: *mut zfp_stream) -> Option<StreamContext<'static>> {
     })
 }
 
-fn strided_footprint(lengths: &[usize], strides: &[isize]) -> Option<usize> {
-    lengths
-        .iter()
-        .zip(strides)
-        .try_fold(1usize, |len, (&length, &stride)| {
-            if length == 0 || stride < 0 {
-                return None;
-            }
-            len.checked_add((length - 1).checked_mul(stride.cast_unsigned())?)
-        })
-}
-
 macro_rules! impl_encode_block_1d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
@@ -58,11 +46,9 @@ macro_rules! impl_encode_block_1d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 4 elements
-            let slice = std::slice::from_raw_parts(block, 4);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D1,
                 &[1],
                 ctx.min_bits,
@@ -87,11 +73,9 @@ macro_rules! impl_encode_block_2d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 16 elements
-            let slice = std::slice::from_raw_parts(block, 16);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D2,
                 &[1, 4],
                 ctx.min_bits,
@@ -116,11 +100,9 @@ macro_rules! impl_encode_block_3d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 64 elements
-            let slice = std::slice::from_raw_parts(block, 64);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D3,
                 &[1, 4, 16],
                 ctx.min_bits,
@@ -145,11 +127,9 @@ macro_rules! impl_encode_block_4d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 256 elements
-            let slice = std::slice::from_raw_parts(block, 256);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D4,
                 &[1, 4, 16, 64],
                 ctx.min_bits,
@@ -178,11 +158,9 @@ macro_rules! impl_decode_block_1d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 4 elements
-            let slice = std::slice::from_raw_parts_mut(block, 4);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D1,
                 &[1],
                 ctx.min_bits,
@@ -207,11 +185,9 @@ macro_rules! impl_decode_block_2d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 16 elements
-            let slice = std::slice::from_raw_parts_mut(block, 16);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D2,
                 &[1, 4],
                 ctx.min_bits,
@@ -236,11 +212,9 @@ macro_rules! impl_decode_block_3d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 64 elements
-            let slice = std::slice::from_raw_parts_mut(block, 64);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D3,
                 &[1, 4, 16],
                 ctx.min_bits,
@@ -265,11 +239,9 @@ macro_rules! impl_decode_block_4d {
             if block.is_null() {
                 return 0;
             }
-            // SAFETY: caller guarantees block points to 256 elements
-            let slice = std::slice::from_raw_parts_mut(block, 256);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D4,
                 &[1, 4, 16, 64],
                 ctx.min_bits,
@@ -302,10 +274,9 @@ macro_rules! impl_encode_block_strided_1d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, 4);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D1,
                 &[stride],
                 ctx.min_bits,
@@ -335,10 +306,9 @@ macro_rules! impl_encode_block_strided_2d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, 16);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D2,
                 &[stride_x, stride_y],
                 ctx.min_bits,
@@ -369,10 +339,9 @@ macro_rules! impl_encode_block_strided_3d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, 64);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D3,
                 &[stride_x, stride_y, stride_z],
                 ctx.min_bits,
@@ -404,10 +373,9 @@ macro_rules! impl_encode_block_strided_4d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, 256);
             zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D4,
                 &[stride_x, stride_y, stride_z, stride_w],
                 ctx.min_bits,
@@ -441,10 +409,9 @@ macro_rules! impl_encode_partial_block_strided_1d {
             if block.is_null() || lx == 0 || lx > 4 {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, lx);
             zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D1,
                 &[lx],
                 &[stride],
@@ -477,10 +444,9 @@ macro_rules! impl_encode_partial_block_strided_2d {
             if block.is_null() || lx == 0 || ly == 0 || lx > 4 || ly > 4 {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, lx * ly);
             zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D2,
                 &[lx, ly],
                 &[stride_x, stride_y],
@@ -515,10 +481,9 @@ macro_rules! impl_encode_partial_block_strided_3d {
             if block.is_null() || lx == 0 || ly == 0 || lz == 0 || lx > 4 || ly > 4 || lz > 4 {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, lx * ly * lz);
             zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D3,
                 &[lx, ly, lz],
                 &[stride_x, stride_y, stride_z],
@@ -564,10 +529,9 @@ macro_rules! impl_encode_partial_block_strided_4d {
             {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts(block, lx * ly * lz * lw);
             zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D4,
                 &[lx, ly, lz, lw],
                 &[stride_x, stride_y, stride_z, stride_w],
@@ -601,10 +565,9 @@ macro_rules! impl_decode_block_strided_1d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts_mut(block, 4);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D1,
                 &[stride],
                 ctx.min_bits,
@@ -634,10 +597,9 @@ macro_rules! impl_decode_block_strided_2d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts_mut(block, 16);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D2,
                 &[stride_x, stride_y],
                 ctx.min_bits,
@@ -668,10 +630,9 @@ macro_rules! impl_decode_block_strided_3d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts_mut(block, 64);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D3,
                 &[stride_x, stride_y, stride_z],
                 ctx.min_bits,
@@ -703,10 +664,9 @@ macro_rules! impl_decode_block_strided_4d {
             if block.is_null() {
                 return 0;
             }
-            let slice = std::slice::from_raw_parts_mut(block, 256);
             zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D4,
                 &[stride_x, stride_y, stride_z, stride_w],
                 ctx.min_bits,
@@ -740,13 +700,9 @@ macro_rules! impl_decode_partial_block_strided_1d {
             if block.is_null() || lx == 0 || lx > 4 {
                 return 0;
             }
-            let Some(len) = strided_footprint(&[lx], &[stride]) else {
-                return 0;
-            };
-            let slice = std::slice::from_raw_parts_mut(block, len);
             zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D1,
                 &[lx],
                 &[stride],
@@ -779,13 +735,9 @@ macro_rules! impl_decode_partial_block_strided_2d {
             if block.is_null() || lx == 0 || ly == 0 || lx > 4 || ly > 4 {
                 return 0;
             }
-            let Some(len) = strided_footprint(&[lx, ly], &[stride_x, stride_y]) else {
-                return 0;
-            };
-            let slice = std::slice::from_raw_parts_mut(block, len);
             zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D2,
                 &[lx, ly],
                 &[stride_x, stride_y],
@@ -820,14 +772,9 @@ macro_rules! impl_decode_partial_block_strided_3d {
             if block.is_null() || lx == 0 || ly == 0 || lz == 0 || lx > 4 || ly > 4 || lz > 4 {
                 return 0;
             }
-            let Some(len) = strided_footprint(&[lx, ly, lz], &[stride_x, stride_y, stride_z])
-            else {
-                return 0;
-            };
-            let slice = std::slice::from_raw_parts_mut(block, len);
             zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D3,
                 &[lx, ly, lz],
                 &[stride_x, stride_y, stride_z],
@@ -873,15 +820,9 @@ macro_rules! impl_decode_partial_block_strided_4d {
             {
                 return 0;
             }
-            let Some(len) =
-                strided_footprint(&[lx, ly, lz, lw], &[stride_x, stride_y, stride_z, stride_w])
-            else {
-                return 0;
-            };
-            let slice = std::slice::from_raw_parts_mut(block, len);
             zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
                 ctx.bs,
-                slice,
+                block,
                 ZfpDimensionality::D4,
                 &[lx, ly, lz, lw],
                 &[stride_x, stride_y, stride_z, stride_w],

@@ -29,15 +29,14 @@ const DOUBLE_MINEXP: i32 = -1074;
 /// # Safety
 /// The caller must ensure the array spans at least 4 elements in each
 /// dimension with the given strides.
-unsafe fn gather_2d<T: Copy>(data: &[T], sx: isize, sy: isize) -> [T; 16] {
+unsafe fn gather_2d<T: Copy>(data: *const T, sx: isize, sy: isize) -> [T; 16] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 16] = unsafe { std::mem::zeroed() };
-    let p = data.as_ptr();
     let mut q = 0usize;
     for y in 0isize..4 {
         for x in 0isize..4 {
             // SAFETY: caller guarantees valid strides
-            block[q] = unsafe { *p.offset(y * sy + x * sx) };
+            block[q] = unsafe { *data.offset(y * sy + x * sx) };
             q += 1;
         }
     }
@@ -50,18 +49,17 @@ unsafe fn gather_2d<T: Copy>(data: &[T], sx: isize, sy: isize) -> [T; 16] {
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 unsafe fn gather_partial_2d<T: Copy + Default>(
-    data: &[T],
+    data: *const T,
     nx: usize,
     ny: usize,
     sx: isize,
     sy: isize,
 ) -> [T; 16] {
     let mut block = [T::default(); 16];
-    let p = data.as_ptr();
     for y in 0..ny {
         for x in 0..nx {
             // SAFETY: caller guarantees valid strides
-            block[4 * y + x] = unsafe { *p.offset(y.cast_signed() * sy + x.cast_signed() * sx) };
+            block[4 * y + x] = unsafe { *data.offset(y.cast_signed() * sy + x.cast_signed() * sx) };
         }
         pad_strided!(block, 4 * y, nx, 1, T::default());
     }

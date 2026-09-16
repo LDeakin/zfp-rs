@@ -8,8 +8,7 @@ use crate::bitstream::ZfpBitStreamMutOps;
 use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpField;
-use crate::types::{ZFP_MIN_EXP, ZfpCompressionError, ZfpScalarType};
-use bytemuck::cast_slice;
+use crate::types::{ZFP_MIN_EXP, ZfpCompressionError, ZfpDimensionality, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
 // Serial compression
@@ -22,8 +21,9 @@ pub(crate) fn compress(
     config: &ZfpConfig,
 ) -> Result<usize, ZfpCompressionError> {
     let info = CompressInfo::new(field)?;
+    let buf = field.data();
     for block_idx in 0..info.num_blocks {
-        compress_block(bs, field, &info, config, block_idx);
+        compress_block(bs, buf, &info, config, block_idx);
     }
 
     bs.flush();
@@ -51,6 +51,10 @@ pub(crate) struct CompressInfo {
     pub strides: [isize; 4],
     /// Field dimensions `[nx, ny, nz, nw]`.
     pub dims: [usize; 4],
+    /// Dimensionality as an enum (1-4).
+    pub dims_enum: ZfpDimensionality,
+    /// Scalar type of the field data.
+    pub scalar_type: ZfpScalarType,
 }
 
 impl CompressInfo {
@@ -109,6 +113,8 @@ impl CompressInfo {
             elem_size: ty.size(),
             strides,
             dims: [nx, ny, nz, nw],
+            dims_enum: dims,
+            scalar_type: ty,
         })
     }
 
@@ -126,10 +132,14 @@ impl CompressInfo {
 }
 
 /// Encode a single block into the bitstream.
+// `{Compress,Decompress}Info::new` rejects a field whose buffer is not aligned
+// for its scalar type, so these casts are checked once per field rather than
+// once per block.
+#[allow(clippy::cast_ptr_alignment)]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 fn compress_block(
     bs: &mut dyn ZfpBitStreamMutOps,
-    field: &ZfpField,
+    buf: &[u8],
     info: &CompressInfo,
     config: &ZfpConfig,
     block_idx: usize,
@@ -169,27 +179,24 @@ fn compress_block(
         && (info.dim_count < 3 || lz == 4)
         && (info.dim_count < 4 || lw == 4);
     let lengths = [lx, ly, lz, lw];
-    let dims = field.dimensionality();
+    let dims = info.dims_enum;
 
     let byte_off = (elem_off as usize) * info.elem_size;
-    // SAFETY: byte_off is within bounds of the field data.
-    let data_ptr = unsafe { field.data().as_ptr().add(byte_off) };
-    let byte_span = lx * ly * lz * lw * info.elem_size;
-    let block_bytes = unsafe { std::slice::from_raw_parts(data_ptr, byte_span) };
-
-    let ty = field.scalar_type();
+    let ty = info.scalar_type;
 
     macro_rules! encode_dispatch {
         ($($zfp_ty:path => $elem_ty:ty),* $(,)?) => {{
             match ty {
                 $(
                     $zfp_ty => {
-                        let block: &[$elem_ty] = cast_slice(block_bytes);
-                        // SAFETY: `block` is built from the field buffer at this block's origin,
-                        // and the caller's strides are the field's own, so every offset the
-                        // codec generates addresses an element of that field.
-                        // NOTE: the slice `block` is built from does not actually cover
-                        // those offsets; a later commit replaces it with a raw pointer.
+                        // SAFETY: `buf` is the field's whole data buffer, which
+                        // `CompressInfo::new` validated to be at least
+                        // `checked_size_bytes()` long and aligned for the scalar
+                        // type. `byte_off` is the block origin measured from the
+                        // *lowest* address of the strided span (`elem_off`
+                        // includes the `-imin` shift), so every offset the
+                        // strides generate from it lands inside `buf`.
+                        let block = unsafe { buf.as_ptr().add(byte_off).cast::<$elem_ty>() };
                         unsafe {
                             if config.min_exp() < ZFP_MIN_EXP {
                                 encode_block_strided_reversible(
@@ -229,14 +236,14 @@ fn compress_block(
 #[allow(dead_code)] // used only when rayon feature is enabled
 fn compress_blocks_range(
     bs: &mut dyn ZfpBitStreamMutOps,
-    field: &ZfpField,
+    buf: &[u8],
     info: &CompressInfo,
     config: &ZfpConfig,
     start_block: usize,
     end_block: usize,
 ) {
     for block_idx in start_block..end_block {
-        compress_block(bs, field, info, config, block_idx);
+        compress_block(bs, buf, info, config, block_idx);
     }
 }
 
@@ -256,6 +263,7 @@ pub(crate) fn compress_rayon(
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     let info = CompressInfo::new(field)?;
+    let buf = field.data();
     let blocks = info.num_blocks;
     if blocks == 0 {
         return Ok(0);
@@ -272,13 +280,13 @@ pub(crate) fn compress_rayon(
         pool.install(|| {
             (0..chunks)
                 .into_par_iter()
-                .map(|c| compress_one_chunk(&chunk_starts, &info, field, config, blocks, c))
+                .map(|c| compress_one_chunk(&chunk_starts, &info, buf, config, blocks, c))
                 .collect()
         })
     } else {
         (0..chunks)
             .into_par_iter()
-            .map(|c| compress_one_chunk(&chunk_starts, &info, field, config, blocks, c))
+            .map(|c| compress_one_chunk(&chunk_starts, &info, buf, config, blocks, c))
             .collect()
     };
 
@@ -316,7 +324,7 @@ pub(crate) fn compress_rayon(
 fn compress_one_chunk(
     chunk_starts: &[usize],
     info: &CompressInfo,
-    field: &ZfpField,
+    buf: &[u8],
     config: &ZfpConfig,
     total_blocks: usize,
     chunk: usize,
@@ -334,7 +342,7 @@ fn compress_one_chunk(
     // chunk_bits is bounded by the field size, which fits in usize.
     let chunk_words = (chunk_bits / 64 + 1) as usize;
     let mut local_bs = ZfpBitStream::new(chunk_words * 8);
-    compress_blocks_range(&mut local_bs, field, info, config, start, end);
+    compress_blocks_range(&mut local_bs, buf, info, config, start, end);
     // Record bits written before flushing (flush pads to word boundary).
     let bits_written = local_bs.bits_written();
     local_bs.flush();

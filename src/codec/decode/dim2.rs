@@ -23,12 +23,11 @@ const DOUBLE_MAXPREC: u32 = 64;
 
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
-unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: &mut [T], sx: isize, sy: isize) {
-    let p = data.as_mut_ptr();
+unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: *mut T, sx: isize, sy: isize) {
     let mut q = 0usize;
     for y in 0isize..4 {
         for x in 0isize..4 {
-            unsafe { *p.offset(y * sy + x * sx) = block[q] };
+            unsafe { *data.offset(y * sy + x * sx) = block[q] };
             q += 1;
         }
     }
@@ -39,16 +38,15 @@ unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: &mut [T], sx: isize, sy: is
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
 unsafe fn scatter_partial_2d<T: Copy>(
     block: &[T; 16],
-    data: &mut [T],
+    data: *mut T,
     nx: usize,
     ny: usize,
     sx: isize,
     sy: isize,
 ) {
-    let p = data.as_mut_ptr();
     for y in 0..ny {
         for x in 0..nx {
-            unsafe { *p.offset(y.cast_signed() * sy + x.cast_signed() * sx) = block[4 * y + x] };
+            unsafe { *data.offset(y.cast_signed() * sy + x.cast_signed() * sx) = block[4 * y + x] };
         }
     }
 }

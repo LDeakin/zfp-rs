@@ -809,7 +809,7 @@ macro_rules! strided_decode_wrappers {
         #[cfg(feature = "ffi")]
         pub unsafe fn $full(
             bs: &mut dyn ZfpBitStreamOps,
-            data: &mut [$ty],
+            data: *mut $ty,
             $($s: isize,)+
         ) -> usize {
             let before = bs.read_pos();
@@ -826,7 +826,7 @@ macro_rules! strided_decode_wrappers {
         #[cfg(feature = "ffi")]
         pub unsafe fn $partial(
             bs: &mut dyn ZfpBitStreamOps,
-            data: &mut [$ty],
+            data: *mut $ty,
             $($n: usize,)+
             $($s: isize,)+
         ) -> usize {
@@ -843,7 +843,7 @@ macro_rules! strided_decode_wrappers {
         /// [`crate::codec::block`].
         pub unsafe fn $full_rate(
             bs: &mut dyn ZfpBitStreamOps,
-            data: &mut [$ty],
+            data: *mut $ty,
             $($s: isize,)+
             $($p: $pty,)+
         ) -> usize {
@@ -860,7 +860,7 @@ macro_rules! strided_decode_wrappers {
         /// [`crate::codec::block`].
         pub unsafe fn $partial_rate(
             bs: &mut dyn ZfpBitStreamOps,
-            data: &mut [$ty],
+            data: *mut $ty,
             $($n: usize,)+
             $($s: isize,)+
             $($p: $pty,)+

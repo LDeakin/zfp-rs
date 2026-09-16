@@ -6,7 +6,7 @@
 use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
-use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpScalarType};
+use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpDimensionality, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
 // Serial decompression
@@ -19,8 +19,13 @@ pub(crate) fn decompress(
     config: &ZfpConfig,
 ) -> Result<usize, ZfpDecompressionError> {
     let info = DecompressInfo::new(field)?;
+    // Derived once: a fresh `&mut` retag per block would be needless work, and
+    // interleaving it with shared borrows of `field` is a hazard worth avoiding.
+    let base = field.data_mut().as_mut_ptr();
     for block_idx in 0..info.num_blocks {
-        decompress_block(bs, field, &info, config, block_idx);
+        // SAFETY: `DecompressInfo::new` validated the buffer's length and
+        // alignment, which is exactly `decompress_block`'s contract.
+        unsafe { decompress_block(bs, base, &info, config, block_idx) };
     }
 
     bs.align();
@@ -48,6 +53,10 @@ pub(crate) struct DecompressInfo {
     pub strides: [isize; 4],
     /// Field dimensions `[nx, ny, nz, nw]`.
     pub dims: [usize; 4],
+    /// Dimensionality as an enum (1-4).
+    pub dims_enum: ZfpDimensionality,
+    /// Scalar type of the field data.
+    pub scalar_type: ZfpScalarType,
 }
 
 impl DecompressInfo {
@@ -106,6 +115,8 @@ impl DecompressInfo {
             elem_size: ty.size(),
             strides,
             dims: [nx, ny, nz, nw],
+            dims_enum: dims,
+            scalar_type: ty,
         })
     }
 
@@ -123,15 +134,20 @@ impl DecompressInfo {
 }
 
 /// Decode a single block from the bitstream.
-#[allow(
-    clippy::cast_ptr_alignment,
-    clippy::cast_possible_wrap,
-    clippy::cast_sign_loss
-)]
-#[allow(clippy::ptr_as_ptr)] // data_ptr is already *mut u8 but clippy doesn't know
-fn decompress_block(
+///
+/// # Safety
+/// `base` must point to the start of the field's data buffer: at least
+/// `checked_size_bytes()` long, aligned for the field's scalar type, and
+/// writable for the duration of the call. `DecompressInfo::new` validates both
+/// properties, so deriving `base` from a field it accepted satisfies this.
+// `{Compress,Decompress}Info::new` rejects a field whose buffer is not aligned
+// for its scalar type, so these casts are checked once per field rather than
+// once per block.
+#[allow(clippy::cast_ptr_alignment)]
+#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+unsafe fn decompress_block(
     bs: &mut dyn ZfpBitStreamOps,
-    field: &mut ZfpFieldMut,
+    base: *mut u8,
     info: &DecompressInfo,
     config: &ZfpConfig,
     block_idx: usize,
@@ -173,31 +189,25 @@ fn decompress_block(
         && (info.dim_count < 4 || lw == 4);
 
     let lengths = [lx, ly, lz, lw];
-    let dims = field.dimensionality();
-    let data_ptr = field.data_mut().as_mut_ptr();
+    let dims = info.dims_enum;
 
     let byte_off = (elem_off as usize) * info.elem_size;
-    let byte_span = lx * ly * lz * lw * info.elem_size;
 
-    let ty = field.scalar_type();
+    let ty = info.scalar_type;
 
     macro_rules! decode_dispatch {
-        ($($zfp_ty:path => $elem_ty:ty, $div:expr),* $(,)?) => {{
+        ($($zfp_ty:path => $elem_ty:ty),* $(,)?) => {{
             match ty {
                 $(
                     $zfp_ty => {
-                        // SAFETY: byte_off + byte_span is within field data bounds.
-                        let block: &mut [$elem_ty] = unsafe {
-                            std::slice::from_raw_parts_mut(
-                                (data_ptr as *mut u8).add(byte_off).cast::<$elem_ty>(),
-                                byte_span / $div,
-                            )
-                        };
-                        // SAFETY: `block` is built from the field buffer at this block's origin,
-                        // and the caller's strides are the field's own, so every offset the
-                        // codec generates addresses an element of that field.
-                        // NOTE: the slice `block` is built from does not actually cover
-                        // those offsets; a later commit replaces it with a raw pointer.
+                        // SAFETY: `base` is the field's whole data buffer, which
+                        // `DecompressInfo::new` validated to be at least
+                        // `checked_size_bytes()` long and aligned for the scalar
+                        // type. `byte_off` is the block origin measured from the
+                        // *lowest* address of the strided span (`elem_off`
+                        // includes the `-imin` shift), so every offset the
+                        // strides generate from it lands inside the buffer.
+                        let block = unsafe { base.add(byte_off).cast::<$elem_ty>() };
                         unsafe {
                             if config.min_exp() < ZFP_MIN_EXP {
                                 decode_block_strided_reversible(
@@ -222,10 +232,10 @@ fn decompress_block(
         }};
     }
     decode_dispatch!(
-        ZfpScalarType::Int32 => i32, 4,
-        ZfpScalarType::Int64 => i64, 8,
-        ZfpScalarType::Float => f32, 4,
-        ZfpScalarType::Double => f64, 8,
+        ZfpScalarType::Int32 => i32,
+        ZfpScalarType::Int64 => i64,
+        ZfpScalarType::Float => f32,
+        ZfpScalarType::Double => f64,
     );
 }
 
@@ -413,20 +423,14 @@ fn decompress_chunks(
                 && (dim_count < 4 || lw == 4);
 
             let byte_off = (elem_off as usize) * elem_size;
-            let byte_span = lx * ly * lz * lw * elem_size;
 
-            // SAFETY: byte_off + byte_span is within field data bounds.
-            // Blocks are non-overlapping, so each thread writes distinct memory.
             match ty {
                 ZfpScalarType::Int32 => {
-                    let block: &mut [i32] = unsafe {
-                        std::slice::from_raw_parts_mut(
-                            (data_ptr as *mut u8).add(byte_off).cast::<i32>(),
-                            byte_span / 4,
-                        )
-                    };
-                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
-                    // elements of the field. See the note in `decompress_block`.
+                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<i32>() };
+                    // SAFETY: `block` covers this block's span within the field buffer,
+                    // which `DecompressInfo::new` validated against the field's index
+                    // range; blocks are non-overlapping so each thread writes distinct
+                    // memory.
                     unsafe {
                         if config.min_exp() < ZFP_MIN_EXP {
                             decode_block_strided_reversible(
@@ -463,14 +467,11 @@ fn decompress_chunks(
                     }
                 }
                 ZfpScalarType::Int64 => {
-                    let block: &mut [i64] = unsafe {
-                        std::slice::from_raw_parts_mut(
-                            (data_ptr as *mut u8).add(byte_off).cast::<i64>(),
-                            byte_span / 8,
-                        )
-                    };
-                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
-                    // elements of the field. See the note in `decompress_block`.
+                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<i64>() };
+                    // SAFETY: `block` covers this block's span within the field buffer,
+                    // which `DecompressInfo::new` validated against the field's index
+                    // range; blocks are non-overlapping so each thread writes distinct
+                    // memory.
                     unsafe {
                         if config.min_exp() < ZFP_MIN_EXP {
                             decode_block_strided_reversible(
@@ -507,14 +508,11 @@ fn decompress_chunks(
                     }
                 }
                 ZfpScalarType::Float => {
-                    let block: &mut [f32] = unsafe {
-                        std::slice::from_raw_parts_mut(
-                            (data_ptr as *mut u8).add(byte_off).cast::<f32>(),
-                            byte_span / 4,
-                        )
-                    };
-                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
-                    // elements of the field. See the note in `decompress_block`.
+                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<f32>() };
+                    // SAFETY: `block` covers this block's span within the field buffer,
+                    // which `DecompressInfo::new` validated against the field's index
+                    // range; blocks are non-overlapping so each thread writes distinct
+                    // memory.
                     unsafe {
                         if config.min_exp() < ZFP_MIN_EXP {
                             decode_block_strided_reversible(
@@ -551,14 +549,11 @@ fn decompress_chunks(
                     }
                 }
                 ZfpScalarType::Double => {
-                    let block: &mut [f64] = unsafe {
-                        std::slice::from_raw_parts_mut(
-                            (data_ptr as *mut u8).add(byte_off).cast::<f64>(),
-                            byte_span / 8,
-                        )
-                    };
-                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
-                    // elements of the field. See the note in `decompress_block`.
+                    let block = unsafe { (data_ptr as *mut u8).add(byte_off).cast::<f64>() };
+                    // SAFETY: `block` covers this block's span within the field buffer,
+                    // which `DecompressInfo::new` validated against the field's index
+                    // range; blocks are non-overlapping so each thread writes distinct
+                    // memory.
                     unsafe {
                         if config.min_exp() < ZFP_MIN_EXP {
                             decode_block_strided_reversible(

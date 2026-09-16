@@ -25,20 +25,19 @@ const DOUBLE_MAXPREC: u32 = 64;
 /// `data` must be valid for every offset the strides generate.
 unsafe fn scatter_4d<T: Copy>(
     block: &[T; 256],
-    data: &mut [T],
+    data: *mut T,
     sx: isize,
     sy: isize,
     sz: isize,
     sw: isize,
 ) {
-    let p = data.as_mut_ptr();
     let mut q = 0usize;
     for w in 0isize..4 {
         for z in 0isize..4 {
             for y in 0isize..4 {
                 for x in 0isize..4 {
                     // SAFETY: caller guarantees data spans 4^4 elements with strides
-                    unsafe { *p.offset(w * sw + z * sz + y * sy + x * sx) = block[q] };
+                    unsafe { *data.offset(w * sw + z * sz + y * sy + x * sx) = block[q] };
                     q += 1;
                 }
             }
@@ -51,7 +50,7 @@ unsafe fn scatter_4d<T: Copy>(
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
 unsafe fn scatter_partial_4d<T: Copy>(
     block: &[T; 256],
-    data: &mut [T],
+    data: *mut T,
     nx: usize,
     ny: usize,
     nz: usize,
@@ -61,14 +60,13 @@ unsafe fn scatter_partial_4d<T: Copy>(
     sz: isize,
     sw: isize,
 ) {
-    let p = data.as_mut_ptr();
     for w in 0..nw {
         for z in 0..nz {
             for y in 0..ny {
                 for x in 0..nx {
                     // SAFETY: caller guarantees data spans nx*ny*nz*nw elements with strides
                     unsafe {
-                        *p.offset(
+                        *data.offset(
                             w.cast_signed() * sw
                                 + z.cast_signed() * sz
                                 + y.cast_signed() * sy
