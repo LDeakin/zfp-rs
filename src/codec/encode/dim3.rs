@@ -47,129 +47,34 @@ fn gather_3d<T: Copy>(data: &[T], sx: isize, sy: isize, sz: isize) -> [T; 64] {
 
 /// Gather a partial 3-D block (nx, ny, nz ≤ 4) and pad to 4×4×4.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn gather_partial_3d_f64(
-    data: &[f64],
+fn gather_partial_3d<T: Copy + Default>(
+    data: &[T],
     nx: usize,
     ny: usize,
     nz: usize,
     sx: isize,
     sy: isize,
     sz: isize,
-) -> [f64; 64] {
-    let mut block = [0f64; 64];
+) -> [T; 64] {
+    let mut block = [T::default(); 64];
     let p = data.as_ptr();
     for z in 0..nz {
         for y in 0..ny {
             for x in 0..nx {
+                // SAFETY: caller guarantees valid strides
                 block[16 * z + 4 * y + x] = unsafe {
                     *p.offset(z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx)
                 };
             }
-            pad_strided!(block, 16 * z + 4 * y, nx, 1, 0.0f64);
+            pad_strided!(block, 16 * z + 4 * y, nx, 1, T::default());
         }
         for x in 0..4usize {
-            pad_strided!(block, 16 * z + x, ny, 4, 0.0f64);
+            pad_strided!(block, 16 * z + x, ny, 4, T::default());
         }
     }
     for y in 0..4usize {
         for x in 0..4usize {
-            pad_strided!(block, 4 * y + x, nz, 16, 0.0f64);
-        }
-    }
-    block
-}
-
-fn gather_partial_3d_f32(
-    data: &[f32],
-    nx: usize,
-    ny: usize,
-    nz: usize,
-    sx: isize,
-    sy: isize,
-    sz: isize,
-) -> [f32; 64] {
-    let mut block = [0f32; 64];
-    let p = data.as_ptr();
-    for z in 0..nz {
-        for y in 0..ny {
-            for x in 0..nx {
-                block[16 * z + 4 * y + x] = unsafe {
-                    *p.offset(z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx)
-                };
-            }
-            pad_strided!(block, 16 * z + 4 * y, nx, 1, 0.0f32);
-        }
-        for x in 0..4usize {
-            pad_strided!(block, 16 * z + x, ny, 4, 0.0f32);
-        }
-    }
-    for y in 0..4usize {
-        for x in 0..4usize {
-            pad_strided!(block, 4 * y + x, nz, 16, 0.0f32);
-        }
-    }
-    block
-}
-
-fn gather_partial_3d_i32(
-    data: &[i32],
-    nx: usize,
-    ny: usize,
-    nz: usize,
-    sx: isize,
-    sy: isize,
-    sz: isize,
-) -> [i32; 64] {
-    let mut block = [0i32; 64];
-    let p = data.as_ptr();
-    for z in 0..nz {
-        for y in 0..ny {
-            for x in 0..nx {
-                block[16 * z + 4 * y + x] = unsafe {
-                    *p.offset(z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx)
-                };
-            }
-            pad_strided!(block, 16 * z + 4 * y, nx, 1, 0i32);
-        }
-        for x in 0..4usize {
-            pad_strided!(block, 16 * z + x, ny, 4, 0i32);
-        }
-    }
-    for y in 0..4usize {
-        for x in 0..4usize {
-            pad_strided!(block, 4 * y + x, nz, 16, 0i32);
-        }
-    }
-    block
-}
-
-fn gather_partial_3d_i64(
-    data: &[i64],
-    nx: usize,
-    ny: usize,
-    nz: usize,
-    sx: isize,
-    sy: isize,
-    sz: isize,
-) -> [i64; 64] {
-    let mut block = [0i64; 64];
-    let p = data.as_ptr();
-    for z in 0..nz {
-        for y in 0..ny {
-            for x in 0..nx {
-                block[16 * z + 4 * y + x] = unsafe {
-                    *p.offset(z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx)
-                };
-            }
-            pad_strided!(block, 16 * z + 4 * y, nx, 1, 0i64);
-        }
-        for x in 0..4usize {
-            pad_strided!(block, 16 * z + x, ny, 4, 0i64);
-        }
-    }
-    for y in 0..4usize {
-        for x in 0..4usize {
-            pad_strided!(block, 4 * y + x, nz, 16, 0i64);
+            pad_strided!(block, 4 * y + x, nz, 16, T::default());
         }
     }
     block
@@ -271,7 +176,7 @@ pub fn encode_partial_block_strided_3d_f64(
     sy: isize,
     sz: isize,
 ) -> usize {
-    let block = gather_partial_3d_f64(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_f64_default(bs, &block)
 }
 
@@ -285,7 +190,7 @@ pub fn encode_partial_block_strided_3d_f32(
     sy: isize,
     sz: isize,
 ) -> usize {
-    let block = gather_partial_3d_f32(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_f32_default(bs, &block)
 }
 
@@ -299,7 +204,7 @@ pub fn encode_partial_block_strided_3d_i32(
     sy: isize,
     sz: isize,
 ) -> usize {
-    let block = gather_partial_3d_i32(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_i32_default(bs, &block)
 }
 
@@ -313,7 +218,7 @@ pub fn encode_partial_block_strided_3d_i64(
     sy: isize,
     sz: isize,
 ) -> usize {
-    let block = gather_partial_3d_i64(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_i64_default(bs, &block)
 }
 
@@ -389,7 +294,7 @@ pub fn encode_partial_block_strided_3d_f64_rate(
     maxprec: u32,
     minexp: i32,
 ) -> usize {
-    let block = gather_partial_3d_f64(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_f64(bs, &block, minbits, maxbits, maxprec, minexp)
 }
 pub fn encode_partial_block_strided_3d_f32_rate(
@@ -406,7 +311,7 @@ pub fn encode_partial_block_strided_3d_f32_rate(
     maxprec: u32,
     minexp: i32,
 ) -> usize {
-    let block = gather_partial_3d_f32(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_f32(bs, &block, minbits, maxbits, maxprec, minexp)
 }
 pub fn encode_partial_block_strided_3d_i32_rate(
@@ -422,7 +327,7 @@ pub fn encode_partial_block_strided_3d_i32_rate(
     maxbits: u32,
     maxprec: u32,
 ) -> usize {
-    let block = gather_partial_3d_i32(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_i32(bs, &block, minbits, maxbits, maxprec)
 }
 pub fn encode_partial_block_strided_3d_i64_rate(
@@ -438,6 +343,6 @@ pub fn encode_partial_block_strided_3d_i64_rate(
     maxbits: u32,
     maxprec: u32,
 ) -> usize {
-    let block = gather_partial_3d_i64(data, nx, ny, nz, sx, sy, sz);
+    let block = gather_partial_3d(data, nx, ny, nz, sx, sy, sz);
     encode_block_3d_i64(bs, &block, minbits, maxbits, maxprec)
 }

@@ -45,62 +45,24 @@ fn gather_2d<T: Copy>(data: &[T], sx: isize, sy: isize) -> [T; 16] {
 
 /// Gather a partial 2-D block (nx, ny ≤ 4) and pad to 4×4.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn gather_partial_2d_f64(data: &[f64], nx: usize, ny: usize, sx: isize, sy: isize) -> [f64; 16] {
-    let mut block = [0f64; 16];
+fn gather_partial_2d<T: Copy + Default>(
+    data: &[T],
+    nx: usize,
+    ny: usize,
+    sx: isize,
+    sy: isize,
+) -> [T; 16] {
+    let mut block = [T::default(); 16];
     let p = data.as_ptr();
     for y in 0..ny {
         for x in 0..nx {
+            // SAFETY: caller guarantees valid strides
             block[4 * y + x] = unsafe { *p.offset(y.cast_signed() * sy + x.cast_signed() * sx) };
         }
-        pad_strided!(block, 4 * y, nx, 1, 0.0f64);
+        pad_strided!(block, 4 * y, nx, 1, T::default());
     }
     for x in 0..4usize {
-        pad_strided!(block, x, ny, 4, 0.0f64);
-    }
-    block
-}
-
-fn gather_partial_2d_f32(data: &[f32], nx: usize, ny: usize, sx: isize, sy: isize) -> [f32; 16] {
-    let mut block = [0f32; 16];
-    let p = data.as_ptr();
-    for y in 0..ny {
-        for x in 0..nx {
-            block[4 * y + x] = unsafe { *p.offset(y.cast_signed() * sy + x.cast_signed() * sx) };
-        }
-        pad_strided!(block, 4 * y, nx, 1, 0.0f32);
-    }
-    for x in 0..4usize {
-        pad_strided!(block, x, ny, 4, 0.0f32);
-    }
-    block
-}
-
-fn gather_partial_2d_i32(data: &[i32], nx: usize, ny: usize, sx: isize, sy: isize) -> [i32; 16] {
-    let mut block = [0i32; 16];
-    let p = data.as_ptr();
-    for y in 0..ny {
-        for x in 0..nx {
-            block[4 * y + x] = unsafe { *p.offset(y.cast_signed() * sy + x.cast_signed() * sx) };
-        }
-        pad_strided!(block, 4 * y, nx, 1, 0i32);
-    }
-    for x in 0..4usize {
-        pad_strided!(block, x, ny, 4, 0i32);
-    }
-    block
-}
-
-fn gather_partial_2d_i64(data: &[i64], nx: usize, ny: usize, sx: isize, sy: isize) -> [i64; 16] {
-    let mut block = [0i64; 16];
-    let p = data.as_ptr();
-    for y in 0..ny {
-        for x in 0..nx {
-            block[4 * y + x] = unsafe { *p.offset(y.cast_signed() * sy + x.cast_signed() * sx) };
-        }
-        pad_strided!(block, 4 * y, nx, 1, 0i64);
-    }
-    for x in 0..4usize {
-        pad_strided!(block, x, ny, 4, 0i64);
+        pad_strided!(block, x, ny, 4, T::default());
     }
     block
 }
@@ -204,7 +166,7 @@ pub fn encode_partial_block_strided_2d_f64(
     sx: isize,
     sy: isize,
 ) -> usize {
-    let block = gather_partial_2d_f64(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_f64_default(bs, &block)
 }
 
@@ -217,7 +179,7 @@ pub fn encode_partial_block_strided_2d_f32(
     sx: isize,
     sy: isize,
 ) -> usize {
-    let block = gather_partial_2d_f32(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_f32_default(bs, &block)
 }
 
@@ -230,7 +192,7 @@ pub fn encode_partial_block_strided_2d_i32(
     sx: isize,
     sy: isize,
 ) -> usize {
-    let block = gather_partial_2d_i32(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_i32_default(bs, &block)
 }
 
@@ -243,7 +205,7 @@ pub fn encode_partial_block_strided_2d_i64(
     sx: isize,
     sy: isize,
 ) -> usize {
-    let block = gather_partial_2d_i64(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_i64_default(bs, &block)
 }
 
@@ -317,7 +279,7 @@ pub fn encode_partial_block_strided_2d_f64_rate(
     maxprec: u32,
     minexp: i32,
 ) -> usize {
-    let block = gather_partial_2d_f64(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_f64(bs, &block, minbits, maxbits, maxprec, minexp)
 }
 
@@ -333,7 +295,7 @@ pub fn encode_partial_block_strided_2d_f32_rate(
     maxprec: u32,
     minexp: i32,
 ) -> usize {
-    let block = gather_partial_2d_f32(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_f32(bs, &block, minbits, maxbits, maxprec, minexp)
 }
 
@@ -348,7 +310,7 @@ pub fn encode_partial_block_strided_2d_i32_rate(
     maxbits: u32,
     maxprec: u32,
 ) -> usize {
-    let block = gather_partial_2d_i32(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_i32(bs, &block, minbits, maxbits, maxprec)
 }
 
@@ -363,6 +325,6 @@ pub fn encode_partial_block_strided_2d_i64_rate(
     maxbits: u32,
     maxprec: u32,
 ) -> usize {
-    let block = gather_partial_2d_i64(data, nx, ny, sx, sy);
+    let block = gather_partial_2d(data, nx, ny, sx, sy);
     encode_block_2d_i64(bs, &block, minbits, maxbits, maxprec)
 }
