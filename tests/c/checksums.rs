@@ -32,8 +32,8 @@ fn hash_finish(h: u32) -> u32 {
 pub fn hash_bitstream(buf: &[u8]) -> u64 {
     let mut h1: u32 = 0;
     let mut h2: u32 = 0;
-    for chunk in buf.chunks_exact(8) {
-        let word = u64::from_le_bytes(chunk.try_into().unwrap());
+    for chunk in buf.as_chunks::<8>().0 {
+        let word = u64::from_le_bytes(*chunk);
         let lo = (word & 0xffff_ffff) as u32;
         let hi = ((word >> 32) & 0xffff_ffff) as u32;
         hash_value(lo, &mut h1);
@@ -155,6 +155,9 @@ pub fn hash_strided_array64(arr: &[u64], n: [usize; 4], s: [isize; 4]) -> u64 {
 // Key computation (zfpChecksums.c: computeKey / computeKeyOriginalInput)
 // ---------------------------------------------------------------------------
 
+// The block variants are only constructed by the block-codec tests, which are
+// `ffi`-gated; the default-feature build of this binary uses the array ones.
+#[allow(dead_code)]
 #[derive(Clone, Copy)]
 pub enum TestType {
     BlockFull = 0,
