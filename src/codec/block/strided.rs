@@ -234,42 +234,48 @@ macro_rules! reversible_dispatch {
 // ---------------------------------------------------------------------------
 
 /// Encode a strided 4^d block of scalars; return bits written.
-pub fn encode_block_strided<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn encode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: &[T],
     dims: ZfpDimensionality,
     strides: &[isize],
 ) -> usize {
-    use crate::codec::encode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice,
-        lengths: [],
-        tail_int: [],
-        tail_float: [],
-        d1: [
-            dim1::encode_block_strided_1d_i32,
-            dim1::encode_block_strided_1d_i64,
-            dim1::encode_block_strided_1d_f32,
-            dim1::encode_block_strided_1d_f64,
-        ],
-        d2: [
-            dim2::encode_block_strided_2d_i32,
-            dim2::encode_block_strided_2d_i64,
-            dim2::encode_block_strided_2d_f32,
-            dim2::encode_block_strided_2d_f64,
-        ],
-        d3: [
-            dim3::encode_block_strided_3d_i32,
-            dim3::encode_block_strided_3d_i64,
-            dim3::encode_block_strided_3d_f32,
-            dim3::encode_block_strided_3d_f64,
-        ],
-        d4: [
-            dim4::encode_block_strided_4d_i32,
-            dim4::encode_block_strided_4d_i64,
-            dim4::encode_block_strided_4d_f32,
-            dim4::encode_block_strided_4d_f64,
-        ],
+    unsafe {
+        use crate::codec::encode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice,
+            lengths: [],
+            tail_int: [],
+            tail_float: [],
+            d1: [
+                dim1::encode_block_strided_1d_i32,
+                dim1::encode_block_strided_1d_i64,
+                dim1::encode_block_strided_1d_f32,
+                dim1::encode_block_strided_1d_f64,
+            ],
+            d2: [
+                dim2::encode_block_strided_2d_i32,
+                dim2::encode_block_strided_2d_i64,
+                dim2::encode_block_strided_2d_f32,
+                dim2::encode_block_strided_2d_f64,
+            ],
+            d3: [
+                dim3::encode_block_strided_3d_i32,
+                dim3::encode_block_strided_3d_i64,
+                dim3::encode_block_strided_3d_f32,
+                dim3::encode_block_strided_3d_f64,
+            ],
+            d4: [
+                dim4::encode_block_strided_4d_i32,
+                dim4::encode_block_strided_4d_i64,
+                dim4::encode_block_strided_4d_f32,
+                dim4::encode_block_strided_4d_f64,
+            ],
+        }
     }
 }
 
@@ -278,43 +284,49 @@ pub fn encode_block_strided<T: ZfpScalar>(
 // ---------------------------------------------------------------------------
 
 /// Encode a partial (boundary) strided block; return bits written.
-pub fn encode_partial_block_strided<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: &[T],
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
 ) -> usize {
-    use crate::codec::encode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice,
-        lengths: [lengths],
-        tail_int: [],
-        tail_float: [],
-        d1: [
-            dim1::encode_partial_block_strided_1d_i32,
-            dim1::encode_partial_block_strided_1d_i64,
-            dim1::encode_partial_block_strided_1d_f32,
-            dim1::encode_partial_block_strided_1d_f64,
-        ],
-        d2: [
-            dim2::encode_partial_block_strided_2d_i32,
-            dim2::encode_partial_block_strided_2d_i64,
-            dim2::encode_partial_block_strided_2d_f32,
-            dim2::encode_partial_block_strided_2d_f64,
-        ],
-        d3: [
-            dim3::encode_partial_block_strided_3d_i32,
-            dim3::encode_partial_block_strided_3d_i64,
-            dim3::encode_partial_block_strided_3d_f32,
-            dim3::encode_partial_block_strided_3d_f64,
-        ],
-        d4: [
-            dim4::encode_partial_block_strided_4d_i32,
-            dim4::encode_partial_block_strided_4d_i64,
-            dim4::encode_partial_block_strided_4d_f32,
-            dim4::encode_partial_block_strided_4d_f64,
-        ],
+    unsafe {
+        use crate::codec::encode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice,
+            lengths: [lengths],
+            tail_int: [],
+            tail_float: [],
+            d1: [
+                dim1::encode_partial_block_strided_1d_i32,
+                dim1::encode_partial_block_strided_1d_i64,
+                dim1::encode_partial_block_strided_1d_f32,
+                dim1::encode_partial_block_strided_1d_f64,
+            ],
+            d2: [
+                dim2::encode_partial_block_strided_2d_i32,
+                dim2::encode_partial_block_strided_2d_i64,
+                dim2::encode_partial_block_strided_2d_f32,
+                dim2::encode_partial_block_strided_2d_f64,
+            ],
+            d3: [
+                dim3::encode_partial_block_strided_3d_i32,
+                dim3::encode_partial_block_strided_3d_i64,
+                dim3::encode_partial_block_strided_3d_f32,
+                dim3::encode_partial_block_strided_3d_f64,
+            ],
+            d4: [
+                dim4::encode_partial_block_strided_4d_i32,
+                dim4::encode_partial_block_strided_4d_i64,
+                dim4::encode_partial_block_strided_4d_f32,
+                dim4::encode_partial_block_strided_4d_f64,
+            ],
+        }
     }
 }
 
@@ -325,42 +337,48 @@ pub fn encode_partial_block_strided<T: ZfpScalar>(
 /// Decode a strided 4^d block of scalars; return bits read.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
 /// Decode a strided 4^d block of scalars; return bits read.
-pub fn decode_block_strided<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn decode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [T],
     dims: ZfpDimensionality,
     strides: &[isize],
 ) -> usize {
-    use crate::codec::decode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice_mut,
-        lengths: [],
-        tail_int: [],
-        tail_float: [],
-        d1: [
-            dim1::decode_block_strided_1d_i32,
-            dim1::decode_block_strided_1d_i64,
-            dim1::decode_block_strided_1d_f32,
-            dim1::decode_block_strided_1d_f64,
-        ],
-        d2: [
-            dim2::decode_block_strided_2d_i32,
-            dim2::decode_block_strided_2d_i64,
-            dim2::decode_block_strided_2d_f32,
-            dim2::decode_block_strided_2d_f64,
-        ],
-        d3: [
-            dim3::decode_block_strided_3d_i32,
-            dim3::decode_block_strided_3d_i64,
-            dim3::decode_block_strided_3d_f32,
-            dim3::decode_block_strided_3d_f64,
-        ],
-        d4: [
-            dim4::decode_block_strided_4d_i32,
-            dim4::decode_block_strided_4d_i64,
-            dim4::decode_block_strided_4d_f32,
-            dim4::decode_block_strided_4d_f64,
-        ],
+    unsafe {
+        use crate::codec::decode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice_mut,
+            lengths: [],
+            tail_int: [],
+            tail_float: [],
+            d1: [
+                dim1::decode_block_strided_1d_i32,
+                dim1::decode_block_strided_1d_i64,
+                dim1::decode_block_strided_1d_f32,
+                dim1::decode_block_strided_1d_f64,
+            ],
+            d2: [
+                dim2::decode_block_strided_2d_i32,
+                dim2::decode_block_strided_2d_i64,
+                dim2::decode_block_strided_2d_f32,
+                dim2::decode_block_strided_2d_f64,
+            ],
+            d3: [
+                dim3::decode_block_strided_3d_i32,
+                dim3::decode_block_strided_3d_i64,
+                dim3::decode_block_strided_3d_f32,
+                dim3::decode_block_strided_3d_f64,
+            ],
+            d4: [
+                dim4::decode_block_strided_4d_i32,
+                dim4::decode_block_strided_4d_i64,
+                dim4::decode_block_strided_4d_f32,
+                dim4::decode_block_strided_4d_f64,
+            ],
+        }
     }
 }
 
@@ -369,43 +387,49 @@ pub fn decode_block_strided<T: ZfpScalar>(
 // ---------------------------------------------------------------------------
 
 /// Decode a partial (boundary) strided block; return bits read.
-pub fn decode_partial_block_strided<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [T],
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
 ) -> usize {
-    use crate::codec::decode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice_mut,
-        lengths: [lengths],
-        tail_int: [],
-        tail_float: [],
-        d1: [
-            dim1::decode_partial_block_strided_1d_i32,
-            dim1::decode_partial_block_strided_1d_i64,
-            dim1::decode_partial_block_strided_1d_f32,
-            dim1::decode_partial_block_strided_1d_f64,
-        ],
-        d2: [
-            dim2::decode_partial_block_strided_2d_i32,
-            dim2::decode_partial_block_strided_2d_i64,
-            dim2::decode_partial_block_strided_2d_f32,
-            dim2::decode_partial_block_strided_2d_f64,
-        ],
-        d3: [
-            dim3::decode_partial_block_strided_3d_i32,
-            dim3::decode_partial_block_strided_3d_i64,
-            dim3::decode_partial_block_strided_3d_f32,
-            dim3::decode_partial_block_strided_3d_f64,
-        ],
-        d4: [
-            dim4::decode_partial_block_strided_4d_i32,
-            dim4::decode_partial_block_strided_4d_i64,
-            dim4::decode_partial_block_strided_4d_f32,
-            dim4::decode_partial_block_strided_4d_f64,
-        ],
+    unsafe {
+        use crate::codec::decode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice_mut,
+            lengths: [lengths],
+            tail_int: [],
+            tail_float: [],
+            d1: [
+                dim1::decode_partial_block_strided_1d_i32,
+                dim1::decode_partial_block_strided_1d_i64,
+                dim1::decode_partial_block_strided_1d_f32,
+                dim1::decode_partial_block_strided_1d_f64,
+            ],
+            d2: [
+                dim2::decode_partial_block_strided_2d_i32,
+                dim2::decode_partial_block_strided_2d_i64,
+                dim2::decode_partial_block_strided_2d_f32,
+                dim2::decode_partial_block_strided_2d_f64,
+            ],
+            d3: [
+                dim3::decode_partial_block_strided_3d_i32,
+                dim3::decode_partial_block_strided_3d_i64,
+                dim3::decode_partial_block_strided_3d_f32,
+                dim3::decode_partial_block_strided_3d_f64,
+            ],
+            d4: [
+                dim4::decode_partial_block_strided_4d_i32,
+                dim4::decode_partial_block_strided_4d_i64,
+                dim4::decode_partial_block_strided_4d_f32,
+                dim4::decode_partial_block_strided_4d_f64,
+            ],
+        }
     }
 }
 
@@ -419,7 +443,7 @@ pub fn decode_partial_block_strided<T: ZfpScalar>(
 /// For partial blocks, `lengths` gives the count per dimension (≤ 4), and
 /// elements outside the field boundary are padded with the nearest value.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
-fn gather_block<T: ZfpScalar>(
+unsafe fn gather_block<T: ZfpScalar>(
     data: &[T],
     dims: ZfpDimensionality,
     strides: &[isize],
@@ -526,7 +550,7 @@ fn gather_block<T: ZfpScalar>(
 /// Only the `lengths` elements in each dimension are written; padding elements
 /// are discarded.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
-fn scatter_block<T: ZfpScalar>(
+unsafe fn scatter_block<T: ZfpScalar>(
     block: &[T],
     data: &mut [T],
     dims: ZfpDimensionality,
@@ -618,88 +642,100 @@ fn scatter_block<T: ZfpScalar>(
 /// Reversible encode of a (possibly partial) strided 4^d block; return bits written.
 ///
 /// Used by `ZfpBitStream::compress` in reversible mode.
-pub fn encode_block_strided_reversible<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: &[T],
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
 ) -> usize {
-    use crate::codec::encode::reversible as rev;
+    unsafe {
+        use crate::codec::encode::reversible as rev;
 
-    let block = gather_block(data, dims, strides, lengths);
-    reversible_dispatch! {
-        encode bs, dims, block,
-        d1: [
-            rev::encode_block_reversible_1d_i32,
-            rev::encode_block_reversible_1d_i64,
-            rev::encode_block_reversible_1d_f32,
-            rev::encode_block_reversible_1d_f64,
-        ],
-        d2: [
-            rev::encode_block_reversible_2d_i32,
-            rev::encode_block_reversible_2d_i64,
-            rev::encode_block_reversible_2d_f32,
-            rev::encode_block_reversible_2d_f64,
-        ],
-        d3: [
-            rev::encode_block_reversible_3d_i32,
-            rev::encode_block_reversible_3d_i64,
-            rev::encode_block_reversible_3d_f32,
-            rev::encode_block_reversible_3d_f64,
-        ],
-        d4: [
-            rev::encode_block_reversible_4d_i32,
-            rev::encode_block_reversible_4d_i64,
-            rev::encode_block_reversible_4d_f32,
-            rev::encode_block_reversible_4d_f64,
-        ],
+        let block = gather_block(data, dims, strides, lengths);
+        reversible_dispatch! {
+            encode bs, dims, block,
+            d1: [
+                rev::encode_block_reversible_1d_i32,
+                rev::encode_block_reversible_1d_i64,
+                rev::encode_block_reversible_1d_f32,
+                rev::encode_block_reversible_1d_f64,
+            ],
+            d2: [
+                rev::encode_block_reversible_2d_i32,
+                rev::encode_block_reversible_2d_i64,
+                rev::encode_block_reversible_2d_f32,
+                rev::encode_block_reversible_2d_f64,
+            ],
+            d3: [
+                rev::encode_block_reversible_3d_i32,
+                rev::encode_block_reversible_3d_i64,
+                rev::encode_block_reversible_3d_f32,
+                rev::encode_block_reversible_3d_f64,
+            ],
+            d4: [
+                rev::encode_block_reversible_4d_i32,
+                rev::encode_block_reversible_4d_i64,
+                rev::encode_block_reversible_4d_f32,
+                rev::encode_block_reversible_4d_f64,
+            ],
+        }
     }
 }
 
 /// Reversible decode of a (possibly partial) strided 4^d block; return bits read.
 ///
 /// Used by `ZfpBitStream::decompress` in reversible mode.
-pub fn decode_block_strided_reversible<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [T],
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
 ) -> usize {
-    use crate::codec::decode::reversible as rev;
+    unsafe {
+        use crate::codec::decode::reversible as rev;
 
-    let mut block = vec![T::default(); 4usize.pow(u32::from(dims))];
-    let bits = reversible_dispatch! {
-        decode bs, dims, block,
-        d1: [
-            rev::decode_block_reversible_1d_i32,
-            rev::decode_block_reversible_1d_i64,
-            rev::decode_block_reversible_1d_f32,
-            rev::decode_block_reversible_1d_f64,
-        ],
-        d2: [
-            rev::decode_block_reversible_2d_i32,
-            rev::decode_block_reversible_2d_i64,
-            rev::decode_block_reversible_2d_f32,
-            rev::decode_block_reversible_2d_f64,
-        ],
-        d3: [
-            rev::decode_block_reversible_3d_i32,
-            rev::decode_block_reversible_3d_i64,
-            rev::decode_block_reversible_3d_f32,
-            rev::decode_block_reversible_3d_f64,
-        ],
-        d4: [
-            rev::decode_block_reversible_4d_i32,
-            rev::decode_block_reversible_4d_i64,
-            rev::decode_block_reversible_4d_f32,
-            rev::decode_block_reversible_4d_f64,
-        ],
-    };
+        let mut block = vec![T::default(); 4usize.pow(u32::from(dims))];
+        let bits = reversible_dispatch! {
+            decode bs, dims, block,
+            d1: [
+                rev::decode_block_reversible_1d_i32,
+                rev::decode_block_reversible_1d_i64,
+                rev::decode_block_reversible_1d_f32,
+                rev::decode_block_reversible_1d_f64,
+            ],
+            d2: [
+                rev::decode_block_reversible_2d_i32,
+                rev::decode_block_reversible_2d_i64,
+                rev::decode_block_reversible_2d_f32,
+                rev::decode_block_reversible_2d_f64,
+            ],
+            d3: [
+                rev::decode_block_reversible_3d_i32,
+                rev::decode_block_reversible_3d_i64,
+                rev::decode_block_reversible_3d_f32,
+                rev::decode_block_reversible_3d_f64,
+            ],
+            d4: [
+                rev::decode_block_reversible_4d_i32,
+                rev::decode_block_reversible_4d_i64,
+                rev::decode_block_reversible_4d_f32,
+                rev::decode_block_reversible_4d_f64,
+            ],
+        };
 
-    scatter_block(&block, data, dims, strides, lengths);
-    bits
+        scatter_block(&block, data, dims, strides, lengths);
+        bits
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -710,7 +746,11 @@ pub fn decode_block_strided_reversible<T: ZfpScalar>(
 ///
 /// Unlike `encode_block_strided`, this uses the caller-supplied `min_bits`,
 /// `max_bits`, `max_prec`, and `min_exp` instead of the lossless defaults.
-pub fn encode_block_strided_with_params<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn encode_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: &[T],
     dims: ZfpDimensionality,
@@ -720,41 +760,47 @@ pub fn encode_block_strided_with_params<T: ZfpScalar>(
     max_prec: u32,
     min_exp: i32,
 ) -> usize {
-    use crate::codec::encode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice,
-        lengths: [],
-        tail_int: [min_bits, max_bits, max_prec],
-        tail_float: [min_bits, max_bits, max_prec, min_exp],
-        d1: [
-            dim1::encode_block_strided_1d_i32_rate,
-            dim1::encode_block_strided_1d_i64_rate,
-            dim1::encode_block_strided_1d_f32_rate,
-            dim1::encode_block_strided_1d_f64_rate,
-        ],
-        d2: [
-            dim2::encode_block_strided_2d_i32_rate,
-            dim2::encode_block_strided_2d_i64_rate,
-            dim2::encode_block_strided_2d_f32_rate,
-            dim2::encode_block_strided_2d_f64_rate,
-        ],
-        d3: [
-            dim3::encode_block_strided_3d_i32_rate,
-            dim3::encode_block_strided_3d_i64_rate,
-            dim3::encode_block_strided_3d_f32_rate,
-            dim3::encode_block_strided_3d_f64_rate,
-        ],
-        d4: [
-            dim4::encode_block_strided_4d_i32_rate,
-            dim4::encode_block_strided_4d_i64_rate,
-            dim4::encode_block_strided_4d_f32_rate,
-            dim4::encode_block_strided_4d_f64_rate,
-        ],
+    unsafe {
+        use crate::codec::encode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice,
+            lengths: [],
+            tail_int: [min_bits, max_bits, max_prec],
+            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            d1: [
+                dim1::encode_block_strided_1d_i32_rate,
+                dim1::encode_block_strided_1d_i64_rate,
+                dim1::encode_block_strided_1d_f32_rate,
+                dim1::encode_block_strided_1d_f64_rate,
+            ],
+            d2: [
+                dim2::encode_block_strided_2d_i32_rate,
+                dim2::encode_block_strided_2d_i64_rate,
+                dim2::encode_block_strided_2d_f32_rate,
+                dim2::encode_block_strided_2d_f64_rate,
+            ],
+            d3: [
+                dim3::encode_block_strided_3d_i32_rate,
+                dim3::encode_block_strided_3d_i64_rate,
+                dim3::encode_block_strided_3d_f32_rate,
+                dim3::encode_block_strided_3d_f64_rate,
+            ],
+            d4: [
+                dim4::encode_block_strided_4d_i32_rate,
+                dim4::encode_block_strided_4d_i64_rate,
+                dim4::encode_block_strided_4d_f32_rate,
+                dim4::encode_block_strided_4d_f64_rate,
+            ],
+        }
     }
 }
 
 /// Encode a partial (boundary) strided block with explicit stream parameters; return bits written.
-pub fn encode_partial_block_strided_with_params<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn encode_partial_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
     data: &[T],
     dims: ZfpDimensionality,
@@ -765,36 +811,38 @@ pub fn encode_partial_block_strided_with_params<T: ZfpScalar>(
     max_prec: u32,
     min_exp: i32,
 ) -> usize {
-    use crate::codec::encode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice,
-        lengths: [lengths],
-        tail_int: [min_bits, max_bits, max_prec],
-        tail_float: [min_bits, max_bits, max_prec, min_exp],
-        d1: [
-            dim1::encode_partial_block_strided_1d_i32_rate,
-            dim1::encode_partial_block_strided_1d_i64_rate,
-            dim1::encode_partial_block_strided_1d_f32_rate,
-            dim1::encode_partial_block_strided_1d_f64_rate,
-        ],
-        d2: [
-            dim2::encode_partial_block_strided_2d_i32_rate,
-            dim2::encode_partial_block_strided_2d_i64_rate,
-            dim2::encode_partial_block_strided_2d_f32_rate,
-            dim2::encode_partial_block_strided_2d_f64_rate,
-        ],
-        d3: [
-            dim3::encode_partial_block_strided_3d_i32_rate,
-            dim3::encode_partial_block_strided_3d_i64_rate,
-            dim3::encode_partial_block_strided_3d_f32_rate,
-            dim3::encode_partial_block_strided_3d_f64_rate,
-        ],
-        d4: [
-            dim4::encode_partial_block_strided_4d_i32_rate,
-            dim4::encode_partial_block_strided_4d_i64_rate,
-            dim4::encode_partial_block_strided_4d_f32_rate,
-            dim4::encode_partial_block_strided_4d_f64_rate,
-        ],
+    unsafe {
+        use crate::codec::encode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice,
+            lengths: [lengths],
+            tail_int: [min_bits, max_bits, max_prec],
+            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            d1: [
+                dim1::encode_partial_block_strided_1d_i32_rate,
+                dim1::encode_partial_block_strided_1d_i64_rate,
+                dim1::encode_partial_block_strided_1d_f32_rate,
+                dim1::encode_partial_block_strided_1d_f64_rate,
+            ],
+            d2: [
+                dim2::encode_partial_block_strided_2d_i32_rate,
+                dim2::encode_partial_block_strided_2d_i64_rate,
+                dim2::encode_partial_block_strided_2d_f32_rate,
+                dim2::encode_partial_block_strided_2d_f64_rate,
+            ],
+            d3: [
+                dim3::encode_partial_block_strided_3d_i32_rate,
+                dim3::encode_partial_block_strided_3d_i64_rate,
+                dim3::encode_partial_block_strided_3d_f32_rate,
+                dim3::encode_partial_block_strided_3d_f64_rate,
+            ],
+            d4: [
+                dim4::encode_partial_block_strided_4d_i32_rate,
+                dim4::encode_partial_block_strided_4d_i64_rate,
+                dim4::encode_partial_block_strided_4d_f32_rate,
+                dim4::encode_partial_block_strided_4d_f64_rate,
+            ],
+        }
     }
 }
 
@@ -803,7 +851,11 @@ pub fn encode_partial_block_strided_with_params<T: ZfpScalar>(
 // ---------------------------------------------------------------------------
 
 /// Decode a strided 4^d block with explicit stream parameters; return bits read.
-pub fn decode_block_strided_with_params<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn decode_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [T],
     dims: ZfpDimensionality,
@@ -813,41 +865,47 @@ pub fn decode_block_strided_with_params<T: ZfpScalar>(
     max_prec: u32,
     min_exp: i32,
 ) -> usize {
-    use crate::codec::decode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice_mut,
-        lengths: [],
-        tail_int: [min_bits, max_bits, max_prec],
-        tail_float: [min_bits, max_bits, max_prec, min_exp],
-        d1: [
-            dim1::decode_block_strided_1d_i32_rate,
-            dim1::decode_block_strided_1d_i64_rate,
-            dim1::decode_block_strided_1d_f32_rate,
-            dim1::decode_block_strided_1d_f64_rate,
-        ],
-        d2: [
-            dim2::decode_block_strided_2d_i32_rate,
-            dim2::decode_block_strided_2d_i64_rate,
-            dim2::decode_block_strided_2d_f32_rate,
-            dim2::decode_block_strided_2d_f64_rate,
-        ],
-        d3: [
-            dim3::decode_block_strided_3d_i32_rate,
-            dim3::decode_block_strided_3d_i64_rate,
-            dim3::decode_block_strided_3d_f32_rate,
-            dim3::decode_block_strided_3d_f64_rate,
-        ],
-        d4: [
-            dim4::decode_block_strided_4d_i32_rate,
-            dim4::decode_block_strided_4d_i64_rate,
-            dim4::decode_block_strided_4d_f32_rate,
-            dim4::decode_block_strided_4d_f64_rate,
-        ],
+    unsafe {
+        use crate::codec::decode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice_mut,
+            lengths: [],
+            tail_int: [min_bits, max_bits, max_prec],
+            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            d1: [
+                dim1::decode_block_strided_1d_i32_rate,
+                dim1::decode_block_strided_1d_i64_rate,
+                dim1::decode_block_strided_1d_f32_rate,
+                dim1::decode_block_strided_1d_f64_rate,
+            ],
+            d2: [
+                dim2::decode_block_strided_2d_i32_rate,
+                dim2::decode_block_strided_2d_i64_rate,
+                dim2::decode_block_strided_2d_f32_rate,
+                dim2::decode_block_strided_2d_f64_rate,
+            ],
+            d3: [
+                dim3::decode_block_strided_3d_i32_rate,
+                dim3::decode_block_strided_3d_i64_rate,
+                dim3::decode_block_strided_3d_f32_rate,
+                dim3::decode_block_strided_3d_f64_rate,
+            ],
+            d4: [
+                dim4::decode_block_strided_4d_i32_rate,
+                dim4::decode_block_strided_4d_i64_rate,
+                dim4::decode_block_strided_4d_f32_rate,
+                dim4::decode_block_strided_4d_f64_rate,
+            ],
+        }
     }
 }
 
 /// Decode a partial (boundary) strided block with explicit stream parameters; return bits read.
-pub fn decode_partial_block_strided_with_params<T: ZfpScalar>(
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate over the
+/// block's extent. See the [`crate::codec::block`] module documentation.
+pub unsafe fn decode_partial_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [T],
     dims: ZfpDimensionality,
@@ -858,35 +916,37 @@ pub fn decode_partial_block_strided_with_params<T: ZfpScalar>(
     max_prec: u32,
     min_exp: i32,
 ) -> usize {
-    use crate::codec::decode::{dim1, dim2, dim3, dim4};
-    strided_dispatch! {
-        bs, data, dims, strides, cast_slice_mut,
-        lengths: [lengths],
-        tail_int: [min_bits, max_bits, max_prec],
-        tail_float: [min_bits, max_bits, max_prec, min_exp],
-        d1: [
-            dim1::decode_partial_block_strided_1d_i32_rate,
-            dim1::decode_partial_block_strided_1d_i64_rate,
-            dim1::decode_partial_block_strided_1d_f32_rate,
-            dim1::decode_partial_block_strided_1d_f64_rate,
-        ],
-        d2: [
-            dim2::decode_partial_block_strided_2d_i32_rate,
-            dim2::decode_partial_block_strided_2d_i64_rate,
-            dim2::decode_partial_block_strided_2d_f32_rate,
-            dim2::decode_partial_block_strided_2d_f64_rate,
-        ],
-        d3: [
-            dim3::decode_partial_block_strided_3d_i32_rate,
-            dim3::decode_partial_block_strided_3d_i64_rate,
-            dim3::decode_partial_block_strided_3d_f32_rate,
-            dim3::decode_partial_block_strided_3d_f64_rate,
-        ],
-        d4: [
-            dim4::decode_partial_block_strided_4d_i32_rate,
-            dim4::decode_partial_block_strided_4d_i64_rate,
-            dim4::decode_partial_block_strided_4d_f32_rate,
-            dim4::decode_partial_block_strided_4d_f64_rate,
-        ],
+    unsafe {
+        use crate::codec::decode::{dim1, dim2, dim3, dim4};
+        strided_dispatch! {
+            bs, data, dims, strides, cast_slice_mut,
+            lengths: [lengths],
+            tail_int: [min_bits, max_bits, max_prec],
+            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            d1: [
+                dim1::decode_partial_block_strided_1d_i32_rate,
+                dim1::decode_partial_block_strided_1d_i64_rate,
+                dim1::decode_partial_block_strided_1d_f32_rate,
+                dim1::decode_partial_block_strided_1d_f64_rate,
+            ],
+            d2: [
+                dim2::decode_partial_block_strided_2d_i32_rate,
+                dim2::decode_partial_block_strided_2d_i64_rate,
+                dim2::decode_partial_block_strided_2d_f32_rate,
+                dim2::decode_partial_block_strided_2d_f64_rate,
+            ],
+            d3: [
+                dim3::decode_partial_block_strided_3d_i32_rate,
+                dim3::decode_partial_block_strided_3d_i64_rate,
+                dim3::decode_partial_block_strided_3d_f32_rate,
+                dim3::decode_partial_block_strided_3d_f64_rate,
+            ],
+            d4: [
+                dim4::decode_partial_block_strided_4d_i32_rate,
+                dim4::decode_partial_block_strided_4d_i64_rate,
+                dim4::decode_partial_block_strided_4d_f32_rate,
+                dim4::decode_partial_block_strided_4d_f64_rate,
+            ],
+        }
     }
 }

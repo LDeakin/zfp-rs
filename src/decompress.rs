@@ -193,21 +193,28 @@ fn decompress_block(
                                 byte_span / $div,
                             )
                         };
-                        if config.min_exp() < ZFP_MIN_EXP {
-                            decode_block_strided_reversible(
-                                bs, block, dims, &info.strides, lengths,
-                            );
-                        } else if full {
-                            decode_block_strided_with_params(
-                                bs, block, dims, &info.strides, config.min_bits(),
-                                config.max_bits(), config.max_prec(), config.min_exp(),
-                            );
-                        } else {
-                            decode_partial_block_strided_with_params(
-                                bs, block, dims, &lengths, &info.strides,
-                                config.min_bits(), config.max_bits(), config.max_prec(),
-                                config.min_exp(),
-                            );
+                        // SAFETY: `block` is built from the field buffer at this block's origin,
+                        // and the caller's strides are the field's own, so every offset the
+                        // codec generates addresses an element of that field.
+                        // NOTE: the slice `block` is built from does not actually cover
+                        // those offsets; a later commit replaces it with a raw pointer.
+                        unsafe {
+                            if config.min_exp() < ZFP_MIN_EXP {
+                                decode_block_strided_reversible(
+                                    bs, block, dims, &info.strides, lengths,
+                                );
+                            } else if full {
+                                decode_block_strided_with_params(
+                                    bs, block, dims, &info.strides, config.min_bits(),
+                                    config.max_bits(), config.max_prec(), config.min_exp(),
+                                );
+                            } else {
+                                decode_partial_block_strided_with_params(
+                                    bs, block, dims, &lengths, &info.strides,
+                                    config.min_bits(), config.max_bits(), config.max_prec(),
+                                    config.min_exp(),
+                                );
+                            }
                         }
                     }
                 )*
@@ -418,37 +425,41 @@ fn decompress_chunks(
                             byte_span / 4,
                         )
                     };
-                    if config.min_exp() < ZFP_MIN_EXP {
-                        decode_block_strided_reversible(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            lengths,
-                        );
-                    } else if full {
-                        decode_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
-                    } else {
-                        decode_partial_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &lengths,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
+                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
+                    // elements of the field. See the note in `decompress_block`.
+                    unsafe {
+                        if config.min_exp() < ZFP_MIN_EXP {
+                            decode_block_strided_reversible(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                lengths,
+                            );
+                        } else if full {
+                            decode_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        } else {
+                            decode_partial_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &lengths,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        }
                     }
                 }
                 ZfpScalarType::Int64 => {
@@ -458,37 +469,41 @@ fn decompress_chunks(
                             byte_span / 8,
                         )
                     };
-                    if config.min_exp() < ZFP_MIN_EXP {
-                        decode_block_strided_reversible(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            lengths,
-                        );
-                    } else if full {
-                        decode_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
-                    } else {
-                        decode_partial_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &lengths,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
+                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
+                    // elements of the field. See the note in `decompress_block`.
+                    unsafe {
+                        if config.min_exp() < ZFP_MIN_EXP {
+                            decode_block_strided_reversible(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                lengths,
+                            );
+                        } else if full {
+                            decode_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        } else {
+                            decode_partial_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &lengths,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        }
                     }
                 }
                 ZfpScalarType::Float => {
@@ -498,37 +513,41 @@ fn decompress_chunks(
                             byte_span / 4,
                         )
                     };
-                    if config.min_exp() < ZFP_MIN_EXP {
-                        decode_block_strided_reversible(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            lengths,
-                        );
-                    } else if full {
-                        decode_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
-                    } else {
-                        decode_partial_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &lengths,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
+                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
+                    // elements of the field. See the note in `decompress_block`.
+                    unsafe {
+                        if config.min_exp() < ZFP_MIN_EXP {
+                            decode_block_strided_reversible(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                lengths,
+                            );
+                        } else if full {
+                            decode_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        } else {
+                            decode_partial_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &lengths,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        }
                     }
                 }
                 ZfpScalarType::Double => {
@@ -538,37 +557,41 @@ fn decompress_chunks(
                             byte_span / 8,
                         )
                     };
-                    if config.min_exp() < ZFP_MIN_EXP {
-                        decode_block_strided_reversible(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            lengths,
-                        );
-                    } else if full {
-                        decode_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
-                    } else {
-                        decode_partial_block_strided_with_params(
-                            &mut local_bs,
-                            block,
-                            dims_enum,
-                            &lengths,
-                            &strides,
-                            config.min_bits(),
-                            config.max_bits(),
-                            config.max_prec(),
-                            config.min_exp(),
-                        );
+                    // SAFETY: blocks are non-overlapping, so each thread writes distinct
+                    // elements of the field. See the note in `decompress_block`.
+                    unsafe {
+                        if config.min_exp() < ZFP_MIN_EXP {
+                            decode_block_strided_reversible(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                lengths,
+                            );
+                        } else if full {
+                            decode_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        } else {
+                            decode_partial_block_strided_with_params(
+                                &mut local_bs,
+                                block,
+                                dims_enum,
+                                &lengths,
+                                &strides,
+                                config.min_bits(),
+                                config.max_bits(),
+                                config.max_prec(),
+                                config.min_exp(),
+                            );
+                        }
                     }
                 }
             }

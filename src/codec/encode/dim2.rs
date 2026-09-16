@@ -29,7 +29,7 @@ const DOUBLE_MINEXP: i32 = -1074;
 /// # Safety
 /// The caller must ensure the array spans at least 4 elements in each
 /// dimension with the given strides.
-fn gather_2d<T: Copy>(data: &[T], sx: isize, sy: isize) -> [T; 16] {
+unsafe fn gather_2d<T: Copy>(data: &[T], sx: isize, sy: isize) -> [T; 16] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 16] = unsafe { std::mem::zeroed() };
     let p = data.as_ptr();
@@ -45,8 +45,11 @@ fn gather_2d<T: Copy>(data: &[T], sx: isize, sy: isize) -> [T; 16] {
 }
 
 /// Gather a partial 2-D block (nx, ny ≤ 4) and pad to 4×4.
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn gather_partial_2d<T: Copy + Default>(
+unsafe fn gather_partial_2d<T: Copy + Default>(
     data: &[T],
     nx: usize,
     ny: usize,

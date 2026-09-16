@@ -144,10 +144,10 @@ fn typed<T: FuzzScalar>(
 
     let cap = 4096;
     let mut bs = ZfpBitStream::new(cap);
-    // `src`/`dst` are allocated to the block's exact index span and `origin`
-    // places the slice so that every offset the strides generate lands inside
-    // the allocation.
-    let written = {
+    // SAFETY (both call sites below): `src`/`dst` are allocated to the block's
+    // exact index span and `origin` places the slice so that every offset the
+    // strides generate lands inside the allocation.
+    let written = unsafe {
         let block = &src[origin..];
         if partial {
             encode_partial_block_strided_with_params(
@@ -190,7 +190,7 @@ fn typed<T: FuzzScalar>(
     // produces false crashes.
     let mut dst: Vec<T> = vec![T::default(); span];
     bs.rewind();
-    {
+    unsafe {
         let block = &mut dst[origin..];
         if partial {
             decode_partial_block_strided_with_params(

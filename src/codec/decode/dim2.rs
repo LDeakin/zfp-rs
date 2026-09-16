@@ -21,7 +21,9 @@ const DOUBLE_MAXBITS: u32 = (11 + 1) + 64 * 16;
 const FLOAT_MAXPREC: u32 = 32;
 const DOUBLE_MAXPREC: u32 = 64;
 
-fn scatter_2d<T: Copy>(block: &[T; 16], data: &mut [T], sx: isize, sy: isize) {
+/// # Safety
+/// `data` must be valid for every offset the strides generate.
+unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: &mut [T], sx: isize, sy: isize) {
     let p = data.as_mut_ptr();
     let mut q = 0usize;
     for y in 0isize..4 {
@@ -32,8 +34,10 @@ fn scatter_2d<T: Copy>(block: &[T; 16], data: &mut [T], sx: isize, sy: isize) {
     }
 }
 
+/// # Safety
+/// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
-fn scatter_partial_2d<T: Copy>(
+unsafe fn scatter_partial_2d<T: Copy>(
     block: &[T; 16],
     data: &mut [T],
     nx: usize,

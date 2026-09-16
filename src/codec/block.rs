@@ -2,6 +2,28 @@
 //!
 //! Dispatches to the appropriate encoder/decoder based on scalar type
 //! and dimensionality.
+//!
+//! # Preconditions for the `*_strided` entry points
+//!
+//! [`encode_block`] and [`decode_block`] take a slice and validate its length.
+//! The `*_strided` variants cannot: they mirror the C API, where `data` is the
+//! block *origin* and the gather/scatter helpers index it as
+//! `*data.offset(x*sx + y*sy + z*sz + w*sw)`. Non-unit strides step beyond the
+//! block's element count and negative strides step backwards from the origin,
+//! so the caller must guarantee that every offset the strides generate is in
+//! bounds of the allocation `data` points into. That is why every entry point
+//! here is `unsafe`.
+//!
+//! Note that the `&[T]` these functions currently take does not describe the
+//! memory they touch: a slice reference carries provenance over its own
+//! elements only, so indexing outside it is undefined behaviour even when the
+//! allocation extends that far. A later commit replaces the slice with a raw
+//! pointer for this reason.
+//!
+//! Callers that cannot uphold the precondition should use
+//! [`ZfpBitStream::compress`][crate::ZfpBitStream::compress] and
+//! [`ZfpBitStream::decompress`][crate::ZfpBitStream::decompress], which
+//! validate the field's index span and alignment against its buffer.
 
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
