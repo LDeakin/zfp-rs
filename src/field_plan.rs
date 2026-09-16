@@ -105,6 +105,35 @@ impl FieldPlan {
         self.scalar_type.size()
     }
 
+    /// Whether two distinct index tuples can address the same element.
+    ///
+    /// Sorts the active axes by `|stride|` and checks each one clears the span
+    /// of the smaller ones, so `true` only means "cannot be ruled out".
+    /// Parallel decompression requires this to be false.
+    // Only the rayon path consults it; the unit tests below cover it either way.
+    #[cfg_attr(not(feature = "rayon"), allow(dead_code))]
+    pub(crate) fn strides_may_alias(&self) -> bool {
+        let mut axes = [(0usize, 0usize); 4];
+        let mut count = 0;
+        for (&stride, &dim) in self.strides.iter().zip(&self.dims).take(self.dim_count()) {
+            if dim >= 2 {
+                axes[count] = (stride.unsigned_abs(), dim);
+                count += 1;
+            }
+        }
+        let axes = &mut axes[..count];
+        axes.sort_unstable();
+
+        let mut reach = 1usize;
+        for &(stride, dim) in &*axes {
+            if stride < reach {
+                return true;
+            }
+            reach = stride.saturating_mul(dim - 1).saturating_add(reach);
+        }
+        false
+    }
+
     /// Block grid coordinates of a linear block index.
     #[inline]
     pub(crate) fn block_coords(&self, block_idx: usize) -> (usize, usize, usize, usize) {
@@ -157,5 +186,56 @@ mod tests {
                 "dims {dims:?} strides {strides:?}"
             );
         }
+    }
+
+    fn may_alias(dims: [usize; 4], strides: [isize; 4], dims_enum: ZfpDimensionality) -> bool {
+        FieldPlan {
+            num_blocks: 0,
+            bx: 0,
+            by: 0,
+            bz: 0,
+            imin: 0,
+            strides,
+            dims,
+            dims_enum,
+            scalar_type: ZfpScalarType::Float,
+        }
+        .strides_may_alias()
+    }
+
+    #[test]
+    fn aliasing_strides_are_detected() {
+        assert!(!may_alias(
+            [8, 8, 0, 0],
+            [1, 8, 0, 0],
+            ZfpDimensionality::D2
+        ));
+        assert!(!may_alias(
+            [8, 8, 0, 0],
+            [-1, 8, 0, 0],
+            ZfpDimensionality::D2
+        ));
+        assert!(!may_alias(
+            [8, 8, 0, 0],
+            [8, 1, 0, 0],
+            ZfpDimensionality::D2
+        ));
+        assert!(!may_alias(
+            [8, 0, 0, 0],
+            [1, 0, 0, 0],
+            ZfpDimensionality::D1
+        ));
+        // Both axes step by one element.
+        assert!(may_alias([8, 8, 0, 0], [1, 1, 0, 0], ZfpDimensionality::D2));
+        // A stride that lands inside the span of a smaller one.
+        assert!(may_alias([8, 8, 0, 0], [1, 4, 0, 0], ZfpDimensionality::D2));
+        // A zero stride repeats the same element.
+        assert!(may_alias([8, 8, 0, 0], [1, 0, 0, 0], ZfpDimensionality::D2));
+        // An axis outside `dim_count` does not count.
+        assert!(!may_alias(
+            [8, 8, 0, 0],
+            [1, 1, 0, 0],
+            ZfpDimensionality::D1
+        ));
     }
 }

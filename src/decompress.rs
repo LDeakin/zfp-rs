@@ -172,7 +172,9 @@ unsafe fn decompress_block(
 /// For **fixed-rate** streams, each thread creates an independent bitstream
 /// view and seeks directly to its block's bit position.
 ///
-/// For non-fixed-rate streams, falls back to serial decompression.
+/// Falls back to serial decompression for non-fixed-rate streams, and for
+/// fields whose strides may alias: two blocks writing the same element would
+/// race.
 #[cfg(feature = "rayon")]
 pub(crate) fn decompress_rayon(
     bs: &mut dyn ZfpBitStreamOps,
@@ -195,6 +197,10 @@ pub(crate) fn decompress_rayon(
     }
 
     let info = plan_mut(field)?;
+    if info.strides_may_alias() {
+        return decompress(bs, field, config);
+    }
+
     let blocks = info.num_blocks;
     if blocks == 0 {
         return Ok(0);
@@ -253,8 +259,9 @@ impl FieldPtr {
     }
 }
 
-// SAFETY: chunks cover disjoint ranges of block indices and blocks map to
-// disjoint byte ranges, so no two threads write the same byte and no thread
+// SAFETY: chunks cover disjoint ranges of block indices, and `decompress_rayon`
+// only takes this path for non-aliasing strides, under which blocks map to
+// disjoint byte ranges. So no two threads write the same byte and no thread
 // reads a byte another thread writes.
 #[cfg(feature = "rayon")]
 unsafe impl Send for FieldPtr {}
@@ -325,4 +332,49 @@ fn decompress_compute_chunk_ranges(
         starts.push((blocks * chunk) / chunks);
     }
     (chunks, starts)
+}
+
+#[cfg(all(test, feature = "rayon"))]
+mod tests {
+    use crate::config::{ZfpConfig, ZfpStreamAlignment};
+    use crate::execution::ZfpExecution;
+    use crate::types::{ZfpDimensionality, ZfpScalarType};
+    use crate::{ZfpBitStream, ZfpField, ZfpFieldMut};
+
+    /// `[1, 1]` maps index `[x, y]` to `x + y`, so the span is 15 elements.
+    fn decode(bs: &mut ZfpBitStream, config: &ZfpConfig, execution: ZfpExecution) -> [u64; 15] {
+        let mut out = [0f64; 15];
+        let mut field = ZfpFieldMut::new_strided(&mut out, [8usize, 8], [1isize, 1]);
+        bs.rewind();
+        bs.decompress_with_execution(config, &mut field, execution)
+            .unwrap();
+        out.map(f64::to_bits)
+    }
+
+    /// Aliasing strides make two blocks write the same element, which the
+    /// parallel path cannot do without a data race. It must fall back to
+    /// serial, so its output matches serial decompression exactly.
+    #[test]
+    fn aliasing_strides_decompress_serially() {
+        let config = ZfpConfig::fixed_rate(
+            16.0,
+            ZfpScalarType::Double,
+            ZfpDimensionality::D2,
+            ZfpStreamAlignment::None,
+        );
+        let src: Vec<f64> = (0..64).map(f64::from).collect();
+        let mut bs = ZfpBitStream::new(4096);
+        bs.compress(&config, &ZfpField::new(&src, [8usize, 8]))
+            .unwrap();
+
+        let parallel = decode(
+            &mut bs,
+            &config,
+            ZfpExecution::Rayon {
+                threads: 4,
+                chunk_size: 1,
+            },
+        );
+        assert_eq!(parallel, decode(&mut bs, &config, ZfpExecution::Serial));
+    }
 }
