@@ -6,7 +6,8 @@
 use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
-use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpDimensionality, ZfpScalarType};
+use crate::field_plan::{FieldPlan, PlanError};
+use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
 // Serial decompression
@@ -18,12 +19,12 @@ pub(crate) fn decompress(
     field: &mut ZfpFieldMut,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpDecompressionError> {
-    let info = DecompressInfo::new(field)?;
+    let info = plan_mut(field)?;
     // Derived once: a fresh `&mut` retag per block would be needless work, and
     // interleaving it with shared borrows of `field` is a hazard worth avoiding.
     let base = field.data_mut().as_mut_ptr();
     for block_idx in 0..info.num_blocks {
-        // SAFETY: `DecompressInfo::new` validated the buffer's length and
+        // SAFETY: `FieldPlan::new` validated the buffer's length and
         // alignment, which is exactly `decompress_block`'s contract.
         unsafe { decompress_block(bs, base, &info, config, block_idx) };
     }
@@ -32,104 +33,27 @@ pub(crate) fn decompress(
     Ok(bs.size())
 }
 
-/// Compute block iteration info for decompression.
-pub(crate) struct DecompressInfo {
-    /// Number of blocks.
-    pub num_blocks: usize,
-    /// Block grid dimensions.
-    pub bx: usize,
-    pub by: usize,
-    pub bz: usize,
-    /// Block count in w-dimension (used to compute `num_blocks`).
-    #[allow(dead_code)]
-    pub bw: usize,
-    /// Dimensionality (1–4).
-    pub dim_count: usize,
-    /// Element offset minimum (for negative strides).
-    pub imin: isize,
-    /// Element size in bytes.
-    pub elem_size: usize,
-    /// Effective strides.
-    pub strides: [isize; 4],
-    /// Field dimensions `[nx, ny, nz, nw]`.
-    pub dims: [usize; 4],
-    /// Dimensionality as an enum (1-4).
-    pub dims_enum: ZfpDimensionality,
-    /// Scalar type of the field data.
-    pub scalar_type: ZfpScalarType,
+/// Derive the block plan for a field, mapping the layout error.
+fn plan_mut(field: &ZfpFieldMut) -> Result<FieldPlan, ZfpDecompressionError> {
+    Ok(FieldPlan::new(
+        field.scalar_type(),
+        field.dims(),
+        field.dimensionality(),
+        field.effective_strides(),
+        field.data(),
+        field.checked_size_bytes().unwrap_or(usize::MAX),
+    )?)
 }
 
-impl DecompressInfo {
-    #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-    pub(crate) fn new(field: &mut ZfpFieldMut) -> Result<Self, ZfpDecompressionError> {
-        let ty = field.scalar_type();
-
-        if field.data().is_empty() {
-            return Err(ZfpDecompressionError::NoData);
-        }
-
-        let required = field.checked_size_bytes().unwrap_or(usize::MAX);
-        let actual = field.data().len();
-        if actual < required {
-            return Err(ZfpDecompressionError::InvalidField { required, actual });
-        }
-
-        // The codec reinterprets this buffer as the scalar type and walks it
-        // with raw pointer offsets, so it must be correctly aligned. Only
-        // reachable via `from_raw`: `ZfpField::new` goes through
-        // `bytemuck::cast_slice`, which is always aligned.
-        let align = ty.align();
-        if !field.data().as_ptr().addr().is_multiple_of(align) {
-            return Err(ZfpDecompressionError::MisalignedData { align });
-        }
-
-        let [nx, ny, nz, nw] = field.dims();
-        let dims = field.dimensionality();
-        let dim_count = usize::from(dims);
-        let strides = field.effective_strides();
-
-        let imin = {
-            let mut lo: isize = 0;
-            let sizes = field.dims();
-            for (s, sz) in strides.iter().zip(sizes.iter()).take(dim_count) {
-                if *s < 0 {
-                    lo += s * (*sz as isize - 1);
-                }
+impl From<PlanError> for ZfpDecompressionError {
+    fn from(e: PlanError) -> Self {
+        match e {
+            PlanError::NoData => ZfpDecompressionError::NoData,
+            PlanError::InvalidField { required, actual } => {
+                ZfpDecompressionError::InvalidField { required, actual }
             }
-            lo
-        };
-
-        let bx = nx.div_ceil(4);
-        let by = if dim_count >= 2 { ny.div_ceil(4) } else { 1 };
-        let bz = if dim_count >= 3 { nz.div_ceil(4) } else { 1 };
-        let bw = if dim_count >= 4 { nw.div_ceil(4) } else { 1 };
-
-        Ok(Self {
-            num_blocks: bx * by * bz * bw,
-            bx,
-            by,
-            bz,
-            bw,
-            dim_count,
-            imin,
-            elem_size: ty.size(),
-            strides,
-            dims: [nx, ny, nz, nw],
-            dims_enum: dims,
-            scalar_type: ty,
-        })
-    }
-
-    #[inline]
-    pub(crate) fn block_coords(&self, block_idx: usize) -> (usize, usize, usize, usize) {
-        let rem = block_idx;
-        let iw = rem / (self.bx * self.by * self.bz);
-        let rem = rem % (self.bx * self.by * self.bz);
-        let iz = rem / (self.bx * self.by);
-        let rem = rem % (self.bx * self.by);
-        let iy = rem / self.bx;
-        let ix = rem % self.bx;
-        (ix, iy, iz, iw)
+            PlanError::MisalignedData { align } => ZfpDecompressionError::MisalignedData { align },
+        }
     }
 }
 
@@ -138,17 +62,16 @@ impl DecompressInfo {
 /// # Safety
 /// `base` must point to the start of the field's data buffer: at least
 /// `checked_size_bytes()` long, aligned for the field's scalar type, and
-/// writable for the duration of the call. `DecompressInfo::new` validates both
+/// writable for the duration of the call. `FieldPlan::new` validates both
 /// properties, so deriving `base` from a field it accepted satisfies this.
-// `{Compress,Decompress}Info::new` rejects a field whose buffer is not aligned
-// for its scalar type, so these casts are checked once per field rather than
-// once per block.
+// `FieldPlan::new` rejects a field whose buffer is not aligned for its scalar
+// type, so these casts are checked once per field rather than once per block.
 #[allow(clippy::cast_ptr_alignment)]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 unsafe fn decompress_block(
     bs: &mut dyn ZfpBitStreamOps,
     base: *mut u8,
-    info: &DecompressInfo,
+    info: &FieldPlan,
     config: &ZfpConfig,
     block_idx: usize,
 ) {
@@ -159,6 +82,7 @@ unsafe fn decompress_block(
 
     let (ix, iy, iz, iw) = info.block_coords(block_idx);
     let [nx, ny, nz, nw] = info.dims;
+    let dim_count = info.dim_count();
 
     let elem_off = -info.imin
         + (ix as isize) * 4 * info.strides[0]
@@ -167,31 +91,31 @@ unsafe fn decompress_block(
         + (iw as isize) * 4 * info.strides[3];
 
     let lx = (nx - ix * 4).min(4);
-    let ly = if info.dim_count >= 2 {
+    let ly = if dim_count >= 2 {
         (ny - iy * 4).min(4)
     } else {
         0
     };
-    let lz = if info.dim_count >= 3 {
+    let lz = if dim_count >= 3 {
         (nz - iz * 4).min(4)
     } else {
         0
     };
-    let lw = if info.dim_count >= 4 {
+    let lw = if dim_count >= 4 {
         (nw - iw * 4).min(4)
     } else {
         0
     };
 
     let full = lx == 4
-        && (info.dim_count < 2 || ly == 4)
-        && (info.dim_count < 3 || lz == 4)
-        && (info.dim_count < 4 || lw == 4);
+        && (dim_count < 2 || ly == 4)
+        && (dim_count < 3 || lz == 4)
+        && (dim_count < 4 || lw == 4);
 
     let lengths = [lx, ly, lz, lw];
     let dims = info.dims_enum;
 
-    let byte_off = (elem_off as usize) * info.elem_size;
+    let byte_off = (elem_off as usize) * info.elem_size();
 
     let ty = info.scalar_type;
 
@@ -201,7 +125,7 @@ unsafe fn decompress_block(
                 $(
                     $zfp_ty => {
                         // SAFETY: `base` is the field's whole data buffer, which
-                        // `DecompressInfo::new` validated to be at least
+                        // `FieldPlan::new` validated to be at least
                         // `checked_size_bytes()` long and aligned for the scalar
                         // type. `byte_off` is the block origin measured from the
                         // *lowest* address of the strided span (`elem_off`
@@ -270,7 +194,7 @@ pub(crate) fn decompress_rayon(
         return decompress(bs, field, config);
     }
 
-    let info = DecompressInfo::new(field)?;
+    let info = plan_mut(field)?;
     let blocks = info.num_blocks;
     if blocks == 0 {
         return Ok(0);
@@ -354,7 +278,7 @@ unsafe impl Sync for FieldPtr {}
 fn decompress_chunks(
     words: &[u64],
     chunk_starts: &[usize],
-    info: &DecompressInfo,
+    info: &FieldPlan,
     config: &ZfpConfig,
     blocks: usize,
     bits_per_block: u32,
@@ -376,7 +300,7 @@ fn decompress_chunks(
 
         for block_idx in start_block..end_block {
             local_bs.seek_read(start_read_bit + block_idx as u64 * u64::from(bits_per_block));
-            // SAFETY: `base` is the buffer `DecompressInfo::new` validated for
+            // SAFETY: `base` is the buffer `FieldPlan::new` validated for
             // length and alignment, and chunks cover disjoint blocks, so this
             // thread writes only bytes no other thread touches.
             unsafe { decompress_block(&mut local_bs, base.ptr(), info, config, block_idx) };

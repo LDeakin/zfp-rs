@@ -76,6 +76,7 @@ pub mod config;
 pub(crate) mod decompress;
 pub mod execution;
 pub mod field;
+mod field_plan;
 pub mod header;
 pub mod types;
 

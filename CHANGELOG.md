@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Without either feature the public `codec` API is six safe functions
 
 ### Fixed
-- Validate `ZfpField` length in `CompressInfo::new` and `DecompressInfo::new`
+- Validate `ZfpField` length in `FieldPlan::new`
 - Fix `ZfpField::begin`/`ZfpFieldMut::begin` and the `zfp_field` conversion in `zfp-rs-ffi` disagreeing about where a strided buffer starts
   - `ZfpField` takes a buffer beginning at the *lowest* address of its strided span, as `compress`/`decompress` have always assumed, but `begin` shifted by `imin` as if the buffer began at element `[0, 0, 0, 0]`. With a negative stride it returned a pointer before the start of the allocation
   - The C ABI layer had the mirror-image bug: C's `zfp_field.data` *is* element `[0, 0, 0, 0]`, so a negative stride made the constructed slice claim `-imin` elements past the end of the caller's buffer. It now shifts to the span's low end, matching `zfp_field_begin` in the reference implementation
@@ -27,11 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `compress`/`decompress` built a `&[T]` for each block with `slice::from_raw_parts`, then indexed far outside it through raw pointers. Under Stacked Borrows a slice reference carries provenance over exactly its own elements, so non-unit and negative strides were out-of-provenance accesses
   - The length was also wrong in both directions: it is `lx * ly * lz * lw * elem_size`, and the unused axes are 0, so it was **zero** for every 1-D, 2-D and 3-D field, while in 4-D it could reach past the end of the buffer for boundary blocks of a field whose dimensions are not multiples of 4
   - The `*_strided*` entry points now take `*const T`/`*mut T`, derived from the whole field buffer so their provenance covers every offset the strides generate
-- Validate `ZfpField` data alignment in `CompressInfo::new` and `DecompressInfo::new`, reported as the new `MisalignedData` error variant
+- Validate `ZfpField` data alignment in `FieldPlan::new`, reported as the new `MisalignedData` error variant
   - The required alignment is `ZfpScalarType::align`, the target alignment of the Rust type, rather than its size: 64-bit scalars are 4-byte aligned on some 32-bit targets
 
 ### Added
 - `ZfpScalarType::align`, the alignment a buffer passed to `ZfpField::from_raw` must satisfy
+- `ZfpScalarType::is_aligned`, checking a buffer pointer against `align`
 - Fuzz targets (`cargo fuzz`) with a stable-toolchain crash-replay harness
 - A Miri regression suite for the strided codec, run in CI under `-Zmiri-strict-provenance`
 
