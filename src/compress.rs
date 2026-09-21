@@ -8,7 +8,8 @@ use crate::bitstream::ZfpBitStreamMutOps;
 use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpField;
-use crate::types::{ZFP_MIN_EXP, ZfpCompressionError, ZfpDimensionality, ZfpScalarType};
+use crate::field_plan::{FieldPlan, PlanError};
+use crate::types::{ZFP_MIN_EXP, ZfpCompressionError, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
 // Serial compression
@@ -20,127 +21,55 @@ pub(crate) fn compress(
     field: &ZfpField,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpCompressionError> {
-    let info = CompressInfo::new(field)?;
-    let buf = field.data();
+    let info = plan(field)?;
+    let base = field.data().as_ptr();
     for block_idx in 0..info.num_blocks {
-        compress_block(bs, buf, &info, config, block_idx);
+        // SAFETY: `base` is the buffer `FieldPlan::new` validated.
+        unsafe { compress_block(bs, base, &info, config, block_idx) };
     }
 
     bs.flush();
     Ok(bs.size())
 }
 
-/// Compute block iteration info for a field.
-pub(crate) struct CompressInfo {
-    /// Number of blocks.
-    pub num_blocks: usize,
-    /// Block grid dimensions.
-    pub bx: usize,
-    pub by: usize,
-    pub bz: usize,
-    /// Block count in w-dimension (used to compute `num_blocks`).
-    #[allow(dead_code)]
-    pub bw: usize,
-    /// Dimensionality (1–4).
-    pub dim_count: usize,
-    /// Element offset minimum (for negative strides).
-    pub imin: isize,
-    /// Element size in bytes.
-    pub elem_size: usize,
-    /// Effective strides.
-    pub strides: [isize; 4],
-    /// Field dimensions `[nx, ny, nz, nw]`.
-    pub dims: [usize; 4],
-    /// Dimensionality as an enum (1-4).
-    pub dims_enum: ZfpDimensionality,
-    /// Scalar type of the field data.
-    pub scalar_type: ZfpScalarType,
+/// Derive the block plan for a field, mapping the layout error.
+fn plan(field: &ZfpField) -> Result<FieldPlan, ZfpCompressionError> {
+    Ok(FieldPlan::new(
+        field.scalar_type(),
+        field.dims(),
+        field.dimensionality(),
+        field.effective_strides(),
+        field.data(),
+        field.checked_size_bytes().unwrap_or(usize::MAX),
+    )?)
 }
 
-impl CompressInfo {
-    #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-    pub(crate) fn new(field: &ZfpField) -> Result<Self, ZfpCompressionError> {
-        if field.data().is_empty() {
-            return Err(ZfpCompressionError::NoData);
-        }
-
-        let ty = field.scalar_type();
-
-        let required = field.checked_size_bytes().unwrap_or(usize::MAX);
-        let actual = field.data().len();
-        if actual < required {
-            return Err(ZfpCompressionError::InvalidField { required, actual });
-        }
-
-        // The codec reinterprets this buffer as the scalar type and walks it
-        // with raw pointer offsets, so it must be correctly aligned. Only
-        // reachable via `from_raw`: `ZfpField::new` goes through
-        // `bytemuck::cast_slice`, which is always aligned.
-        let align = ty.align();
-        if !field.data().as_ptr().addr().is_multiple_of(align) {
-            return Err(ZfpCompressionError::MisalignedData { align });
-        }
-
-        let [nx, ny, nz, nw] = field.dims();
-        let dims = field.dimensionality();
-        let dim_count = usize::from(dims);
-        let strides = field.effective_strides();
-
-        let imin = {
-            let mut lo: isize = 0;
-            let sizes = field.dims();
-            for (s, sz) in strides.iter().zip(sizes.iter()).take(dim_count) {
-                if *s < 0 {
-                    lo += s * (*sz as isize - 1);
-                }
+impl From<PlanError> for ZfpCompressionError {
+    fn from(e: PlanError) -> Self {
+        match e {
+            PlanError::NoData => ZfpCompressionError::NoData,
+            PlanError::InvalidField { required, actual } => {
+                ZfpCompressionError::InvalidField { required, actual }
             }
-            lo
-        };
-
-        let bx = nx.div_ceil(4);
-        let by = if dim_count >= 2 { ny.div_ceil(4) } else { 1 };
-        let bz = if dim_count >= 3 { nz.div_ceil(4) } else { 1 };
-        let bw = if dim_count >= 4 { nw.div_ceil(4) } else { 1 };
-
-        Ok(Self {
-            num_blocks: bx * by * bz * bw,
-            bx,
-            by,
-            bz,
-            bw,
-            dim_count,
-            imin,
-            elem_size: ty.size(),
-            strides,
-            dims: [nx, ny, nz, nw],
-            dims_enum: dims,
-            scalar_type: ty,
-        })
-    }
-
-    #[inline]
-    pub(crate) fn block_coords(&self, block_idx: usize) -> (usize, usize, usize, usize) {
-        let rem = block_idx;
-        let iw = rem / (self.bx * self.by * self.bz);
-        let rem = rem % (self.bx * self.by * self.bz);
-        let iz = rem / (self.bx * self.by);
-        let rem = rem % (self.bx * self.by);
-        let iy = rem / self.bx;
-        let ix = rem % self.bx;
-        (ix, iy, iz, iw)
+            PlanError::MisalignedData { align } => ZfpCompressionError::MisalignedData { align },
+        }
     }
 }
 
 /// Encode a single block into the bitstream.
-// `{Compress,Decompress}Info::new` rejects a field whose buffer is not aligned
-// for its scalar type, so these casts are checked once per field rather than
-// once per block.
+///
+/// # Safety
+/// `base` must point to the start of the field's data buffer: at least
+/// `checked_size_bytes()` long, aligned for the field's scalar type, and
+/// readable for the duration of the call. `FieldPlan::new` validates both
+/// properties, so deriving `base` from a field it accepted satisfies this.
+// The alignment check is per field, so these casts are not repeated per block.
 #[allow(clippy::cast_ptr_alignment)]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn compress_block(
+unsafe fn compress_block(
     bs: &mut dyn ZfpBitStreamMutOps,
-    buf: &[u8],
-    info: &CompressInfo,
+    base: *const u8,
+    info: &FieldPlan,
     config: &ZfpConfig,
     block_idx: usize,
 ) {
@@ -151,6 +80,7 @@ fn compress_block(
 
     let (ix, iy, iz, iw) = info.block_coords(block_idx);
     let [nx, ny, nz, nw] = info.dims;
+    let dim_count = info.dim_count();
 
     let elem_off = -info.imin
         + (ix as isize) * 4 * info.strides[0]
@@ -159,29 +89,29 @@ fn compress_block(
         + (iw as isize) * 4 * info.strides[3];
 
     let lx = (nx - ix * 4).min(4);
-    let ly = if info.dim_count >= 2 {
+    let ly = if dim_count >= 2 {
         (ny - iy * 4).min(4)
     } else {
         0
     };
-    let lz = if info.dim_count >= 3 {
+    let lz = if dim_count >= 3 {
         (nz - iz * 4).min(4)
     } else {
         0
     };
-    let lw = if info.dim_count >= 4 {
+    let lw = if dim_count >= 4 {
         (nw - iw * 4).min(4)
     } else {
         0
     };
     let full = lx == 4
-        && (info.dim_count < 2 || ly == 4)
-        && (info.dim_count < 3 || lz == 4)
-        && (info.dim_count < 4 || lw == 4);
+        && (dim_count < 2 || ly == 4)
+        && (dim_count < 3 || lz == 4)
+        && (dim_count < 4 || lw == 4);
     let lengths = [lx, ly, lz, lw];
     let dims = info.dims_enum;
 
-    let byte_off = (elem_off as usize) * info.elem_size;
+    let byte_off = (elem_off as usize) * info.elem_size();
     let ty = info.scalar_type;
 
     macro_rules! encode_dispatch {
@@ -189,14 +119,12 @@ fn compress_block(
             match ty {
                 $(
                     $zfp_ty => {
-                        // SAFETY: `buf` is the field's whole data buffer, which
-                        // `CompressInfo::new` validated to be at least
-                        // `checked_size_bytes()` long and aligned for the scalar
-                        // type. `byte_off` is the block origin measured from the
+                        // SAFETY: `base` is the field's whole data buffer, and
+                        // `byte_off` is the block origin measured from the
                         // *lowest* address of the strided span (`elem_off`
                         // includes the `-imin` shift), so every offset the
-                        // strides generate from it lands inside `buf`.
-                        let block = unsafe { buf.as_ptr().add(byte_off).cast::<$elem_ty>() };
+                        // strides generate from it lands inside the buffer.
+                        let block = unsafe { base.add(byte_off).cast::<$elem_ty>() };
                         unsafe {
                             if config.min_exp() < ZFP_MIN_EXP {
                                 encode_block_strided_reversible(
@@ -234,16 +162,17 @@ fn compress_block(
 
 /// Compress a contiguous range of blocks into a bitstream.
 #[allow(dead_code)] // used only when rayon feature is enabled
-fn compress_blocks_range(
+unsafe fn compress_blocks_range(
     bs: &mut dyn ZfpBitStreamMutOps,
-    buf: &[u8],
-    info: &CompressInfo,
+    base: *const u8,
+    info: &FieldPlan,
     config: &ZfpConfig,
     start_block: usize,
     end_block: usize,
 ) {
     for block_idx in start_block..end_block {
-        compress_block(bs, buf, info, config, block_idx);
+        // SAFETY: `base` carries the caller's contract unchanged.
+        unsafe { compress_block(bs, base, info, config, block_idx) };
     }
 }
 
@@ -262,7 +191,7 @@ pub(crate) fn compress_rayon(
 ) -> Result<usize, ZfpCompressionError> {
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-    let info = CompressInfo::new(field)?;
+    let info = plan(field)?;
     let buf = field.data();
     let blocks = info.num_blocks;
     if blocks == 0 {
@@ -323,7 +252,7 @@ pub(crate) fn compress_rayon(
 #[allow(clippy::cast_possible_truncation)] // chunk_bits / 64 + 1 fits in usize for valid fields
 fn compress_one_chunk(
     chunk_starts: &[usize],
-    info: &CompressInfo,
+    info: &FieldPlan,
     buf: &[u8],
     config: &ZfpConfig,
     total_blocks: usize,
@@ -342,7 +271,8 @@ fn compress_one_chunk(
     // chunk_bits is bounded by the field size, which fits in usize.
     let chunk_words = (chunk_bits / 64 + 1) as usize;
     let mut local_bs = ZfpBitStream::new(chunk_words * 8);
-    compress_blocks_range(&mut local_bs, buf, info, config, start, end);
+    // SAFETY: `buf` is the field's whole data buffer, validated by `FieldPlan::new`.
+    unsafe { compress_blocks_range(&mut local_bs, buf.as_ptr(), info, config, start, end) };
     // Record bits written before flushing (flush pads to word boundary).
     let bits_written = local_bs.bits_written();
     local_bs.flush();

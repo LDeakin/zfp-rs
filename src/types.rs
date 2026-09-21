@@ -321,6 +321,12 @@ impl ZfpScalarType {
         }
     }
 
+    /// Whether `ptr` satisfies this scalar type's alignment.
+    #[must_use]
+    pub fn is_aligned(&self, ptr: *const u8) -> bool {
+        ptr.addr().is_multiple_of(self.align())
+    }
+
     /// Number of bits per scalar value (32 or 64).
     #[must_use]
     pub const fn precision(&self) -> u32 {
