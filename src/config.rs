@@ -68,8 +68,9 @@ pub enum ZfpRounding {
     /// `ZFP_ROUND_LAST`: bias coefficients after decoding.
     ///
     /// The bias is decode-only, but `tight_error` applies to both sides, so the
-    /// stream matches [`Never`][Self::Never] when it is `false` and
-    /// [`First { tight_error: true }`][Self::First] when it is `true`.
+    /// stream matches [`Never`][Self::Never] when it is `false`. When it is
+    /// `true`, fixed-accuracy encoding matches `Never` with twice the tolerance,
+    /// which uses the same precision without biasing coefficients.
     Last {
         /// `ZFP_WITH_TIGHT_ERROR`: one fewer bit plane in fixed-accuracy and expert mode.
         tight_error: bool,

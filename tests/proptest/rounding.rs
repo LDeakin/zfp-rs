@@ -39,7 +39,7 @@ fn round_trip(config: &ZfpConfig, data: &[f64]) -> (Vec<u8>, Vec<f64>) {
 
 proptest! {
     /// `ZFP_ROUND_LAST`'s bias is decode-only, so its stream is byte-identical
-    /// to that of the mode sharing its precision formula.
+    /// to an unbiased encoder using the same precision.
     #[test]
     fn round_last_matches_the_stream_of_its_precision_peer(
         data in normal_f64s(),
@@ -47,10 +47,10 @@ proptest! {
         tight_error in any::<bool>(),
     ) {
         let base = ZfpConfig::fixed_accuracy(libm::ldexp(1.0, e));
-        // `Last`'s stream must match the mode it shares a precision formula with:
-        // `Never` when not tight, `First { tight_error: true }` when it is.
+        // `Never` does not bias coefficients. Doubling its tolerance drops one
+        // bit plane, matching `Last`'s precision when tight error is enabled.
         let reference = if tight_error {
-            base.with_rounding(ZfpRounding::First { tight_error: true })
+            ZfpConfig::fixed_accuracy(libm::ldexp(1.0, e + 1))
         } else {
             base
         };
