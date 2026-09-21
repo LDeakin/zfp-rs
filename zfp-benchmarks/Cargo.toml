@@ -13,4 +13,4 @@ bytemuck = "1"
 criterion = { version = "0.8", features = ["html_reports"] }
 zfp-rs = { path = "..", features = ["ffi", "rayon"] }
 zfp-rs-ffi = { path = "../zfp-rs-ffi", features = ["rayon"] }
-zfp-sys = "0.1"
+zfp-sys = "0.4"
