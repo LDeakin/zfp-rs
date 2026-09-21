@@ -6,6 +6,7 @@ use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::encode::core::strided_encode_wrappers;
 use crate::codec::encode::float::{encode_block_1d_f32, encode_block_1d_f64};
 use crate::codec::encode::integer::{encode_block_1d_i32, encode_block_1d_i64};
+use crate::config::ZfpRounding;
 
 // Default stream params used when the caller doesn't pass ZFP stream config.
 // These match "lossless integer" mode: no rate constraint, full precision.
@@ -83,22 +84,52 @@ unsafe fn gather_partial_1d<T: Copy>(data: *const T, nx: usize, sx: isize) -> [T
 
 /// Encode a contiguous 1-D block of 4 `i32` values; return bits written.
 pub fn encode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 4]) -> usize {
-    encode_block_1d_i32(bs, block, 0, INT32_MAXBITS, INT32_MAXPREC)
+    encode_block_1d_i32(
+        bs,
+        block,
+        0,
+        INT32_MAXBITS,
+        INT32_MAXPREC,
+        ZfpRounding::Never,
+    )
 }
 
 /// Encode a contiguous 1-D block of 4 `i64` values; return bits written.
 pub fn encode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 4]) -> usize {
-    encode_block_1d_i64(bs, block, 0, INT64_MAXBITS, INT64_MAXPREC)
+    encode_block_1d_i64(
+        bs,
+        block,
+        0,
+        INT64_MAXBITS,
+        INT64_MAXPREC,
+        ZfpRounding::Never,
+    )
 }
 
 /// Encode a contiguous 1-D block of 4 `f32` values; return bits written.
 pub fn encode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32; 4]) -> usize {
-    encode_block_1d_f32(bs, block, 0, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP)
+    encode_block_1d_f32(
+        bs,
+        block,
+        0,
+        FLOAT_MAXBITS,
+        FLOAT_MAXPREC,
+        FLOAT_MINEXP,
+        ZfpRounding::Never,
+    )
 }
 
 /// Encode a contiguous 1-D block of 4 `f64` values; return bits written.
 pub fn encode_block_1d_f64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64; 4]) -> usize {
-    encode_block_1d_f64(bs, block, 0, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP)
+    encode_block_1d_f64(
+        bs,
+        block,
+        0,
+        DOUBLE_MAXBITS,
+        DOUBLE_MAXPREC,
+        DOUBLE_MINEXP,
+        ZfpRounding::Never,
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +148,7 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_1d_f64_rate,
     encode: encode_block_1d_f64,
     encode_default: encode_block_1d_f64_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32, rounding: ZfpRounding],
 }
 
 strided_encode_wrappers! {
@@ -132,7 +163,7 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_1d_f32_rate,
     encode: encode_block_1d_f32,
     encode_default: encode_block_1d_f32_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32, rounding: ZfpRounding],
 }
 
 strided_encode_wrappers! {
@@ -147,7 +178,7 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_1d_i32_rate,
     encode: encode_block_1d_i32,
     encode_default: encode_block_1d_i32_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, rounding: ZfpRounding],
 }
 
 strided_encode_wrappers! {
@@ -162,5 +193,5 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_1d_i64_rate,
     encode: encode_block_1d_i64,
     encode_default: encode_block_1d_i64_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, rounding: ZfpRounding],
 }

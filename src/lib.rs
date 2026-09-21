@@ -87,7 +87,7 @@ pub mod types;
 pub use bitstream::{
     ZfpBitStream, ZfpBitStreamMutOps, ZfpBitStreamOps, ZfpBitStreamRef, ZfpBitStreamRefMut,
 };
-pub use config::{STREAM_WORD_BITS, STREAM_WORD_BYTES, ZfpConfig, ZfpStreamAlignment};
+pub use config::{STREAM_WORD_BITS, STREAM_WORD_BYTES, ZfpConfig, ZfpRounding, ZfpStreamAlignment};
 pub use execution::ZfpExecution;
 pub use field::{ZfpField, ZfpFieldMetadata, ZfpFieldMut};
 pub use header::{ZfpHeader, ZfpHeaderError};

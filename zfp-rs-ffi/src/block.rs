@@ -55,6 +55,7 @@ macro_rules! impl_encode_block_1d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -82,6 +83,7 @@ macro_rules! impl_encode_block_2d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -109,6 +111,7 @@ macro_rules! impl_encode_block_3d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -136,6 +139,7 @@ macro_rules! impl_encode_block_4d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -167,6 +171,7 @@ macro_rules! impl_decode_block_1d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -194,6 +199,7 @@ macro_rules! impl_decode_block_2d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -221,6 +227,7 @@ macro_rules! impl_decode_block_3d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -248,6 +255,7 @@ macro_rules! impl_decode_block_4d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -283,6 +291,7 @@ macro_rules! impl_encode_block_strided_1d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -315,6 +324,7 @@ macro_rules! impl_encode_block_strided_2d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -348,6 +358,7 @@ macro_rules! impl_encode_block_strided_3d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -382,6 +393,7 @@ macro_rules! impl_encode_block_strided_4d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -419,6 +431,7 @@ macro_rules! impl_encode_partial_block_strided_1d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -454,6 +467,7 @@ macro_rules! impl_encode_partial_block_strided_2d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -491,6 +505,7 @@ macro_rules! impl_encode_partial_block_strided_3d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -539,6 +554,7 @@ macro_rules! impl_encode_partial_block_strided_4d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -574,6 +590,7 @@ macro_rules! impl_decode_block_strided_1d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -606,6 +623,7 @@ macro_rules! impl_decode_block_strided_2d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -639,6 +657,7 @@ macro_rules! impl_decode_block_strided_3d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -673,6 +692,7 @@ macro_rules! impl_decode_block_strided_4d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -710,6 +730,7 @@ macro_rules! impl_decode_partial_block_strided_1d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -745,6 +766,7 @@ macro_rules! impl_decode_partial_block_strided_2d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -782,6 +804,7 @@ macro_rules! impl_decode_partial_block_strided_3d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };
@@ -830,6 +853,7 @@ macro_rules! impl_decode_partial_block_strided_4d {
                 ctx.max_bits,
                 ctx.max_prec,
                 ctx.min_exp,
+                crate::stream::FFI_ROUNDING,
             ) as usize
         }
     };

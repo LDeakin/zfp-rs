@@ -49,6 +49,39 @@ fn valid_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> bo
     min_bits <= max_bits && (0 < max_prec && max_prec <= 64)
 }
 
+/// Coefficient rounding, mirroring zfp's build-time `ZFP_ROUNDING_MODE` and
+/// `ZFP_WITH_TIGHT_ERROR`. Unlike C zfp, this is a per-call setting.
+///
+/// Not part of the stream mode word: encoder and decoder must be given the
+/// same value. Only [`Never`][Self::Never] matches a stock `libzfp` build.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum ZfpRounding {
+    /// `ZFP_ROUND_NEVER`: truncate. The zfp default.
+    #[default]
+    Never,
+    /// `ZFP_ROUND_FIRST`: bias coefficients before encoding. Changes the bitstream.
+    First {
+        /// `ZFP_WITH_TIGHT_ERROR`: one fewer bit plane in fixed-accuracy and expert mode.
+        tight_error: bool,
+    },
+    /// `ZFP_ROUND_LAST`: bias coefficients after decoding. Leaves the bitstream unchanged.
+    Last {
+        /// `ZFP_WITH_TIGHT_ERROR`: one fewer bit plane in fixed-accuracy and expert mode.
+        tight_error: bool,
+    },
+}
+
+impl ZfpRounding {
+    /// Whether `ZFP_WITH_TIGHT_ERROR` is in effect.
+    #[must_use]
+    pub fn tight_error(self) -> bool {
+        match self {
+            Self::Never => false,
+            Self::First { tight_error } | Self::Last { tight_error } => tight_error,
+        }
+    }
+}
+
 /// Compression expert parameters.
 ///
 /// Construct a configured instance using the mode constructors:
@@ -67,6 +100,8 @@ pub struct ZfpConfig {
     max_prec: u32,
     /// Minimum exponent.
     min_exp: i32,
+    /// Coefficient rounding.
+    rounding: ZfpRounding,
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +259,9 @@ impl ZfpConfig {
     ///
     /// This is the inverse of [`mode_bits_from_params`].
     /// Returns `None` if the mode is invalid (e.g., precision out of range).
+    ///
+    /// Rounding is not encoded in the mode word; the result uses
+    /// [`ZfpRounding::Never`].
     #[must_use]
     #[allow(clippy::cast_possible_truncation)] // encoded bounded by prior branch conditions
     pub fn from_mode(encoded: u64) -> Option<Self> {
@@ -265,6 +303,7 @@ impl ZfpConfig {
             max_bits,
             max_prec,
             min_exp,
+            rounding: ZfpRounding::Never,
         })
     }
 
@@ -311,6 +350,7 @@ impl ZfpConfig {
             max_bits: bits,
             max_prec: ZFP_MAX_PREC,
             min_exp: ZFP_MIN_EXP,
+            rounding: ZfpRounding::Never,
         }
     }
 
@@ -329,6 +369,7 @@ impl ZfpConfig {
                 ZFP_MAX_PREC
             },
             min_exp: ZFP_MIN_EXP,
+            rounding: ZfpRounding::Never,
         }
     }
 
@@ -349,6 +390,7 @@ impl ZfpConfig {
             max_bits: ZFP_MAX_BITS,
             max_prec: ZFP_MAX_PREC,
             min_exp: emin,
+            rounding: ZfpRounding::Never,
         }
     }
 
@@ -360,6 +402,7 @@ impl ZfpConfig {
             max_bits: ZFP_MAX_BITS,
             max_prec: ZFP_MAX_PREC,
             min_exp: ZFP_MIN_EXP - 1,
+            rounding: ZfpRounding::Never,
         }
     }
 
@@ -371,6 +414,7 @@ impl ZfpConfig {
             max_bits,
             max_prec,
             min_exp,
+            rounding: ZfpRounding::Never,
         }
     }
 
@@ -384,6 +428,7 @@ impl ZfpConfig {
             max_bits: ZFP_MAX_BITS,
             max_prec: ZFP_MAX_PREC,
             min_exp: ZFP_MIN_EXP,
+            rounding: ZfpRounding::Never,
         }
     }
 
@@ -411,6 +456,22 @@ impl ZfpConfig {
     #[must_use]
     pub fn min_exp(&self) -> i32 {
         self.min_exp
+    }
+
+    /// Coefficient rounding. Defaults to [`ZfpRounding::Never`].
+    #[must_use]
+    pub fn rounding(&self) -> ZfpRounding {
+        self.rounding
+    }
+
+    /// Set the coefficient rounding.
+    ///
+    /// Rounding is not encoded in the stream, so decompression must use the
+    /// same value the stream was compressed with.
+    #[must_use]
+    pub fn with_rounding(mut self, rounding: ZfpRounding) -> Self {
+        self.rounding = rounding;
+        self
     }
 
     // --- Inspectors ---
@@ -522,6 +583,28 @@ mod tests {
     use crate::types::{
         ZFP_MAX_PREC, ZFP_MIN_BITS, ZFP_MIN_EXP, ZfpDimensionality, ZfpMode, ZfpScalarType,
     };
+
+    #[test]
+    fn rounding_defaults_to_never_and_round_trips() {
+        use crate::ZfpRounding;
+        let config = ZfpConfig::fixed_accuracy(1e-6);
+        assert_eq!(config.rounding(), ZfpRounding::Never);
+        assert!(!config.rounding().tight_error());
+
+        let rounded = config.with_rounding(ZfpRounding::First { tight_error: true });
+        assert_eq!(rounded.rounding(), ZfpRounding::First { tight_error: true });
+        assert!(rounded.rounding().tight_error());
+        // Rounding is orthogonal to the expert parameters.
+        assert_eq!(rounded.mode_bits(), config.mode_bits());
+        assert_eq!(rounded.min_exp(), config.min_exp());
+        // ...and is not recovered from the mode word.
+        assert_eq!(
+            ZfpConfig::from_mode(rounded.mode_bits())
+                .unwrap()
+                .rounding(),
+            ZfpRounding::Never
+        );
+    }
 
     #[test]
     fn new_is_expert_mode() {

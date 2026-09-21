@@ -13,6 +13,7 @@
 #![cfg(feature = "ffi")]
 
 use zfp_rs::ZfpDimensionality;
+use zfp_rs::ZfpRounding;
 use zfp_rs::bitstream::ZfpBitStream;
 use zfp_rs::codec::block::{decode_block, encode_block};
 use zfp_rs::codec::decode::{float as dfloat, integer as dinteger};
@@ -196,7 +197,7 @@ macro_rules! decode_block_tests {
             fn encode_rate_and_rewind(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(65536);
                 let block: &[$scalar; $block_size] = data[..].try_into().unwrap();
-                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC);
+                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZfpRounding::Never);
                 bs.flush();
                 bs.rewind();
                 bs
@@ -230,7 +231,7 @@ macro_rules! decode_block_tests {
             fn given_block_when_decode_block_expect_array_checksum_matches() {
                 let data = make_block();
                 let mut bs = encode_rate_and_rewind(&data);
-                let decoded = $dec_fn(&mut bs, MAXBITS, MAXBITS, ZFP_MAX_PREC);
+                let decoded = $dec_fn(&mut bs, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZfpRounding::Never);
                 let words: Vec<$cast> = unsafe {
                     std::slice::from_raw_parts(decoded.as_ptr().cast::<$cast>(), $block_size)
                         .to_vec()
@@ -305,7 +306,7 @@ macro_rules! decode_block_tests_float {
             fn encode_rate_and_rewind(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(65536);
                 let block: &[$scalar; $block_size] = data[..].try_into().unwrap();
-                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP, ZfpRounding::Never);
                 bs.flush();
                 bs.rewind();
                 bs
@@ -351,7 +352,7 @@ macro_rules! decode_block_tests_float {
             fn given_block_when_decode_block_expect_array_checksum_matches() {
                 let data = make_block();
                 let mut bs = encode_rate_and_rewind(&data);
-                let decoded = $dec_fn(&mut bs, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                let decoded = $dec_fn(&mut bs, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP, ZfpRounding::Never);
                 let words: Vec<$cast> = unsafe {
                     std::slice::from_raw_parts(decoded.as_ptr().cast::<$cast>(), $block_size)
                         .to_vec()

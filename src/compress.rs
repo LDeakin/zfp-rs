@@ -133,12 +133,13 @@ unsafe fn compress_block(
                                 encode_block_strided(
                                     bs, block, dims, &info.strides, config.min_bits(),
                                     config.max_bits(), config.max_prec(), config.min_exp(),
+                                    config.rounding(),
                                 );
                             } else {
                                 encode_partial_block_strided(
                                     bs, block, dims, &lengths, &info.strides,
                                     config.min_bits(), config.max_bits(), config.max_prec(),
-                                    config.min_exp(),
+                                    config.min_exp(), config.rounding(),
                                 );
                             }
                         }

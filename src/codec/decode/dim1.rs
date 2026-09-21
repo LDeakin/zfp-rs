@@ -10,6 +10,7 @@ use crate::codec::decode::float::{
     DOUBLE_MINEXP, FLOAT_MINEXP, decode_block_1d_f32, decode_block_1d_f64,
 };
 use crate::codec::decode::integer::{decode_block_1d_i32, decode_block_1d_i64};
+use crate::config::ZfpRounding;
 
 const MINBITS: u32 = 0;
 const INT32_MAXBITS: u32 = 32 * 4 + 1;
@@ -51,7 +52,13 @@ unsafe fn scatter_partial_1d<T: Copy>(block: &[T; 4], data: *mut T, nx: usize, s
 /// Decode a contiguous 1-D block of 4 `i32` values; return bits read.
 pub fn decode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i32; 4]) -> usize {
     let before = bs.read_pos();
-    let decoded = decode_block_1d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
+    let decoded = decode_block_1d_i32(
+        bs,
+        MINBITS,
+        INT32_MAXBITS,
+        INT32_MAXPREC,
+        ZfpRounding::Never,
+    );
     *block = decoded;
     (bs.read_pos() - before) as usize
 }
@@ -59,7 +66,13 @@ pub fn decode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i3
 /// Decode a contiguous 1-D block of 4 `i64` values; return bits read.
 pub fn decode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i64; 4]) -> usize {
     let before = bs.read_pos();
-    let decoded = decode_block_1d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
+    let decoded = decode_block_1d_i64(
+        bs,
+        MINBITS,
+        INT64_MAXBITS,
+        INT64_MAXPREC,
+        ZfpRounding::Never,
+    );
     *block = decoded;
     (bs.read_pos() - before) as usize
 }
@@ -67,7 +80,14 @@ pub fn decode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i6
 /// Decode a contiguous 1-D block of 4 `f32` values; return bits read.
 pub fn decode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f32; 4]) -> usize {
     let before = bs.read_pos();
-    let decoded = decode_block_1d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
+    let decoded = decode_block_1d_f32(
+        bs,
+        MINBITS,
+        FLOAT_MAXBITS,
+        FLOAT_MAXPREC,
+        FLOAT_MINEXP,
+        ZfpRounding::Never,
+    );
     *block = decoded;
     (bs.read_pos() - before) as usize
 }
@@ -75,7 +95,14 @@ pub fn decode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f3
 /// Decode a contiguous 1-D block of 4 `f64` values; return bits read.
 pub fn decode_block_1d_f64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f64; 4]) -> usize {
     let before = bs.read_pos();
-    let decoded = decode_block_1d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
+    let decoded = decode_block_1d_f64(
+        bs,
+        MINBITS,
+        DOUBLE_MAXBITS,
+        DOUBLE_MAXPREC,
+        DOUBLE_MINEXP,
+        ZfpRounding::Never,
+    );
     *block = decoded;
     (bs.read_pos() - before) as usize
 }
@@ -95,8 +122,8 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_1d_f64_rate,
     partial_rate: decode_partial_block_strided_1d_f64_rate,
     decode: decode_block_1d_f64,
-    defaults: [MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    defaults: [MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32, rounding: ZfpRounding],
 }
 
 strided_decode_wrappers! {
@@ -110,8 +137,8 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_1d_f32_rate,
     partial_rate: decode_partial_block_strided_1d_f32_rate,
     decode: decode_block_1d_f32,
-    defaults: [MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    defaults: [MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32, rounding: ZfpRounding],
 }
 
 strided_decode_wrappers! {
@@ -125,8 +152,8 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_1d_i32_rate,
     partial_rate: decode_partial_block_strided_1d_i32_rate,
     decode: decode_block_1d_i32,
-    defaults: [MINBITS, INT32_MAXBITS, INT32_MAXPREC],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    defaults: [MINBITS, INT32_MAXBITS, INT32_MAXPREC, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, rounding: ZfpRounding],
 }
 
 strided_decode_wrappers! {
@@ -140,6 +167,6 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_1d_i64_rate,
     partial_rate: decode_partial_block_strided_1d_i64_rate,
     decode: decode_block_1d_i64,
-    defaults: [MINBITS, INT64_MAXBITS, INT64_MAXPREC],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    defaults: [MINBITS, INT64_MAXBITS, INT64_MAXPREC, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, rounding: ZfpRounding],
 }

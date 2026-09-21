@@ -12,6 +12,7 @@ use crate::codec::encode::integer::{
     encode_block_1d_i32, encode_block_1d_i64, encode_block_2d_i32, encode_block_2d_i64,
     encode_block_3d_i32, encode_block_3d_i64, encode_block_4d_i32, encode_block_4d_i64,
 };
+use crate::config::ZfpRounding;
 
 // Number of exponent bits: 8 for f32, 11 for f64.
 const EBITS_F32: u32 = 8;
@@ -31,6 +32,7 @@ fn encode_float_block<const N: usize, F>(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
     encode_int: F,
 ) -> usize
 where
@@ -41,7 +43,7 @@ where
     #[allow(clippy::cast_possible_truncation)]
     let dims = N.trailing_zeros() / 2;
     let emax = exponent_block_f32(fblock);
-    let prec = precision_f(emax, maxprec, minexp, dims);
+    let prec = precision_f(emax, maxprec, minexp, dims, rounding.tight_error());
     let e = if prec != 0 {
         (emax + EBIAS_F32) as u32
     } else {
@@ -76,6 +78,7 @@ fn encode_double_block<const N: usize, F>(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
     encode_int: F,
 ) -> usize
 where
@@ -86,7 +89,7 @@ where
     #[allow(clippy::cast_possible_truncation)]
     let dims = N.trailing_zeros() / 2;
     let emax = exponent_block_f64(fblock);
-    let prec = precision_f(emax, maxprec, minexp, dims);
+    let prec = precision_f(emax, maxprec, minexp, dims, rounding.tight_error());
     let e = if prec != 0 {
         (emax + EBIAS_F64) as u32
     } else {
@@ -125,6 +128,7 @@ pub fn encode_block_1d_f32(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_float_block(
         bs,
@@ -133,8 +137,9 @@ pub fn encode_block_1d_f32(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_1d_i32(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_1d_i32(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }
@@ -147,6 +152,7 @@ pub fn encode_block_1d_f64(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_double_block(
         bs,
@@ -155,8 +161,9 @@ pub fn encode_block_1d_f64(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_1d_i64(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_1d_i64(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }
@@ -169,6 +176,7 @@ pub fn encode_block_2d_f32(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_float_block(
         bs,
@@ -177,8 +185,9 @@ pub fn encode_block_2d_f32(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_2d_i32(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_2d_i32(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }
@@ -191,6 +200,7 @@ pub fn encode_block_2d_f64(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_double_block(
         bs,
@@ -199,8 +209,9 @@ pub fn encode_block_2d_f64(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_2d_i64(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_2d_i64(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }
@@ -213,6 +224,7 @@ pub fn encode_block_3d_f32(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_float_block(
         bs,
@@ -221,8 +233,9 @@ pub fn encode_block_3d_f32(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_3d_i32(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_3d_i32(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }
@@ -235,6 +248,7 @@ pub fn encode_block_3d_f64(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_double_block(
         bs,
@@ -243,8 +257,9 @@ pub fn encode_block_3d_f64(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_3d_i64(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_3d_i64(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }
@@ -257,6 +272,7 @@ pub fn encode_block_4d_f32(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_float_block(
         bs,
@@ -265,8 +281,9 @@ pub fn encode_block_4d_f32(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_4d_i32(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_4d_i32(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }
@@ -279,6 +296,7 @@ pub fn encode_block_4d_f64(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     encode_double_block(
         bs,
@@ -287,8 +305,9 @@ pub fn encode_block_4d_f64(
         maxbits,
         maxprec,
         minexp,
+        rounding,
         |iblock, bs, minbits, maxbits, maxprec| {
-            encode_block_4d_i64(bs, iblock, minbits, maxbits, maxprec)
+            encode_block_4d_i64(bs, iblock, minbits, maxbits, maxprec, rounding)
         },
     )
 }

@@ -17,6 +17,7 @@
 
 use proptest::prelude::*;
 use zfp_rs::ZfpBitStream;
+use zfp_rs::ZfpRounding;
 use zfp_rs::codec::decode::{float as dfloat, integer as dinteger};
 
 // ---------------------------------------------------------------------------
@@ -122,7 +123,7 @@ macro_rules! block_decode_compat_int {
 
                 // Decode with Rust.
                 let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes);
-                let rs_out = $rs_decode(&mut rs_bs, maxbits, maxbits, ZFP_MAX_PREC);
+                let rs_out = $rs_decode(&mut rs_bs, maxbits, maxbits, ZFP_MAX_PREC, ZfpRounding::Never);
 
                 // Decode with C
                 let mut c_out = vec![0 as $scalar; $block_size];
@@ -172,7 +173,7 @@ macro_rules! block_decode_compat_float {
 
                 // Decode with Rust.
                 let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes);
-                let rs_out = $rs_decode(&mut rs_bs, maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                let rs_out = $rs_decode(&mut rs_bs, maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP, ZfpRounding::Never);
 
                 // Decode with C
                 let mut c_out = vec![0.0 as $scalar; $block_size];

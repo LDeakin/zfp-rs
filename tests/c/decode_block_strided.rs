@@ -15,6 +15,7 @@
 #![allow(dead_code)] // Ported from upstream; not all modes/variants are exercised.
 #![cfg(feature = "ffi")]
 
+use zfp_rs::ZfpRounding;
 use zfp_rs::bitstream::ZfpBitStream;
 
 use super::checksums::{
@@ -155,7 +156,7 @@ macro_rules! decode_block_strided_tests_1d {
 
             fn encode_rate_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(4096);
-                unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never) };
                 bs.flush();
                 bs.rewind();
                 bs
@@ -165,7 +166,7 @@ macro_rules! decode_block_strided_tests_1d {
                 let mut bs = ZfpBitStream::new(4096);
                 unsafe {
                     $enc_partial_rate(
-                        &mut bs, data.as_ptr(), PX, SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), PX, SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -219,7 +220,7 @@ macro_rules! decode_block_strided_tests_1d {
                 let mut bs = encode_rate_and_rewind_strided(&data);
                 let arr_len = BLOCK_SIDE_LEN * SX as usize;
                 let mut out = vec![0 as $scalar; arr_len];
-                unsafe { $dec_strided_rate(&mut bs, out.as_mut_ptr(), SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $dec_strided_rate(&mut bs, out.as_mut_ptr(), SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never) };
                 let words: &[$cast] = unsafe {
                     std::slice::from_raw_parts(out.as_ptr().cast::<$cast>(), out.len())
                 };
@@ -285,7 +286,7 @@ macro_rules! decode_block_strided_tests_1d {
                 let mut bs = encode_rate_and_rewind_partial(&data);
                 let arr_len = BLOCK_SIDE_LEN * SX as usize;
                 let mut out = vec![0 as $scalar; arr_len];
-                unsafe { $dec_partial_rate(&mut bs, out.as_mut_ptr(), PX, SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $dec_partial_rate(&mut bs, out.as_mut_ptr(), PX, SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never) };
                 let words: &[$cast] = unsafe {
                     std::slice::from_raw_parts(out.as_ptr().cast::<$cast>(), out.len())
                 };
@@ -383,7 +384,7 @@ macro_rules! decode_block_strided_tests_2d {
                 let mut bs = ZfpBitStream::new(4096);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -395,7 +396,7 @@ macro_rules! decode_block_strided_tests_2d {
                 let mut bs = ZfpBitStream::new(4096);
                 unsafe {
                     $enc_partial_rate(
-                        &mut bs, data.as_ptr(), PX, PY, SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), PX, PY, SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -462,7 +463,7 @@ macro_rules! decode_block_strided_tests_2d {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
                 let count_y = SY as usize / SX as usize;
                 let mut out = vec![0 as $scalar; count_x * count_y];
-                unsafe { $dec_strided_rate(&mut bs, out.as_mut_ptr(), SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $dec_strided_rate(&mut bs, out.as_mut_ptr(), SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never) };
                 let words: &[$cast] = unsafe {
                     std::slice::from_raw_parts(out.as_ptr().cast::<$cast>(), out.len())
                 };
@@ -543,7 +544,7 @@ macro_rules! decode_block_strided_tests_2d {
                 let mut out = vec![0 as $scalar; count_x * count_y];
                 unsafe {
                     $dec_partial_rate(
-                        &mut bs, out.as_mut_ptr(), PX, PY, SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, out.as_mut_ptr(), PX, PY, SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 let words: &[$cast] = unsafe {
@@ -654,7 +655,7 @@ macro_rules! decode_block_strided_tests_3d {
                 let mut bs = ZfpBitStream::new(65536);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -668,6 +669,7 @@ macro_rules! decode_block_strided_tests_3d {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC
                         $(, $dec_minexp)?,
+                        ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -741,7 +743,7 @@ macro_rules! decode_block_strided_tests_3d {
                 let mut out = vec![0 as $scalar; count_x * count_y * count_z];
                 unsafe {
                     $dec_strided_rate(
-                        &mut bs, out.as_mut_ptr(), SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, out.as_mut_ptr(), SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 let words: &[$cast] = unsafe {
@@ -840,7 +842,7 @@ macro_rules! decode_block_strided_tests_3d {
                 let mut out = vec![0 as $scalar; count_x * count_y * count_z];
                 unsafe {
                     $dec_partial_rate(
-                        &mut bs, out.as_mut_ptr(), PX, PY, PZ, SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, out.as_mut_ptr(), PX, PY, PZ, SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 let words: &[$cast] = unsafe {
@@ -961,7 +963,7 @@ macro_rules! decode_block_strided_tests_4d {
                 let mut bs = ZfpBitStream::new(1 << 20);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, SZ, SW, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, SZ, SW, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -974,7 +976,7 @@ macro_rules! decode_block_strided_tests_4d {
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW, MAXBITS, MAXBITS,
-                        ZFP_MAX_PREC $(, $dec_minexp)?,
+                        ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -1055,7 +1057,7 @@ macro_rules! decode_block_strided_tests_4d {
                 let mut out = vec![0 as $scalar; count_x * count_y * count_z * count_w];
                 unsafe {
                     $dec_strided_rate(
-                        &mut bs, out.as_mut_ptr(), SX, SY, SZ, SW, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, out.as_mut_ptr(), SX, SY, SZ, SW, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 let words: &[$cast] = unsafe {
@@ -1167,7 +1169,7 @@ macro_rules! decode_block_strided_tests_4d {
                 unsafe {
                     $dec_partial_rate(
                         &mut bs, out.as_mut_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW, MAXBITS, MAXBITS,
-                        ZFP_MAX_PREC $(, $dec_minexp)?,
+                        ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 let words: &[$cast] = unsafe {

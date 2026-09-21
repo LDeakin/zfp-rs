@@ -44,6 +44,45 @@ pub(crate) const PERM_4: [u8; 256] = [
 // Negabinary (int2uint) conversion
 // ---------------------------------------------------------------------------
 
+/// Bias `i32` coefficients so truncation rounds to nearest (`ZFP_ROUND_FIRST`).
+///
+/// Adds or subtracts 1/6 ulp to unbias errors. `NBMASK` is unsigned upstream,
+/// so both shifts are logical. Reference: `zfp/src/template/encode.c`.
+#[inline]
+#[allow(clippy::cast_possible_wrap)] // bias < 2^30, fits in i32
+pub(crate) fn fwd_round_i32(iblock: &mut [i32], maxprec: u32) {
+    if maxprec < 32 {
+        let bias = (0x2aaa_aaaa_u32 >> maxprec) as i32; // (NBMASK >> 2) >> maxprec
+        if maxprec & 1 == 1 {
+            for v in iblock {
+                *v = v.wrapping_add(bias);
+            }
+        } else {
+            for v in iblock {
+                *v = v.wrapping_sub(bias);
+            }
+        }
+    }
+}
+
+/// Bias `i64` coefficients so truncation rounds to nearest (`ZFP_ROUND_FIRST`).
+#[inline]
+#[allow(clippy::cast_possible_wrap)] // bias < 2^62, fits in i64
+pub(crate) fn fwd_round_i64(iblock: &mut [i64], maxprec: u32) {
+    if maxprec < 64 {
+        let bias = (0x2aaa_aaaa_aaaa_aaaa_u64 >> maxprec) as i64;
+        if maxprec & 1 == 1 {
+            for v in iblock {
+                *v = v.wrapping_add(bias);
+            }
+        } else {
+            for v in iblock {
+                *v = v.wrapping_sub(bias);
+            }
+        }
+    }
+}
+
 /// Map two's-complement `i32` → negabinary `u32`.
 ///
 /// Formula: `((x as u32).wrapping_add(NBMASK)) ^ NBMASK`
@@ -574,13 +613,19 @@ pub(crate) use pad_strided;
 
 /// Maximum number of bit planes to encode for a floating-point block.
 ///
-/// `precision(maxexp, maxprec, minexp, dims) = MIN(maxprec, MAX(0, maxexp - minexp + 2*dims + 2))`
-///
-/// `dims` is the number of spatial dimensions (1–4).
+/// `MIN(maxprec, MAX(0, maxexp - minexp + 2*dims + 2))`, or `+ 1` under
+/// `ZFP_WITH_TIGHT_ERROR`. `dims` is the number of spatial dimensions (1–4).
 #[inline]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // u32→i32 for exponent calc
-pub(crate) fn precision_f(maxexp: i32, maxprec: u32, minexp: i32, dims: u32) -> u32 {
-    let raw = maxexp - minexp + 2 * dims as i32 + 2;
+pub(crate) fn precision_f(
+    maxexp: i32,
+    maxprec: u32,
+    minexp: i32,
+    dims: u32,
+    tight_error: bool,
+) -> u32 {
+    let slack = if tight_error { 1 } else { 2 };
+    let raw = maxexp - minexp + 2 * dims as i32 + slack;
     maxprec.min(raw.max(0) as u32)
 }
 
@@ -735,3 +780,48 @@ macro_rules! strided_encode_wrappers {
     };
 }
 pub(crate) use strided_encode_wrappers;
+
+#[cfg(test)]
+mod tests {
+    use super::{fwd_round_i32, fwd_round_i64, precision_f};
+
+    #[test]
+    fn fwd_round_is_a_no_op_at_full_precision() {
+        let mut b = [1i32, -2, 3, -4];
+        fwd_round_i32(&mut b, 32);
+        assert_eq!(b, [1, -2, 3, -4]);
+        let mut b = [1i64, -2, 3, -4];
+        fwd_round_i64(&mut b, 64);
+        assert_eq!(b, [1, -2, 3, -4]);
+    }
+
+    #[test]
+    fn fwd_round_bias_sign_follows_maxprec_parity() {
+        // bias = (NBMASK >> 2) >> maxprec; added when maxprec is odd.
+        let mut odd = [0i32; 2];
+        fwd_round_i32(&mut odd, 3);
+        assert_eq!(odd, [0x2aaa_aaaa >> 3; 2]);
+        let mut even = [0i32; 2];
+        fwd_round_i32(&mut even, 4);
+        assert_eq!(even, [-(0x2aaa_aaaa >> 4); 2]);
+    }
+
+    #[test]
+    fn fwd_round_wraps_instead_of_overflowing() {
+        let mut b = [i32::MAX];
+        fwd_round_i32(&mut b, 1); // odd maxprec: adds the bias
+        assert_eq!(b[0], i32::MAX.wrapping_add(0x2aaa_aaaa >> 1));
+    }
+
+    #[test]
+    fn precision_tight_error_drops_one_bit_plane() {
+        // maxprec does not clamp here, so the +2/+1 difference shows through.
+        assert_eq!(precision_f(-120, 64, -149, 1, false), 33);
+        assert_eq!(precision_f(-120, 64, -149, 1, true), 32);
+        // clamped by maxprec: both agree
+        assert_eq!(precision_f(0, 12, -149, 3, false), 12);
+        assert_eq!(precision_f(0, 12, -149, 3, true), 12);
+        // clamped at zero
+        assert_eq!(precision_f(-149, 64, 0, 1, true), 0);
+    }
+}

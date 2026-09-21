@@ -13,6 +13,7 @@ use super::{
     as_typed_block_3d, as_typed_block_3d_mut, as_typed_block_4d, as_typed_block_4d_mut,
 };
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
+use crate::config::ZfpRounding;
 use crate::types::{ZfpDimensionality, ZfpScalar, ZfpScalarType};
 
 /// Reinterpret a scalar pointer as the concrete type the enclosing match arm has
@@ -580,14 +581,15 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
     max_bits: u32,
     max_prec: u32,
     min_exp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
             bs, data, dims, strides, cast_ptr,
             lengths: [],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            tail_int: [min_bits, max_bits, max_prec, rounding],
+            tail_float: [min_bits, max_bits, max_prec, min_exp, rounding],
             d1: [
                 dim1::encode_block_strided_1d_i32_rate,
                 dim1::encode_block_strided_1d_i64_rate,
@@ -631,14 +633,15 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     max_bits: u32,
     max_prec: u32,
     min_exp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
             bs, data, dims, strides, cast_ptr,
             lengths: [lengths],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            tail_int: [min_bits, max_bits, max_prec, rounding],
+            tail_float: [min_bits, max_bits, max_prec, min_exp, rounding],
             d1: [
                 dim1::encode_partial_block_strided_1d_i32_rate,
                 dim1::encode_partial_block_strided_1d_i64_rate,
@@ -685,14 +688,15 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
     max_bits: u32,
     max_prec: u32,
     min_exp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
             bs, data, dims, strides, cast_ptr_mut,
             lengths: [],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            tail_int: [min_bits, max_bits, max_prec, rounding],
+            tail_float: [min_bits, max_bits, max_prec, min_exp, rounding],
             d1: [
                 dim1::decode_block_strided_1d_i32_rate,
                 dim1::decode_block_strided_1d_i64_rate,
@@ -736,14 +740,15 @@ pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     max_bits: u32,
     max_prec: u32,
     min_exp: i32,
+    rounding: ZfpRounding,
 ) -> usize {
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
             bs, data, dims, strides, cast_ptr_mut,
             lengths: [lengths],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
+            tail_int: [min_bits, max_bits, max_prec, rounding],
+            tail_float: [min_bits, max_bits, max_prec, min_exp, rounding],
             d1: [
                 dim1::decode_partial_block_strided_1d_i32_rate,
                 dim1::decode_partial_block_strided_1d_i64_rate,

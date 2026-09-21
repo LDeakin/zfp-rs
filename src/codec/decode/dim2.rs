@@ -10,6 +10,7 @@ use crate::codec::decode::float::{
     DOUBLE_MINEXP, FLOAT_MINEXP, decode_block_2d_f32, decode_block_2d_f64,
 };
 use crate::codec::decode::integer::{decode_block_2d_i32, decode_block_2d_i64};
+use crate::config::ZfpRounding;
 
 const MINBITS: u32 = 0;
 const INT32_MAXBITS: u32 = 32 * 16 + 1;
@@ -54,22 +55,48 @@ unsafe fn scatter_partial_2d<T: Copy>(
 // Contiguous
 pub fn decode_block_2d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i32; 16]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_2d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
+    *block = decode_block_2d_i32(
+        bs,
+        MINBITS,
+        INT32_MAXBITS,
+        INT32_MAXPREC,
+        ZfpRounding::Never,
+    );
     (bs.read_pos() - before) as usize
 }
 pub fn decode_block_2d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i64; 16]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_2d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
+    *block = decode_block_2d_i64(
+        bs,
+        MINBITS,
+        INT64_MAXBITS,
+        INT64_MAXPREC,
+        ZfpRounding::Never,
+    );
     (bs.read_pos() - before) as usize
 }
 pub fn decode_block_2d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f32; 16]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_2d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
+    *block = decode_block_2d_f32(
+        bs,
+        MINBITS,
+        FLOAT_MAXBITS,
+        FLOAT_MAXPREC,
+        FLOAT_MINEXP,
+        ZfpRounding::Never,
+    );
     (bs.read_pos() - before) as usize
 }
 pub fn decode_block_2d_f64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f64; 16]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_2d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
+    *block = decode_block_2d_f64(
+        bs,
+        MINBITS,
+        DOUBLE_MAXBITS,
+        DOUBLE_MAXPREC,
+        DOUBLE_MINEXP,
+        ZfpRounding::Never,
+    );
     (bs.read_pos() - before) as usize
 }
 
@@ -88,8 +115,8 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_f64_rate,
     partial_rate: decode_partial_block_strided_2d_f64_rate,
     decode: decode_block_2d_f64,
-    defaults: [MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    defaults: [MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32, rounding: ZfpRounding],
 }
 
 strided_decode_wrappers! {
@@ -103,8 +130,8 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_f32_rate,
     partial_rate: decode_partial_block_strided_2d_f32_rate,
     decode: decode_block_2d_f32,
-    defaults: [MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    defaults: [MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32, rounding: ZfpRounding],
 }
 
 strided_decode_wrappers! {
@@ -118,8 +145,8 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_i32_rate,
     partial_rate: decode_partial_block_strided_2d_i32_rate,
     decode: decode_block_2d_i32,
-    defaults: [MINBITS, INT32_MAXBITS, INT32_MAXPREC],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    defaults: [MINBITS, INT32_MAXBITS, INT32_MAXPREC, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, rounding: ZfpRounding],
 }
 
 strided_decode_wrappers! {
@@ -133,6 +160,6 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_i64_rate,
     partial_rate: decode_partial_block_strided_2d_i64_rate,
     decode: decode_block_2d_i64,
-    defaults: [MINBITS, INT64_MAXBITS, INT64_MAXPREC],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    defaults: [MINBITS, INT64_MAXBITS, INT64_MAXPREC, ZfpRounding::Never],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, rounding: ZfpRounding],
 }

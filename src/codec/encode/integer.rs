@@ -3,11 +3,14 @@
 //! Reference: `zfp/src/template/encodei.c`, `encode.c`
 
 use crate::bitstream::ZfpBitStreamMutOps;
-use crate::codec::encode::core::{encode_ints_u32, encode_ints_u64, fwd_order_i32, fwd_order_i64};
+use crate::codec::encode::core::{
+    encode_ints_u32, encode_ints_u64, fwd_order_i32, fwd_order_i64, fwd_round_i32, fwd_round_i64,
+};
 use crate::codec::transform::{
     fwd_xform_1d, fwd_xform_1d_i64, fwd_xform_2d, fwd_xform_2d_i64, fwd_xform_3d, fwd_xform_3d_i64,
     fwd_xform_4d, fwd_xform_4d_i64,
 };
+use crate::config::ZfpRounding;
 
 // ---------------------------------------------------------------------------
 // Transform trait: selects dimension-specific transform + permutation
@@ -127,9 +130,13 @@ fn encode_int_block_32<T: Transform32<N>, const N: usize>(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
     let mut block = *iblock;
     T::transform(&mut block);
+    if matches!(rounding, ZfpRounding::First { .. }) {
+        fwd_round_i32(&mut block, maxprec);
+    }
     let mut ublock = [0u32; N];
     #[allow(clippy::cast_sign_loss)] // i32→u32 for negabinary encoding
     fwd_order_i32(&mut ublock, &block, T::perm());
@@ -150,9 +157,13 @@ fn encode_int_block_64<T: Transform64<N>, const N: usize>(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
     let mut block = *iblock;
     T::transform(&mut block);
+    if matches!(rounding, ZfpRounding::First { .. }) {
+        fwd_round_i64(&mut block, maxprec);
+    }
     let mut ublock = [0u64; N];
     fwd_order_i64(&mut ublock, &block, T::perm());
     let bits = encode_ints_u64(bs, maxbits, maxprec, &ublock);
@@ -178,8 +189,9 @@ pub fn encode_block_1d_i32(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_32::<Dim1i32, 4>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_32::<Dim1i32, 4>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }
 
 /// Encode a decorrelated 1-D block of 4 `i64` values; returns bits written.
@@ -189,8 +201,9 @@ pub fn encode_block_1d_i64(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_64::<Dim1i64, 4>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_64::<Dim1i64, 4>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }
 
 /// Encode a decorrelated 2-D block of 16 `i32` values; returns bits written.
@@ -200,8 +213,9 @@ pub fn encode_block_2d_i32(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_32::<Dim2i32, 16>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_32::<Dim2i32, 16>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }
 
 /// Encode a decorrelated 2-D block of 16 `i64` values; returns bits written.
@@ -211,8 +225,9 @@ pub fn encode_block_2d_i64(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_64::<Dim2i64, 16>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_64::<Dim2i64, 16>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }
 
 /// Encode a decorrelated 3-D block of 64 `i32` values; returns bits written.
@@ -222,8 +237,9 @@ pub fn encode_block_3d_i32(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_32::<Dim3i32, 64>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_32::<Dim3i32, 64>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }
 
 /// Encode a decorrelated 3-D block of 64 `i64` values; returns bits written.
@@ -233,8 +249,9 @@ pub fn encode_block_3d_i64(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_64::<Dim3i64, 64>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_64::<Dim3i64, 64>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }
 
 /// Encode a decorrelated 4-D block of 256 `i32` values; returns bits written.
@@ -244,8 +261,9 @@ pub fn encode_block_4d_i32(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_32::<Dim4i32, 256>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_32::<Dim4i32, 256>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }
 
 /// Encode a decorrelated 4-D block of 256 `i64` values; returns bits written.
@@ -255,6 +273,7 @@ pub fn encode_block_4d_i64(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
-    encode_int_block_64::<Dim4i64, 256>(bs, iblock, minbits, maxbits, maxprec)
+    encode_int_block_64::<Dim4i64, 256>(bs, iblock, minbits, maxbits, maxprec, rounding)
 }

@@ -17,6 +17,7 @@
 #![allow(dead_code)] // Ported from upstream; not all modes/variants are exercised.
 #![cfg(feature = "ffi")]
 
+use zfp_rs::ZfpRounding;
 use zfp_rs::bitstream::ZfpBitStream;
 
 use super::checksums::{
@@ -176,7 +177,7 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
-                unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never) };
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
                 let (key1, key2) = compute_key(
@@ -234,7 +235,7 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_partial_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
-                unsafe { $enc_partial_rate(&mut bs, data.as_ptr(), PX, SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $enc_partial_rate(&mut bs, data.as_ptr(), PX, SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never) };
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
                 let (key1, key2) = compute_key(
@@ -350,7 +351,7 @@ macro_rules! encode_block_strided_tests_2d {
                 let mut bs = ZfpBitStream::new(4096);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -416,7 +417,7 @@ macro_rules! encode_block_strided_tests_2d {
                 let mut bs = ZfpBitStream::new(4096);
                 unsafe {
                     $enc_partial_rate(
-                        &mut bs, data.as_ptr(), PX, PY, SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), PX, PY, SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -542,7 +543,7 @@ macro_rules! encode_block_strided_tests_3d {
                 let mut bs = ZfpBitStream::new(65536);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -613,6 +614,7 @@ macro_rules! encode_block_strided_tests_3d {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC
                         $(, $dec_minexp)?,
+                        ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -748,7 +750,7 @@ macro_rules! encode_block_strided_tests_4d {
                 let mut bs = ZfpBitStream::new(1 << 20);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, SZ, SW, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, SZ, SW, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();
@@ -822,7 +824,7 @@ macro_rules! encode_block_strided_tests_4d {
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW, MAXBITS, MAXBITS,
-                        ZFP_MAX_PREC $(, $dec_minexp)?,
+                        ZFP_MAX_PREC $(, $dec_minexp)?, ZfpRounding::Never,
                     )
                 };
                 bs.flush();

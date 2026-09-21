@@ -17,7 +17,7 @@
 //! which Miri catches and `ASan` cannot.
 
 use zfp_rs::{
-    ZfpBitStream, ZfpConfig,
+    ZfpBitStream, ZfpConfig, ZfpRounding,
     codec::block::{
         decode_block_strided, decode_partial_block_strided, encode_block_strided,
         encode_partial_block_strided,
@@ -57,6 +57,13 @@ pub fn run(data: &[u8]) {
     let Some(config) = mode.to_config(kind.scalar_type(), dims) else {
         return;
     };
+    // Rounding rides the spare high bits of hdr[1]; rank uses only the low two.
+    let tight_error = hdr[1] & 0x20 != 0;
+    let config = config.with_rounding(match hdr[1] >> 6 {
+        1 => ZfpRounding::First { tight_error },
+        2 => ZfpRounding::Last { tight_error },
+        _ => ZfpRounding::Never,
+    });
     // Reversible mode is signalled by `min_exp < ZFP_MIN_EXP`, and
     // `src/compress.rs` routes it to `encode_block_strided_reversible` rather
     // than the parameterised entry points this target drives. Passing
@@ -135,6 +142,7 @@ fn typed<T: FuzzScalar>(
     let origin = (-lo).cast_unsigned();
     let src: Vec<T> = decode_scalars::<T>(payload, span);
 
+    let rounding = config.rounding();
     let (min_bits, max_bits, max_prec, min_exp) = (
         config.min_bits(),
         config.max_bits(),
@@ -160,6 +168,7 @@ fn typed<T: FuzzScalar>(
                 max_bits,
                 max_prec,
                 min_exp,
+                rounding,
             )
         } else {
             encode_block_strided(
@@ -171,6 +180,7 @@ fn typed<T: FuzzScalar>(
                 max_bits,
                 max_prec,
                 min_exp,
+                rounding,
             )
         }
     };
@@ -203,6 +213,7 @@ fn typed<T: FuzzScalar>(
                 max_bits,
                 max_prec,
                 min_exp,
+                rounding,
             )
         } else {
             decode_block_strided(
@@ -214,6 +225,7 @@ fn typed<T: FuzzScalar>(
                 max_bits,
                 max_prec,
                 min_exp,
+                rounding,
             )
         };
     }

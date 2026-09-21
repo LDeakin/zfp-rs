@@ -39,6 +39,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The required alignment is `ZfpScalarType::align`, the target alignment of the Rust type, rather than its size: 64-bit scalars are 4-byte aligned on some 32-bit targets
 
 ### Added
+- `ZfpRounding`, selecting zfp's `ZFP_ROUNDING_MODE` and `ZFP_WITH_TIGHT_ERROR` at runtime
+  - C zfp fixes both at build time. Here they are per-call, via `ZfpConfig::with_rounding`, so one binary can read streams from any build
+  - Not encoded in the stream: compression and decompression must be given the same value
+  - Defaults to `ZfpRounding::Never`, which is what every existing stream and the reference `libzfp` build use
 - `zfp-rs-ffi`: `zfp_block_maximum_size`, new in the zfp version `zfp-sys` 0.4 bundles
 - `ZfpScalarType::align`, the alignment a buffer passed to `ZfpField::from_raw` must satisfy
 - `ZfpScalarType::is_aligned`, checking a buffer pointer against `align`

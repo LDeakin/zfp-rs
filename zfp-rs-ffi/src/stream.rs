@@ -6,7 +6,8 @@ use crate::abi::{
 };
 use crate::util::c_dims_to_rust;
 use zfp_rs::{
-    STREAM_WORD_BITS, ZfpConfig, ZfpExecution, ZfpHeaderMask, ZfpScalarType, ZfpStreamAlignment,
+    STREAM_WORD_BITS, ZfpConfig, ZfpExecution, ZfpHeaderMask, ZfpRounding, ZfpScalarType,
+    ZfpStreamAlignment,
 };
 
 fn params_from_c(stream: &zfp_stream) -> (uint, uint, uint, i32) {
@@ -17,6 +18,10 @@ fn params_from_c(stream: &zfp_stream) -> (uint, uint, uint, i32) {
         stream.minexp,
     )
 }
+
+/// Rounding for every entry point: the C `zfp_stream` has no field for it,
+/// so it is fixed at build time as in C zfp.
+pub(crate) const FFI_ROUNDING: ZfpRounding = ZfpRounding::Never;
 
 fn write_params(stream: &mut zfp_stream, zfp: &ZfpConfig) {
     stream.minbits = zfp.min_bits();
@@ -32,6 +37,7 @@ fn stream_with_c_state(stream: &zfp_stream) -> ZfpConfig {
         stream.maxprec,
         stream.minexp,
     )
+    .with_rounding(FFI_ROUNDING)
 }
 
 pub(crate) unsafe fn stream_params(

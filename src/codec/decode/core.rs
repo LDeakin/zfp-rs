@@ -7,6 +7,7 @@
 
 use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::encode::core::{PERM_1, PERM_2, PERM_3, PERM_4, precision_f, with_maxbits};
+use crate::config::ZfpRounding;
 use crate::types::ZfpDimensionality;
 
 // ---------------------------------------------------------------------------
@@ -51,6 +52,44 @@ pub(crate) fn inv_order_i64(ublock: &[u64], iblock: &mut [i64], perm: &[u8]) {
 // Bit-plane decoders (u32, size ≤ 64): rate-constrained
 // ---------------------------------------------------------------------------
 
+/// Bias `u32` coefficients so truncation rounds to nearest (`ZFP_ROUND_LAST`).
+///
+/// Adds 1/6 ulp to unbias errors; the first `m` values carry one extra bit of
+/// precision. `NBMASK` is unsigned upstream, so both shifts are logical.
+/// Reference: `zfp/src/template/decode.c`.
+#[inline]
+pub(crate) fn inv_round_u32(data: &mut [u32], m: u32, prec: u32) {
+    if prec < 31 {
+        let m = (m as usize).min(data.len());
+        let (head, tail) = data.split_at_mut(m);
+        let hi = 0x2aaa_aaaa_u32 >> prec; // (NBMASK >> 2) >> prec
+        let lo = 0x5555_5555_u32 >> prec; // (NBMASK >> 1) >> prec
+        for v in head {
+            *v = v.wrapping_add(hi);
+        }
+        for v in tail {
+            *v = v.wrapping_add(lo);
+        }
+    }
+}
+
+/// Bias `u64` coefficients so truncation rounds to nearest (`ZFP_ROUND_LAST`).
+#[inline]
+pub(crate) fn inv_round_u64(data: &mut [u64], m: u32, prec: u32) {
+    if prec < 63 {
+        let m = (m as usize).min(data.len());
+        let (head, tail) = data.split_at_mut(m);
+        let hi = 0x2aaa_aaaa_aaaa_aaaa_u64 >> prec;
+        let lo = 0x5555_5555_5555_5555_u64 >> prec;
+        for v in head {
+            *v = v.wrapping_add(hi);
+        }
+        for v in tail {
+            *v = v.wrapping_add(lo);
+        }
+    }
+}
+
 /// Decode `size ≤ 64` u32 integers from a rate-constrained bitstream.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_few_ints_u32(
@@ -58,6 +97,7 @@ pub(crate) fn decode_few_ints_u32(
     maxbits: u32,
     maxprec: u32,
     data: &mut [u32],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 32;
@@ -74,6 +114,8 @@ pub(crate) fn decode_few_ints_u32(
     while bits != 0 {
         m = 0;
         if k <= kmin {
+            // C decrements k in the loop condition even on this exit.
+            k = k.wrapping_sub(1);
             break;
         }
         k -= 1;
@@ -115,7 +157,9 @@ pub(crate) fn decode_few_ints_u32(
             i += 1;
         }
     }
-    let _ = m; // m used only for ROUND_LAST mode
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        inv_round_u32(data, m, intprec.wrapping_sub(k));
+    }
     maxbits - bits
 }
 
@@ -126,6 +170,7 @@ pub(crate) fn decode_few_ints_u64(
     maxbits: u32,
     maxprec: u32,
     data: &mut [u64],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 64;
@@ -137,13 +182,17 @@ pub(crate) fn decode_few_ints_u64(
     }
 
     let mut n: u32 = 0;
+    let mut m: u32 = 0;
     let mut k = intprec;
     while bits != 0 {
+        m = 0;
         if k <= kmin {
+            // C decrements k in the loop condition even on this exit.
+            k = k.wrapping_sub(1);
             break;
         }
         k -= 1;
-        let m = n.min(bits);
+        m = n.min(bits);
         bits -= m;
         let mut x = bs.read_bits(m);
         // Mirrors C: `for (; bits && n < size; n++, m=n)`
@@ -160,9 +209,12 @@ pub(crate) fn decode_few_ints_u64(
                 }
                 x |= 1u64 << n;
             } else {
+                // negative group test: done with bit plane
+                m = size;
                 break;
             }
             n += 1;
+            m = n;
         }
         let mut i = 0usize;
         let mut xx = x;
@@ -171,6 +223,9 @@ pub(crate) fn decode_few_ints_u64(
             xx >>= 1;
             i += 1;
         }
+    }
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        inv_round_u64(data, m, intprec.wrapping_sub(k));
     }
     maxbits - bits
 }
@@ -186,6 +241,7 @@ pub(crate) fn decode_many_ints_u32(
     maxbits: u32,
     maxprec: u32,
     data: &mut [u32],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 32;
@@ -197,14 +253,18 @@ pub(crate) fn decode_many_ints_u32(
     }
 
     let mut n: u32 = 0;
+    let mut m: u32 = 0;
     let mut k = intprec;
     while bits != 0 {
+        m = 0;
         if k <= kmin {
+            // C decrements k in the loop condition even on this exit.
+            k = k.wrapping_sub(1);
             break;
         }
         k -= 1;
         // Step 1: decode first n individual bits
-        let m = n.min(bits);
+        m = n.min(bits);
         bits -= m;
         for d in &mut data[..m as usize] {
             if bs.read_bit() != 0 {
@@ -234,10 +294,16 @@ pub(crate) fn decode_many_ints_u32(
                 }
                 data[n as usize] += 1u32 << k;
             } else {
-                break 'outer_u32; // negative: outer n++ does NOT run
+                // negative: outer n++ does NOT run
+                m = size;
+                break 'outer_u32;
             }
             n += 1; // outer n++
+            m = n;
         }
+    }
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        inv_round_u32(data, m, intprec.wrapping_sub(k));
     }
     maxbits - bits
 }
@@ -249,6 +315,7 @@ pub(crate) fn decode_many_ints_u64(
     maxbits: u32,
     maxprec: u32,
     data: &mut [u64],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 64;
@@ -260,13 +327,17 @@ pub(crate) fn decode_many_ints_u64(
     }
 
     let mut n: u32 = 0;
+    let mut m: u32 = 0;
     let mut k = intprec;
     while bits != 0 {
+        m = 0;
         if k <= kmin {
+            // C decrements k in the loop condition even on this exit.
+            k = k.wrapping_sub(1);
             break;
         }
         k -= 1;
-        let m = n.min(bits);
+        m = n.min(bits);
         bits -= m;
         for d in &mut data[..m as usize] {
             if bs.read_bit() != 0 {
@@ -291,10 +362,16 @@ pub(crate) fn decode_many_ints_u64(
                 }
                 data[n as usize] += 1u64 << k;
             } else {
+                // negative: outer n++ does NOT run
+                m = size;
                 break 'outer_u64;
             }
-            n += 1;
+            n += 1; // outer n++
+            m = n;
         }
+    }
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        inv_round_u64(data, m, intprec.wrapping_sub(k));
     }
     maxbits - bits
 }
@@ -309,6 +386,7 @@ pub(crate) fn decode_few_ints_prec_u32(
     bs: &mut dyn ZfpBitStreamOps,
     maxprec: u32,
     data: &mut [u32],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 32;
@@ -345,6 +423,10 @@ pub(crate) fn decode_few_ints_prec_u32(
             i += 1;
         }
     }
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        // The loop always exits with k == kmin - 1, and m is always 0.
+        inv_round_u32(data, 0, intprec.wrapping_sub(kmin.wrapping_sub(1)));
+    }
     (bs.read_pos() - start) as u32
 }
 
@@ -354,6 +436,7 @@ pub(crate) fn decode_few_ints_prec_u64(
     bs: &mut dyn ZfpBitStreamOps,
     maxprec: u32,
     data: &mut [u64],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 64;
@@ -387,6 +470,10 @@ pub(crate) fn decode_few_ints_prec_u64(
             i += 1;
         }
     }
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        // The loop always exits with k == kmin - 1, and m is always 0.
+        inv_round_u64(data, 0, intprec.wrapping_sub(kmin.wrapping_sub(1)));
+    }
     (bs.read_pos() - start) as u32
 }
 
@@ -396,6 +483,7 @@ pub(crate) fn decode_many_ints_prec_u32(
     bs: &mut dyn ZfpBitStreamOps,
     maxprec: u32,
     data: &mut [u32],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 32;
@@ -428,6 +516,10 @@ pub(crate) fn decode_many_ints_prec_u32(
             n += 1;
         }
     }
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        // The loop always exits with k == kmin - 1, and m is always 0.
+        inv_round_u32(data, 0, intprec.wrapping_sub(kmin.wrapping_sub(1)));
+    }
     (bs.read_pos() - start) as u32
 }
 
@@ -437,6 +529,7 @@ pub(crate) fn decode_many_ints_prec_u64(
     bs: &mut dyn ZfpBitStreamOps,
     maxprec: u32,
     data: &mut [u64],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     let intprec: u32 = 64;
@@ -469,6 +562,10 @@ pub(crate) fn decode_many_ints_prec_u64(
             n += 1;
         }
     }
+    if matches!(rounding, ZfpRounding::Last { .. }) {
+        // The loop always exits with k == kmin - 1, and m is always 0.
+        inv_round_u64(data, 0, intprec.wrapping_sub(kmin.wrapping_sub(1)));
+    }
     (bs.read_pos() - start) as u32
 }
 
@@ -482,18 +579,19 @@ pub(crate) fn decode_ints_u32(
     maxbits: u32,
     maxprec: u32,
     data: &mut [u32],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     if with_maxbits(maxbits, maxprec, size) {
         if size <= 64 {
-            decode_few_ints_u32(bs, maxbits, maxprec, data)
+            decode_few_ints_u32(bs, maxbits, maxprec, data, rounding)
         } else {
-            decode_many_ints_u32(bs, maxbits, maxprec, data)
+            decode_many_ints_u32(bs, maxbits, maxprec, data, rounding)
         }
     } else if size <= 64 {
-        decode_few_ints_prec_u32(bs, maxprec, data)
+        decode_few_ints_prec_u32(bs, maxprec, data, rounding)
     } else {
-        decode_many_ints_prec_u32(bs, maxprec, data)
+        decode_many_ints_prec_u32(bs, maxprec, data, rounding)
     }
 }
 
@@ -503,18 +601,19 @@ pub(crate) fn decode_ints_u64(
     maxbits: u32,
     maxprec: u32,
     data: &mut [u64],
+    rounding: ZfpRounding,
 ) -> u32 {
     let size = data.len() as u32;
     if with_maxbits(maxbits, maxprec, size) {
         if size <= 64 {
-            decode_few_ints_u64(bs, maxbits, maxprec, data)
+            decode_few_ints_u64(bs, maxbits, maxprec, data, rounding)
         } else {
-            decode_many_ints_u64(bs, maxbits, maxprec, data)
+            decode_many_ints_u64(bs, maxbits, maxprec, data, rounding)
         }
     } else if size <= 64 {
-        decode_few_ints_prec_u64(bs, maxprec, data)
+        decode_few_ints_prec_u64(bs, maxprec, data, rounding)
     } else {
-        decode_many_ints_prec_u64(bs, maxprec, data)
+        decode_many_ints_prec_u64(bs, maxprec, data, rounding)
     }
 }
 
@@ -527,9 +626,10 @@ pub(crate) fn decode_block_1d_i32_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i32; 4] {
     let mut ublock = [0u32; 4];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -544,9 +644,10 @@ pub(crate) fn decode_block_1d_i64_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i64; 4] {
     let mut ublock = [0u64; 4];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -561,9 +662,10 @@ pub(crate) fn decode_block_2d_i32_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i32; 16] {
     let mut ublock = [0u32; 16];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -578,9 +680,10 @@ pub(crate) fn decode_block_2d_i64_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i64; 16] {
     let mut ublock = [0u64; 16];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -595,9 +698,10 @@ pub(crate) fn decode_block_3d_i32_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i32; 64] {
     let mut ublock = [0u32; 64];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -612,9 +716,10 @@ pub(crate) fn decode_block_3d_i64_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i64; 64] {
     let mut ublock = [0u64; 64];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -629,9 +734,10 @@ pub(crate) fn decode_block_4d_i32_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i32; 256] {
     let mut ublock = [0u32; 256];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -646,9 +752,10 @@ pub(crate) fn decode_block_4d_i64_core(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> [i64; 256] {
     let mut ublock = [0u64; 256];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock);
+    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
         bs.skip((minbits - bits) as usize);
     }
@@ -687,6 +794,7 @@ pub(crate) fn decode_float_block<const N: usize>(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
     dims: ZfpDimensionality,
 ) -> ([f32; N], usize) {
     const EBITS: u32 = 8;
@@ -697,27 +805,37 @@ pub(crate) fn decode_float_block<const N: usize>(
         // block has nonzero values
         bits += EBITS;
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
-        let prec = precision_f(emax, maxprec, minexp, u32::from(dims));
+        let prec = precision_f(
+            emax,
+            maxprec,
+            minexp,
+            u32::from(dims),
+            rounding.tight_error(),
+        );
         let remaining_min = minbits.saturating_sub(bits);
         let remaining_max = maxbits.saturating_sub(bits);
         let iblock_bits = match dims {
             ZfpDimensionality::D1 => {
-                let iblock = decode_block_1d_i32_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_1d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
                 iblock.len()
             }
             ZfpDimensionality::D2 => {
-                let iblock = decode_block_2d_i32_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_2d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
                 iblock.len()
             }
             ZfpDimensionality::D3 => {
-                let iblock = decode_block_3d_i32_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_3d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
                 iblock.len()
             }
             ZfpDimensionality::D4 => {
-                let iblock = decode_block_4d_i32_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_4d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
                 iblock.len()
             }
@@ -738,6 +856,7 @@ pub(crate) fn decode_double_block<const N: usize>(
     maxbits: u32,
     maxprec: u32,
     minexp: i32,
+    rounding: ZfpRounding,
     dims: ZfpDimensionality,
 ) -> ([f64; N], usize) {
     const EBITS: u32 = 11;
@@ -747,24 +866,34 @@ pub(crate) fn decode_double_block<const N: usize>(
     if bs.read_bit() != 0 {
         bits += EBITS;
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
-        let prec = precision_f(emax, maxprec, minexp, u32::from(dims));
+        let prec = precision_f(
+            emax,
+            maxprec,
+            minexp,
+            u32::from(dims),
+            rounding.tight_error(),
+        );
         let remaining_min = minbits.saturating_sub(bits);
         let remaining_max = maxbits.saturating_sub(bits);
         match dims {
             ZfpDimensionality::D1 => {
-                let iblock = decode_block_1d_i64_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_1d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f64(&iblock, &mut fblock, emax);
             }
             ZfpDimensionality::D2 => {
-                let iblock = decode_block_2d_i64_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_2d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f64(&iblock, &mut fblock, emax);
             }
             ZfpDimensionality::D3 => {
-                let iblock = decode_block_3d_i64_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_3d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f64(&iblock, &mut fblock, emax);
             }
             ZfpDimensionality::D4 => {
-                let iblock = decode_block_4d_i64_core(bs, remaining_min, remaining_max, prec);
+                let iblock =
+                    decode_block_4d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f64(&iblock, &mut fblock, emax);
             }
         }
@@ -873,3 +1002,51 @@ macro_rules! strided_decode_wrappers {
     };
 }
 pub(crate) use strided_decode_wrappers;
+
+#[cfg(test)]
+mod tests {
+    use super::{inv_round_u32, inv_round_u64};
+
+    #[test]
+    fn inv_round_is_a_no_op_at_full_precision() {
+        let mut d = [1u32, 2, 3];
+        inv_round_u32(&mut d, 1, 31);
+        assert_eq!(d, [1, 2, 3]);
+        let mut d = [1u64, 2, 3];
+        inv_round_u64(&mut d, 1, 63);
+        assert_eq!(d, [1, 2, 3]);
+    }
+
+    #[test]
+    fn inv_round_gives_the_first_m_values_the_smaller_bias() {
+        // hi = (NBMASK >> 2) >> prec for the first m, lo = (NBMASK >> 1) >> prec after.
+        let mut d = [0u32; 4];
+        inv_round_u32(&mut d, 2, 4);
+        let (hi, lo) = (0x2aaa_aaaau32 >> 4, 0x5555_5555u32 >> 4);
+        assert_eq!(d, [hi, hi, lo, lo]);
+    }
+
+    #[test]
+    fn inv_round_handles_m_at_both_extremes() {
+        let lo = 0x5555_5555u32 >> 8;
+        let hi = 0x2aaa_aaaau32 >> 8;
+        let mut d = [0u32; 3];
+        inv_round_u32(&mut d, 0, 8);
+        assert_eq!(d, [lo; 3]);
+        // m == size (set by a negative group test) biases everything as `hi`.
+        let mut d = [0u32; 3];
+        inv_round_u32(&mut d, 3, 8);
+        assert_eq!(d, [hi; 3]);
+        // m past the end is clamped rather than panicking.
+        let mut d = [0u32; 3];
+        inv_round_u32(&mut d, 99, 8);
+        assert_eq!(d, [hi; 3]);
+    }
+
+    #[test]
+    fn inv_round_wraps_instead_of_overflowing() {
+        let mut d = [u32::MAX];
+        inv_round_u32(&mut d, 0, 8);
+        assert_eq!(d[0], u32::MAX.wrapping_add(0x5555_5555u32 >> 8));
+    }
+}

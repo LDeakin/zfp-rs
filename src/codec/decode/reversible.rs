@@ -14,6 +14,7 @@ use crate::codec::transform::{
     rev_inv_xform_1d, rev_inv_xform_1d_i64, rev_inv_xform_2d, rev_inv_xform_2d_i64,
     rev_inv_xform_3d, rev_inv_xform_3d_i64, rev_inv_xform_4d, rev_inv_xform_4d_i64,
 };
+use crate::config::ZfpRounding;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -52,7 +53,7 @@ fn rev_decode_int_block_u32(
 
     let mut ublock = vec![0u32; n];
     let remaining = maxbits.saturating_sub(PBITS_32);
-    bits += decode_ints_u32(bs, remaining, prec, &mut ublock) as usize;
+    bits += decode_ints_u32(bs, remaining, prec, &mut ublock, ZfpRounding::Never) as usize;
 
     inv_order_i32(&ublock, iblock, perm);
     bits
@@ -71,7 +72,7 @@ fn rev_decode_int_block_u64(
 
     let mut ublock = vec![0u64; n];
     let remaining = maxbits.saturating_sub(PBITS_64);
-    bits += decode_ints_u64(bs, remaining, prec, &mut ublock) as usize;
+    bits += decode_ints_u64(bs, remaining, prec, &mut ublock, ZfpRounding::Never) as usize;
 
     inv_order_i64(&ublock, iblock, perm);
     bits

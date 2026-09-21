@@ -15,6 +15,7 @@
 
 use proptest::prelude::*;
 use zfp_rs::ZfpBitStream;
+use zfp_rs::ZfpRounding;
 use zfp_rs::codec::encode::{float as efloat, integer as einteger};
 
 // ---------------------------------------------------------------------------
@@ -117,7 +118,7 @@ macro_rules! block_encode_compat_int {
 
                 // Rust side
                 let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
-                $rs_fn(&mut rs_bs, block, maxbits, maxbits, ZFP_MAX_PREC);
+                $rs_fn(&mut rs_bs, block, maxbits, maxbits, ZFP_MAX_PREC, ZfpRounding::Never);
                 rs_bs.flush();
 
                 // C side
@@ -161,7 +162,7 @@ macro_rules! block_encode_compat_float {
 
                 // Rust side
                 let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
-                $rs_fn(&mut rs_bs, block, maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                $rs_fn(&mut rs_bs, block, maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP, ZfpRounding::Never);
                 rs_bs.flush();
 
                 // C side
