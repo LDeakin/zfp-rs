@@ -192,6 +192,40 @@ pub unsafe extern "C" fn zfp_stream_compressed_size(stream: *const zfp_stream) -
     }
 }
 
+/// Maximum compressed bytes per block, by scalar type and dimensionality.
+///
+/// Table ported verbatim from `zfp/src/zfp.c`.
+#[unsafe(no_mangle)]
+#[must_use]
+pub extern "C" fn zfp_block_maximum_size(ty: zfp_type, dims: uint, reversible: zfp_bool) -> usize {
+    // Indexed [reversible][type - 1][dims - 1].
+    const SIZES: [[[usize; 4]; 4]; 2] = [
+        [
+            [131, 527, 2111, 8447],   // int32
+            [259, 1039, 4159, 16639], // int64
+            [140, 536, 2120, 8456],   // float
+            [271, 1051, 4171, 16651], // double
+        ],
+        [
+            [136, 532, 2116, 8452],   // int32
+            [265, 1045, 4165, 16645], // int64
+            [146, 542, 2126, 8462],   // float
+            [278, 1058, 4178, 16658], // double
+        ],
+    ];
+    let ty = match ty {
+        zfp_type::zfp_type_int32 => 0,
+        zfp_type::zfp_type_int64 => 1,
+        zfp_type::zfp_type_float => 2,
+        zfp_type::zfp_type_double => 3,
+        zfp_type::zfp_type_none => return 0,
+    };
+    if !(1..=4).contains(&dims) {
+        return 0;
+    }
+    SIZES[usize::from(reversible != zfp_false)][ty][dims as usize - 1]
+}
+
 #[unsafe(no_mangle)]
 #[must_use]
 pub unsafe extern "C" fn zfp_stream_maximum_size(
