@@ -28,7 +28,7 @@ const DOUBLE_MINEXP: i32 = -1074;
 ///
 /// # Safety
 /// Caller must ensure `data` spans at least 4 elements with stride `sx`.
-fn gather_1d<T: Copy>(data: &[T], sx: isize) -> [T; 4] {
+unsafe fn gather_1d<T: Copy>(data: &[T], sx: isize) -> [T; 4] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 4] = unsafe { std::mem::zeroed() };
     let p = data.as_ptr();
@@ -43,8 +43,11 @@ fn gather_1d<T: Copy>(data: &[T], sx: isize) -> [T; 4] {
 ///
 /// Mirrors C's `pad_block`: position 3 always comes from position 0; positions
 /// `nx..3` come from position `nx-1`; positions `0..nx` are the real data.
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn gather_partial_1d<T: Copy>(data: &[T], nx: usize, sx: isize) -> [T; 4] {
+unsafe fn gather_partial_1d<T: Copy>(data: &[T], nx: usize, sx: isize) -> [T; 4] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 4] = unsafe { std::mem::zeroed() };
     let p = data.as_ptr();

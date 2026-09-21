@@ -185,21 +185,28 @@ fn compress_block(
                 $(
                     $zfp_ty => {
                         let block: &[$elem_ty] = cast_slice(block_bytes);
-                        if config.min_exp() < ZFP_MIN_EXP {
-                            encode_block_strided_reversible(
-                                bs, block, dims, &info.strides, lengths,
-                            );
-                        } else if full {
-                            encode_block_strided_with_params(
-                                bs, block, dims, &info.strides, config.min_bits(),
-                                config.max_bits(), config.max_prec(), config.min_exp(),
-                            );
-                        } else {
-                            encode_partial_block_strided_with_params(
-                                bs, block, dims, &lengths, &info.strides,
-                                config.min_bits(), config.max_bits(), config.max_prec(),
-                                config.min_exp(),
-                            );
+                        // SAFETY: `block` is built from the field buffer at this block's origin,
+                        // and the caller's strides are the field's own, so every offset the
+                        // codec generates addresses an element of that field.
+                        // NOTE: the slice `block` is built from does not actually cover
+                        // those offsets; a later commit replaces it with a raw pointer.
+                        unsafe {
+                            if config.min_exp() < ZFP_MIN_EXP {
+                                encode_block_strided_reversible(
+                                    bs, block, dims, &info.strides, lengths,
+                                );
+                            } else if full {
+                                encode_block_strided_with_params(
+                                    bs, block, dims, &info.strides, config.min_bits(),
+                                    config.max_bits(), config.max_prec(), config.min_exp(),
+                                );
+                            } else {
+                                encode_partial_block_strided_with_params(
+                                    bs, block, dims, &lengths, &info.strides,
+                                    config.min_bits(), config.max_bits(), config.max_prec(),
+                                    config.min_exp(),
+                                );
+                            }
                         }
                     }
                 )*

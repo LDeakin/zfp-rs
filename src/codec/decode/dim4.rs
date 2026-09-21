@@ -21,7 +21,9 @@ const DOUBLE_MAXBITS: u32 = (11 + 1) + 64 * 256;
 const FLOAT_MAXPREC: u32 = 32;
 const DOUBLE_MAXPREC: u32 = 64;
 
-fn scatter_4d<T: Copy>(
+/// # Safety
+/// `data` must be valid for every offset the strides generate.
+unsafe fn scatter_4d<T: Copy>(
     block: &[T; 256],
     data: &mut [T],
     sx: isize,
@@ -44,8 +46,10 @@ fn scatter_4d<T: Copy>(
     }
 }
 
+/// # Safety
+/// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
-fn scatter_partial_4d<T: Copy>(
+unsafe fn scatter_partial_4d<T: Copy>(
     block: &[T; 256],
     data: &mut [T],
     nx: usize,

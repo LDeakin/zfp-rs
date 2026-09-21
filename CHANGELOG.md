@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **Breaking**: Add `InvalidField` variant to `ZfpCompressionError` and mark `#[non_exhaustive]`
+- **Breaking**: The `codec::block::*_strided*` entry points are now `unsafe`
+  - They index through caller-supplied strides with no bounds check, so calling them from safe Rust could read or write out of bounds. The precondition is documented once on the `codec::block` module
+- **Breaking**: Narrow the `codec` module's public surface
+  - The strided entry points move to `codec::block::strided`, public only with `ffi`; `codec::{encode, decode}` are public only with the new `internals` feature; `codec::promote` only with `ffi`; `codec::transform` is now private
+  - These are the monomorphised codec internals. `ffi` is the C-ABI seam; `internals` exists for the C-port and proptest suites, which are the only consumers of `codec::encode` and `codec::decode`
+  - Without either feature the public `codec` API is six safe functions
 
 ### Fixed
 - Validate `ZfpField` length in `CompressInfo::new` and `DecompressInfo::new`

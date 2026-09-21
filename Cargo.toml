@@ -29,6 +29,9 @@ default = []
 # parameter query functions, block encode/decode with explicit params,
 # and type promotion functions.
 ffi = []
+# Expose the monomorphised codec internals (`codec::encode`, `codec::decode`).
+# Test-only: the C-port and proptest suites reach them; the C-ABI layer does not.
+internals = []
 # Optional Rayon-based parallel execution support.
 rayon = ["dep:rayon"]
 
@@ -42,6 +45,22 @@ rayon = { version = "1", optional = true }
 proptest = "1"
 zfp-sys = "0.1"
 zfp-test-utils = { path = "zfp-test-utils" }
+
+# The C-port and proptest suites split into two targets each: one covering the
+# public API, and one reaching the low-level codec behind `internals`.
+[[test]]
+name = "c"
+
+[[test]]
+name = "c_internals"
+required-features = ["ffi", "internals"]
+
+[[test]]
+name = "proptest"
+
+[[test]]
+name = "proptest_internals"
+required-features = ["internals"]
 
 [workspace.dependencies.zfp-rs]
 version = "0.1.1"

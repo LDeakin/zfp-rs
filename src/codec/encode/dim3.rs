@@ -29,7 +29,7 @@ const DOUBLE_MINEXP: i32 = -1074;
 /// # Safety
 /// The caller must ensure the array spans at least 4 elements in each
 /// dimension with the given strides.
-fn gather_3d<T: Copy>(data: &[T], sx: isize, sy: isize, sz: isize) -> [T; 64] {
+unsafe fn gather_3d<T: Copy>(data: &[T], sx: isize, sy: isize, sz: isize) -> [T; 64] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 64] = unsafe { std::mem::zeroed() };
     let p = data.as_ptr();
@@ -47,8 +47,11 @@ fn gather_3d<T: Copy>(data: &[T], sx: isize, sy: isize, sz: isize) -> [T; 64] {
 }
 
 /// Gather a partial 3-D block (nx, ny, nz ≤ 4) and pad to 4×4×4.
+///
+/// # Safety
+/// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-fn gather_partial_3d<T: Copy + Default>(
+unsafe fn gather_partial_3d<T: Copy + Default>(
     data: &[T],
     nx: usize,
     ny: usize,

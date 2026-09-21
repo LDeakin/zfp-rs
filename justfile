@@ -7,7 +7,7 @@ fmt:
 
 # Lint with Clippy (denies all warnings)
 clippy:
-	cargo clippy --features ffi --workspace --all-targets -- -D warnings
+	cargo clippy --features ffi,internals --workspace --all-targets -- -D warnings
 
 # Build the entire workspace
 build:
@@ -15,8 +15,8 @@ build:
 
 # Run all tests (with and without ffi feature)
 test:
-	cargo test --features ffi --workspace
-	cargo test --workspace
+	cargo test --features ffi,internals --workspace
+	cargo test -p zfp-rs
 
 # Run benchmarks
 bench:

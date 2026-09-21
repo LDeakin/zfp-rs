@@ -672,46 +672,64 @@ macro_rules! strided_encode_wrappers {
         rate_params: [$($p:ident: $pty:ty),+] $(,)?
     ) => {
         /// Encode a strided block; return bits written.
-        pub fn $full(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        #[cfg(feature = "ffi")]
+        pub unsafe fn $full(
             bs: &mut dyn ZfpBitStreamMutOps,
             data: &[$ty],
             $($s: isize,)+
         ) -> usize {
-            let block = $gather(data, $($s),+);
+            let block = unsafe { $gather(data, $($s),+) };
             $encode_default(bs, &block)
         }
 
         /// Encode a partial (boundary) strided block; return bits written.
-        pub fn $partial(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        #[cfg(feature = "ffi")]
+        pub unsafe fn $partial(
             bs: &mut dyn ZfpBitStreamMutOps,
             data: &[$ty],
             $($n: usize,)+
             $($s: isize,)+
         ) -> usize {
-            let block = $gather_partial(data, $($n,)+ $($s),+);
+            let block = unsafe { $gather_partial(data, $($n,)+ $($s),+) };
             $encode_default(bs, &block)
         }
 
         /// Encode a strided block with explicit stream parameters.
-        pub fn $full_rate(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        pub unsafe fn $full_rate(
             bs: &mut dyn ZfpBitStreamMutOps,
             data: &[$ty],
             $($s: isize,)+
             $($p: $pty,)+
         ) -> usize {
-            let block = $gather(data, $($s),+);
+            let block = unsafe { $gather(data, $($s),+) };
             $encode(bs, &block, $($p),+)
         }
 
         /// Encode a partial strided block with explicit stream parameters.
-        pub fn $partial_rate(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        pub unsafe fn $partial_rate(
             bs: &mut dyn ZfpBitStreamMutOps,
             data: &[$ty],
             $($n: usize,)+
             $($s: isize,)+
             $($p: $pty,)+
         ) -> usize {
-            let block = $gather_partial(data, $($n,)+ $($s),+);
+            let block = unsafe { $gather_partial(data, $($n,)+ $($s),+) };
             $encode(bs, &block, $($p),+)
         }
     };

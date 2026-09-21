@@ -34,7 +34,12 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --features ffi --workspace --all-targets -- -D warnings
+      - run: cargo clippy --features ffi,internals --workspace --all-targets -- -D warnings
+      # `--workspace` always resolves `ffi` onto zfp-rs, because zfp-benchmarks
+      # and zfp-fuzz-common both depend on it with that feature. Lint zfp-rs on
+      # its own to reach the `not(feature = "ffi")` arms.
+      - run: cargo clippy -p zfp-rs --all-targets -- -D warnings
+      - run: cargo clippy -p zfp-rs --features rayon --all-targets -- -D warnings
 
   build:
     name: Build
@@ -56,8 +61,11 @@ jobs:
           submodules: recursive
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --features ffi --workspace
-      - run: cargo test --workspace
+      - run: cargo test --features ffi,internals --workspace
+      # Not `--workspace`: feature unification through zfp-benchmarks and
+      # zfp-fuzz-common would enable `ffi` anyway, leaving the default-feature
+      # build untested.
+      - run: cargo test -p zfp-rs
 
   fuzz:
     name: Fuzz (smoke)
@@ -81,8 +89,9 @@ jobs:
       # Gating: the targets must always compile.
       - run: cargo fuzz build
       # Gating: every committed crash input must stay fixed. This also runs on
-      # stable in the `test` job via `cargo test --workspace`; running it here
-      # catches drift between a fuzz target and the replay harness.
+      # stable in the `test` job via `cargo test --features ffi,internals
+      # --workspace`; running it here catches drift between a target and the
+      # replay harness.
       - run: cargo test -p zfp-fuzz-common --test regressions
       # Non-gating for now: a randomised run can rediscover a pre-existing bug
       # on an unrelated PR. Promote to gating once the fuzzers have been clean

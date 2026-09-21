@@ -802,19 +802,29 @@ macro_rules! strided_decode_wrappers {
         rate_params: [$($p:ident: $pty:ty),+] $(,)?
     ) => {
         /// Decode a strided block; return bits read.
-        pub fn $full(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        #[cfg(feature = "ffi")]
+        pub unsafe fn $full(
             bs: &mut dyn ZfpBitStreamOps,
             data: &mut [$ty],
             $($s: isize,)+
         ) -> usize {
             let before = bs.read_pos();
             let block = $decode(bs, $($d),+);
-            $scatter(&block, data, $($s),+);
+            unsafe { $scatter(&block, data, $($s),+) };
             (bs.read_pos() - before) as usize
         }
 
         /// Decode a partial (boundary) strided block; return bits read.
-        pub fn $partial(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        #[cfg(feature = "ffi")]
+        pub unsafe fn $partial(
             bs: &mut dyn ZfpBitStreamOps,
             data: &mut [$ty],
             $($n: usize,)+
@@ -822,12 +832,16 @@ macro_rules! strided_decode_wrappers {
         ) -> usize {
             let before = bs.read_pos();
             let block = $decode(bs, $($d),+);
-            $scatter_partial(&block, data, $($n,)+ $($s),+);
+            unsafe { $scatter_partial(&block, data, $($n,)+ $($s),+) };
             (bs.read_pos() - before) as usize
         }
 
         /// Decode a strided block with explicit stream parameters.
-        pub fn $full_rate(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        pub unsafe fn $full_rate(
             bs: &mut dyn ZfpBitStreamOps,
             data: &mut [$ty],
             $($s: isize,)+
@@ -835,12 +849,16 @@ macro_rules! strided_decode_wrappers {
         ) -> usize {
             let before = bs.read_pos();
             let block = $decode(bs, $($p),+);
-            $scatter(&block, data, $($s),+);
+            unsafe { $scatter(&block, data, $($s),+) };
             (bs.read_pos() - before) as usize
         }
 
         /// Decode a partial strided block with explicit stream parameters.
-        pub fn $partial_rate(
+        ///
+        /// # Safety
+        /// `data` must be valid for every offset the strides generate. See
+        /// [`crate::codec::block`].
+        pub unsafe fn $partial_rate(
             bs: &mut dyn ZfpBitStreamOps,
             data: &mut [$ty],
             $($n: usize,)+
@@ -849,7 +867,7 @@ macro_rules! strided_decode_wrappers {
         ) -> usize {
             let before = bs.read_pos();
             let block = $decode(bs, $($p),+);
-            $scatter_partial(&block, data, $($n,)+ $($s),+);
+            unsafe { $scatter_partial(&block, data, $($n,)+ $($s),+) };
             (bs.read_pos() - before) as usize
         }
     };
