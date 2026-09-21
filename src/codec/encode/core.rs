@@ -645,3 +645,75 @@ pub(crate) fn fwd_cast_f64(iblock: &mut [i64], fblock: &[f64], emax: i32) {
         };
     }
 }
+
+// ---------------------------------------------------------------------------
+// Strided wrapper generation
+// ---------------------------------------------------------------------------
+
+/// Generate the four strided encode entry points for one dimensionality and
+/// scalar type.
+///
+/// Each gathers a block through the caller's strides, then defers to the
+/// contiguous encoder. The `_rate` variants serve the whole-field driver; the
+/// other two exist for the C ABI and the port tests.
+macro_rules! strided_encode_wrappers {
+    (
+        ty: $ty:ty,
+        gather: $gather:ident,
+        gather_partial: $gather_partial:ident,
+        strides: [$($s:ident),+],
+        lengths: [$($n:ident),+],
+        full: $full:ident,
+        partial: $partial:ident,
+        full_rate: $full_rate:ident,
+        partial_rate: $partial_rate:ident,
+        encode: $encode:ident,
+        encode_default: $encode_default:ident,
+        rate_params: [$($p:ident: $pty:ty),+] $(,)?
+    ) => {
+        /// Encode a strided block; return bits written.
+        pub fn $full(
+            bs: &mut dyn ZfpBitStreamMutOps,
+            data: &[$ty],
+            $($s: isize,)+
+        ) -> usize {
+            let block = $gather(data, $($s),+);
+            $encode_default(bs, &block)
+        }
+
+        /// Encode a partial (boundary) strided block; return bits written.
+        pub fn $partial(
+            bs: &mut dyn ZfpBitStreamMutOps,
+            data: &[$ty],
+            $($n: usize,)+
+            $($s: isize,)+
+        ) -> usize {
+            let block = $gather_partial(data, $($n,)+ $($s),+);
+            $encode_default(bs, &block)
+        }
+
+        /// Encode a strided block with explicit stream parameters.
+        pub fn $full_rate(
+            bs: &mut dyn ZfpBitStreamMutOps,
+            data: &[$ty],
+            $($s: isize,)+
+            $($p: $pty,)+
+        ) -> usize {
+            let block = $gather(data, $($s),+);
+            $encode(bs, &block, $($p),+)
+        }
+
+        /// Encode a partial strided block with explicit stream parameters.
+        pub fn $partial_rate(
+            bs: &mut dyn ZfpBitStreamMutOps,
+            data: &[$ty],
+            $($n: usize,)+
+            $($s: isize,)+
+            $($p: $pty,)+
+        ) -> usize {
+            let block = $gather_partial(data, $($n,)+ $($s),+);
+            $encode(bs, &block, $($p),+)
+        }
+    };
+}
+pub(crate) use strided_encode_wrappers;

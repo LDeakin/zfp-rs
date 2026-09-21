@@ -5,6 +5,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::bitstream::ZfpBitStreamOps;
+use crate::codec::decode::core::strided_decode_wrappers;
 use crate::codec::decode::float::{
     DOUBLE_MINEXP, FLOAT_MINEXP, decode_block_2d_f32, decode_block_2d_f64,
 };
@@ -70,238 +71,66 @@ pub fn decode_block_2d_f64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f6
     (bs.read_pos() - before) as usize
 }
 
-// Strided
-pub fn decode_block_strided_2d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f64],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-pub fn decode_block_strided_2d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f32],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-pub fn decode_block_strided_2d_i32(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i32],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-pub fn decode_block_strided_2d_i64(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i64],
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-
-// Partial strided
-pub fn decode_partial_block_strided_2d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-pub fn decode_partial_block_strided_2d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-pub fn decode_partial_block_strided_2d_i32(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-pub fn decode_partial_block_strided_2d_i64(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-
 // ---------------------------------------------------------------------------
-// Rate-constrained strided block decode (for checksum tests)
+// Strided block decode (generated)
 // ---------------------------------------------------------------------------
 
-pub fn decode_block_strided_2d_f64_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f64],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f64(bs, minbits, maxbits, maxprec, minexp);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
+strided_decode_wrappers! {
+    ty: f64,
+    scatter: scatter_2d,
+    scatter_partial: scatter_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: decode_block_strided_2d_f64,
+    partial: decode_partial_block_strided_2d_f64,
+    full_rate: decode_block_strided_2d_f64_rate,
+    partial_rate: decode_partial_block_strided_2d_f64_rate,
+    decode: decode_block_2d_f64,
+    defaults: [MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
 }
 
-pub fn decode_block_strided_2d_f32_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f32],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f32(bs, minbits, maxbits, maxprec, minexp);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
+strided_decode_wrappers! {
+    ty: f32,
+    scatter: scatter_2d,
+    scatter_partial: scatter_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: decode_block_strided_2d_f32,
+    partial: decode_partial_block_strided_2d_f32,
+    full_rate: decode_block_strided_2d_f32_rate,
+    partial_rate: decode_partial_block_strided_2d_f32_rate,
+    decode: decode_block_2d_f32,
+    defaults: [MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
 }
 
-pub fn decode_block_strided_2d_i32_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i32],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i32(bs, minbits, maxbits, maxprec);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
+strided_decode_wrappers! {
+    ty: i32,
+    scatter: scatter_2d,
+    scatter_partial: scatter_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: decode_block_strided_2d_i32,
+    partial: decode_partial_block_strided_2d_i32,
+    full_rate: decode_block_strided_2d_i32_rate,
+    partial_rate: decode_partial_block_strided_2d_i32_rate,
+    decode: decode_block_2d_i32,
+    defaults: [MINBITS, INT32_MAXBITS, INT32_MAXPREC],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
 }
 
-pub fn decode_block_strided_2d_i64_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i64],
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i64(bs, minbits, maxbits, maxprec);
-    scatter_2d(&block, data, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-
-pub fn decode_partial_block_strided_2d_f64_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f64(bs, minbits, maxbits, maxprec, minexp);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-
-pub fn decode_partial_block_strided_2d_f32_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [f32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_f32(bs, minbits, maxbits, maxprec, minexp);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-
-pub fn decode_partial_block_strided_2d_i32_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i32],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i32(bs, minbits, maxbits, maxprec);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
-}
-
-pub fn decode_partial_block_strided_2d_i64_rate(
-    bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [i64],
-    nx: usize,
-    ny: usize,
-    sx: isize,
-    sy: isize,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-) -> usize {
-    let before = bs.read_pos();
-    let block = decode_block_2d_i64(bs, minbits, maxbits, maxprec);
-    scatter_partial_2d(&block, data, nx, ny, sx, sy);
-    (bs.read_pos() - before) as usize
+strided_decode_wrappers! {
+    ty: i64,
+    scatter: scatter_2d,
+    scatter_partial: scatter_partial_2d,
+    strides: [sx, sy],
+    lengths: [nx, ny],
+    full: decode_block_strided_2d_i64,
+    partial: decode_partial_block_strided_2d_i64,
+    full_rate: decode_block_strided_2d_i64_rate,
+    partial_rate: decode_partial_block_strided_2d_i64_rate,
+    decode: decode_block_2d_i64,
+    defaults: [MINBITS, INT64_MAXBITS, INT64_MAXPREC],
+    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
 }
