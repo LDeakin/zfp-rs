@@ -29,6 +29,7 @@ mod zfp_sys {
         stream_flush: unsafe extern "C" fn(*mut bitstream) -> usize,
         stream_open: unsafe extern "C" fn(*mut c_void, usize) -> *mut bitstream,
         stream_size: unsafe extern "C" fn(*const bitstream) -> usize,
+        zfp_block_maximum_size: unsafe extern "C" fn(zfp_type, u32, i32) -> usize,
         zfp_compress: unsafe extern "C" fn(*mut zfp_stream, *const zfp_field) -> usize,
         zfp_decompress: unsafe extern "C" fn(*mut zfp_stream, *mut zfp_field) -> usize,
         zfp_field_1d: unsafe extern "C" fn(*mut c_void, zfp_type, usize) -> *mut zfp_field,
@@ -195,6 +196,7 @@ mod zfp_sys {
                 stream_flush: sym(&lib, b"stream_flush\0"),
                 stream_open: sym(&lib, b"stream_open\0"),
                 stream_size: sym(&lib, b"stream_size\0"),
+                zfp_block_maximum_size: sym(&lib, b"zfp_block_maximum_size\0"),
                 zfp_compress: sym(&lib, b"zfp_compress\0"),
                 zfp_decompress: sym(&lib, b"zfp_decompress\0"),
                 zfp_field_1d: sym(&lib, b"zfp_field_1d\0"),
@@ -414,6 +416,7 @@ mod zfp_sys {
     wrap!(stream_flush(stream: *mut bitstream) -> usize);
     wrap!(stream_open(buffer: *mut c_void, bytes: usize) -> *mut bitstream);
     wrap!(stream_size(stream: *const bitstream) -> usize);
+    wrap!(zfp_block_maximum_size(ty: zfp_type, dims: u32, reversible: i32) -> usize);
     wrap!(zfp_compress(stream: *mut zfp_stream, field: *const zfp_field) -> usize);
     wrap!(zfp_decompress(stream: *mut zfp_stream, field: *mut zfp_field) -> usize);
     wrap!(zfp_field_1d(data: *mut c_void, ty: zfp_type, nx: usize) -> *mut zfp_field);
@@ -476,6 +479,29 @@ const CAPACITY: usize = 1 << 20;
 const ZFP_MAX_PREC: u32 = 64;
 const ZFP_MIN_EXP: i32 = -1074;
 const ZFP_RATE_PARAM_BITS: u32 = 19;
+
+#[test]
+fn block_maximum_size_matches_c_for_every_input() {
+    let types = [
+        ffi::zfp_type::zfp_type_none,
+        ffi::zfp_type::zfp_type_int32,
+        ffi::zfp_type::zfp_type_int64,
+        ffi::zfp_type::zfp_type_float,
+        ffi::zfp_type::zfp_type_double,
+    ];
+    // dims 0 and 5 are out of range and must return 0, as in C.
+    for ty in types {
+        for dims in 0..=5u32 {
+            for reversible in [0, 1] {
+                let rs = ffi::zfp_block_maximum_size(ty, dims, reversible);
+                // The local wrapper loads C from a separate shared library,
+                // avoiding the Rust implementation's identically named symbol.
+                let c = unsafe { zfp_sys::zfp_block_maximum_size(ty, dims, reversible) };
+                assert_eq!(rs, c, "ty={ty:?} dims={dims} reversible={reversible}");
+            }
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 enum Mode {
