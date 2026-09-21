@@ -114,3 +114,25 @@ jobs:
           name: fuzz-artifacts
           path: fuzz/artifacts
           if-no-files-found: ignore
+
+  miri:
+    name: Miri (strided provenance)
+    runs-on: ubuntu-latest
+    steps:
+      # No `submodules: recursive`: zfp-fuzz-common has no C dependencies, which
+      # is why the Miri suite lives there rather than in zfp-rs, whose
+      # dev-dependencies would pull in cmake, bindgen and a C toolchain.
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo miri setup
+      # `--test miri` is deliberate: a bare `-p zfp-fuzz-common` would also
+      # replay the whole committed crash corpus, which is far too slow to
+      # interpret. Rayon stays off — the parallel path calls the same
+      # `decompress_block` as the serial one, so it is covered by construction.
+      - name: Strided compress/decompress under Stacked Borrows
+        run: cargo miri test -p zfp-fuzz-common --test miri
+        env:
+          MIRIFLAGS: -Zmiri-strict-provenance

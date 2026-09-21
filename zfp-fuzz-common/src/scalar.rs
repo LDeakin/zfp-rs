@@ -1,6 +1,6 @@
 //! Scalar helpers shared by the fuzz target bodies.
 
-use zfp_rs::types::{ZfpScalar, ZfpScalarType};
+use zfp_rs::types::ZfpScalar;
 
 /// Extra operations the fuzz targets need on top of [`ZfpScalar`].
 pub trait FuzzScalar: ZfpScalar + std::fmt::Debug {
@@ -154,13 +154,4 @@ pub fn decode_scalars<T: FuzzScalar>(payload: &[u8], n: usize) -> Vec<T> {
         out.push(T::from_ne_chunk(chunk));
     }
     out
-}
-
-/// Scalar width in bytes for a runtime type tag.
-#[must_use]
-pub fn type_size(ty: ZfpScalarType) -> usize {
-    match ty {
-        ZfpScalarType::Int32 | ZfpScalarType::Float => 4,
-        ZfpScalarType::Int64 | ZfpScalarType::Double => 8,
-    }
 }

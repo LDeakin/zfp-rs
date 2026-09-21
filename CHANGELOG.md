@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `ZfpScalarType::align`, the alignment a buffer passed to `ZfpField::from_raw` must satisfy
+- Fuzz targets (`cargo fuzz`) with a stable-toolchain crash-replay harness
+- A Miri regression suite for the strided codec, run in CI under `-Zmiri-strict-provenance`
 
 ## [0.1.1](https://github.com/LDeakin/zfp-rs/releases/tag/v0.1.1) - 2026-05-21
 

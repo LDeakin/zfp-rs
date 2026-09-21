@@ -120,13 +120,18 @@ impl Shape {
 
     #[must_use]
     pub fn dimensionality(&self) -> ZfpDimensionality {
-        match self.rank {
-            1 => ZfpDimensionality::D1,
-            2 => ZfpDimensionality::D2,
-            3 => ZfpDimensionality::D3,
-            _ => ZfpDimensionality::D4,
-        }
+        dimensionality_of(self.rank)
     }
+}
+
+/// Rank (1-4) as a [`ZfpDimensionality`].
+///
+/// # Panics
+/// Panics outside 1-4. Every caller derives the rank as `1 + b % 4`.
+#[must_use]
+pub fn dimensionality_of(rank: usize) -> ZfpDimensionality {
+    let rank = u32::try_from(rank).expect("rank is 1..=4");
+    ZfpDimensionality::try_from(rank).expect("rank is 1..=4")
 }
 
 impl<'a> Arbitrary<'a> for Shape {

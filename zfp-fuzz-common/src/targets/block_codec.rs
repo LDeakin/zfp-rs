@@ -26,12 +26,13 @@ use zfp_rs::{
     types::ZfpDimensionality,
 };
 
+use crate::input::dimensionality_of;
 use crate::input::{ModeSpec, ScalarKind};
 use crate::limits::MAX_STRIDE_GAP;
 use crate::scalar::{FuzzScalar, decode_scalars};
 
 /// Framing prefix: kind, rank, four stride bytes, four length bytes, mode.
-const HEADER_LEN: usize = 15;
+pub const HEADER_LEN: usize = 15;
 
 /// Entry point shared by the libFuzzer harness and the stable regression test.
 pub fn run(data: &[u8]) {
@@ -42,12 +43,7 @@ pub fn run(data: &[u8]) {
 
     let kind = ScalarKind::from_byte(hdr[0]);
     let rank = 1 + usize::from(hdr[1] % 4);
-    let dims = match rank {
-        1 => ZfpDimensionality::D1,
-        2 => ZfpDimensionality::D2,
-        3 => ZfpDimensionality::D3,
-        _ => ZfpDimensionality::D4,
-    };
+    let dims = dimensionality_of(rank);
 
     let strides = build_strides(rank, [hdr[2], hdr[3], hdr[4], hdr[5]]);
     // Partial-block lengths in 1..=4; a full block is all 4s.
