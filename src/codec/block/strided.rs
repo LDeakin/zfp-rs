@@ -1,8 +1,12 @@
 //! Strided block entry points.
 //!
-//! Split out from the parent module so their visibility can be narrowed later:
-//! they exist to serve the whole-field driver and the C ABI, and no safe Rust
-//! caller has a use for them.
+//! Split out from the parent module so their visibility can be narrowed to the
+//! crate when the `ffi` feature is off: they exist to serve the whole-field
+//! driver and the C ABI, and no safe Rust caller has a use for them.
+//!
+//! Every function here is `unsafe` and takes `data` as a raw pointer to the
+//! block origin, mirroring the C `zfp_{en,de}code_block_strided_*` API. See the
+//! [`crate::codec::block`] docs for the provenance the caller must supply.
 
 use super::{
     as_typed_block_1d, as_typed_block_1d_mut, as_typed_block_2d, as_typed_block_2d_mut,
@@ -10,7 +14,30 @@ use super::{
 };
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::types::{ZfpDimensionality, ZfpScalar, ZfpScalarType};
-use bytemuck::{cast_slice, cast_slice_mut};
+
+/// Reinterpret a scalar pointer as the concrete type the enclosing match arm has
+/// already proven `T` to be.
+///
+/// Replaces the `bytemuck::cast_slice` calls this module used before the
+/// signatures became raw pointers. That checked size and alignment at runtime
+/// and panicked on a mismatch; the asserts keep the check in debug builds. A
+/// mismatch is unreachable: every caller sits inside a
+/// `match (T::scalar_type(), dims)` arm that pins `T == U`, and `ZfpScalar` is
+/// sealed to `{i32, i64, f32, f64}`.
+#[inline]
+fn cast_ptr<T: ZfpScalar, U: ZfpScalar>(p: *const T) -> *const U {
+    debug_assert_eq!(size_of::<T>(), size_of::<U>());
+    debug_assert_eq!(align_of::<T>(), align_of::<U>());
+    p.cast::<U>()
+}
+
+/// Mutable counterpart of [`cast_ptr`].
+#[inline]
+fn cast_ptr_mut<T: ZfpScalar, U: ZfpScalar>(p: *mut T) -> *mut U {
+    debug_assert_eq!(size_of::<T>(), size_of::<U>());
+    debug_assert_eq!(align_of::<T>(), align_of::<U>());
+    p.cast::<U>()
+}
 
 // ---------------------------------------------------------------------------
 // Dispatch macros
@@ -241,14 +268,14 @@ macro_rules! reversible_dispatch {
 #[cfg(feature = "ffi")]
 pub unsafe fn encode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[T],
+    data: *const T,
     dims: ZfpDimensionality,
     strides: &[isize],
 ) -> usize {
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice,
+            bs, data, dims, strides, cast_ptr,
             lengths: [],
             tail_int: [],
             tail_float: [],
@@ -292,7 +319,7 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
 #[cfg(feature = "ffi")]
 pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[T],
+    data: *const T,
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
@@ -300,7 +327,7 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice,
+            bs, data, dims, strides, cast_ptr,
             lengths: [lengths],
             tail_int: [],
             tail_float: [],
@@ -346,14 +373,14 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
 #[cfg(feature = "ffi")]
 pub unsafe fn decode_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [T],
+    data: *mut T,
     dims: ZfpDimensionality,
     strides: &[isize],
 ) -> usize {
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice_mut,
+            bs, data, dims, strides, cast_ptr_mut,
             lengths: [],
             tail_int: [],
             tail_float: [],
@@ -397,7 +424,7 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
 #[cfg(feature = "ffi")]
 pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [T],
+    data: *mut T,
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
@@ -405,7 +432,7 @@ pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice_mut,
+            bs, data, dims, strides, cast_ptr_mut,
             lengths: [lengths],
             tail_int: [],
             tail_float: [],
@@ -452,7 +479,7 @@ pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
 /// block's extent. See the [`crate::codec::block`] module documentation.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
 unsafe fn gather_block<T: ZfpScalar>(
-    data: &[T],
+    data: *const T,
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
@@ -476,11 +503,10 @@ unsafe fn gather_block<T: ZfpScalar>(
         ZfpDimensionality::D1 => {
             let sx = strides[0];
             let lx = lengths[0] as isize;
-            let p = data.as_ptr();
             for x in 0..4isize {
                 let px = pad_idx(x, lx);
                 // SAFETY: px is a valid source index within [0, lx-1].
-                block[x as usize] = unsafe { *p.offset(px * sx) };
+                block[x as usize] = unsafe { *data.offset(px * sx) };
             }
         }
         ZfpDimensionality::D2 => {
@@ -488,14 +514,13 @@ unsafe fn gather_block<T: ZfpScalar>(
             let sy = strides[1];
             let lx = lengths[0] as isize;
             let ly = lengths[1] as isize;
-            let p = data.as_ptr();
             let mut i = 0;
             for y in 0..4isize {
                 let py = pad_idx(y, ly);
                 for x in 0..4isize {
                     let px = pad_idx(x, lx);
                     // SAFETY: px, py are valid source indices.
-                    block[i] = unsafe { *p.offset(px * sx + py * sy) };
+                    block[i] = unsafe { *data.offset(px * sx + py * sy) };
                     i += 1;
                 }
             }
@@ -507,7 +532,6 @@ unsafe fn gather_block<T: ZfpScalar>(
             let lx = lengths[0] as isize;
             let ly = lengths[1] as isize;
             let lz = lengths[2] as isize;
-            let p = data.as_ptr();
             let mut i = 0;
             for z in 0..4isize {
                 let pz = pad_idx(z, lz);
@@ -516,7 +540,7 @@ unsafe fn gather_block<T: ZfpScalar>(
                     for x in 0..4isize {
                         let px = pad_idx(x, lx);
                         // SAFETY: px, py, pz are valid source indices.
-                        block[i] = unsafe { *p.offset(px * sx + py * sy + pz * sz) };
+                        block[i] = unsafe { *data.offset(px * sx + py * sy + pz * sz) };
                         i += 1;
                     }
                 }
@@ -531,7 +555,6 @@ unsafe fn gather_block<T: ZfpScalar>(
             let ly = lengths[1] as isize;
             let lz = lengths[2] as isize;
             let lw = lengths[3] as isize;
-            let p = data.as_ptr();
             let mut i = 0;
             for w in 0..4isize {
                 let pw = pad_idx(w, lw);
@@ -542,7 +565,8 @@ unsafe fn gather_block<T: ZfpScalar>(
                         for x in 0..4isize {
                             let px = pad_idx(x, lx);
                             // SAFETY: px, py, pz, pw are valid source indices.
-                            block[i] = unsafe { *p.offset(px * sx + py * sy + pz * sz + pw * sw) };
+                            block[i] =
+                                unsafe { *data.offset(px * sx + py * sy + pz * sz + pw * sw) };
                             i += 1;
                         }
                     }
@@ -564,7 +588,7 @@ unsafe fn gather_block<T: ZfpScalar>(
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
 unsafe fn scatter_block<T: ZfpScalar>(
     block: &[T],
-    data: &mut [T],
+    data: *mut T,
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
@@ -573,9 +597,8 @@ unsafe fn scatter_block<T: ZfpScalar>(
         ZfpDimensionality::D1 => {
             let sx = strides[0];
             let lx = lengths[0];
-            let p = data.as_mut_ptr();
             for (x, &v) in block[..lx].iter().enumerate() {
-                unsafe { *p.offset(x as isize * sx) = v };
+                unsafe { *data.offset(x as isize * sx) = v };
             }
         }
         ZfpDimensionality::D2 => {
@@ -583,12 +606,11 @@ unsafe fn scatter_block<T: ZfpScalar>(
             let sy = strides[1];
             let lx = lengths[0];
             let ly = lengths[1];
-            let p = data.as_mut_ptr();
             let mut i = 0;
             for y in 0..4 {
                 for x in 0..4 {
                     if x < lx && y < ly {
-                        unsafe { *p.offset(x as isize * sx + y as isize * sy) = block[i] };
+                        unsafe { *data.offset(x as isize * sx + y as isize * sy) = block[i] };
                     }
                     i += 1;
                 }
@@ -601,14 +623,13 @@ unsafe fn scatter_block<T: ZfpScalar>(
             let lx = lengths[0];
             let ly = lengths[1];
             let lz = lengths[2];
-            let p = data.as_mut_ptr();
             let mut i = 0;
             for z in 0..4 {
                 for y in 0..4 {
                     for x in 0..4 {
                         if x < lx && y < ly && z < lz {
                             unsafe {
-                                *p.offset(x as isize * sx + y as isize * sy + z as isize * sz) =
+                                *data.offset(x as isize * sx + y as isize * sy + z as isize * sz) =
                                     block[i];
                             }
                         }
@@ -626,7 +647,6 @@ unsafe fn scatter_block<T: ZfpScalar>(
             let ly = lengths[1];
             let lz = lengths[2];
             let lw = lengths[3];
-            let p = data.as_mut_ptr();
             let mut i = 0;
             for w in 0..4 {
                 for z in 0..4 {
@@ -634,7 +654,7 @@ unsafe fn scatter_block<T: ZfpScalar>(
                         for x in 0..4 {
                             if x < lx && y < ly && z < lz && w < lw {
                                 unsafe {
-                                    *p.offset(
+                                    *data.offset(
                                         x as isize * sx
                                             + y as isize * sy
                                             + z as isize * sz
@@ -660,7 +680,7 @@ unsafe fn scatter_block<T: ZfpScalar>(
 /// block's extent. See the [`crate::codec::block`] module documentation.
 pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[T],
+    data: *const T,
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
@@ -708,7 +728,7 @@ pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
 /// block's extent. See the [`crate::codec::block`] module documentation.
 pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [T],
+    data: *mut T,
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
@@ -764,7 +784,7 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
 /// block's extent. See the [`crate::codec::block`] module documentation.
 pub unsafe fn encode_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[T],
+    data: *const T,
     dims: ZfpDimensionality,
     strides: &[isize],
     min_bits: u32,
@@ -775,7 +795,7 @@ pub unsafe fn encode_block_strided_with_params<T: ZfpScalar>(
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice,
+            bs, data, dims, strides, cast_ptr,
             lengths: [],
             tail_int: [min_bits, max_bits, max_prec],
             tail_float: [min_bits, max_bits, max_prec, min_exp],
@@ -814,7 +834,7 @@ pub unsafe fn encode_block_strided_with_params<T: ZfpScalar>(
 /// block's extent. See the [`crate::codec::block`] module documentation.
 pub unsafe fn encode_partial_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamMutOps,
-    data: &[T],
+    data: *const T,
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
@@ -826,7 +846,7 @@ pub unsafe fn encode_partial_block_strided_with_params<T: ZfpScalar>(
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice,
+            bs, data, dims, strides, cast_ptr,
             lengths: [lengths],
             tail_int: [min_bits, max_bits, max_prec],
             tail_float: [min_bits, max_bits, max_prec, min_exp],
@@ -869,7 +889,7 @@ pub unsafe fn encode_partial_block_strided_with_params<T: ZfpScalar>(
 /// block's extent. See the [`crate::codec::block`] module documentation.
 pub unsafe fn decode_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [T],
+    data: *mut T,
     dims: ZfpDimensionality,
     strides: &[isize],
     min_bits: u32,
@@ -880,7 +900,7 @@ pub unsafe fn decode_block_strided_with_params<T: ZfpScalar>(
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice_mut,
+            bs, data, dims, strides, cast_ptr_mut,
             lengths: [],
             tail_int: [min_bits, max_bits, max_prec],
             tail_float: [min_bits, max_bits, max_prec, min_exp],
@@ -919,7 +939,7 @@ pub unsafe fn decode_block_strided_with_params<T: ZfpScalar>(
 /// block's extent. See the [`crate::codec::block`] module documentation.
 pub unsafe fn decode_partial_block_strided_with_params<T: ZfpScalar>(
     bs: &mut dyn ZfpBitStreamOps,
-    data: &mut [T],
+    data: *mut T,
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
@@ -931,7 +951,7 @@ pub unsafe fn decode_partial_block_strided_with_params<T: ZfpScalar>(
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_slice_mut,
+            bs, data, dims, strides, cast_ptr_mut,
             lengths: [lengths],
             tail_int: [min_bits, max_bits, max_prec],
             tail_float: [min_bits, max_bits, max_prec, min_exp],

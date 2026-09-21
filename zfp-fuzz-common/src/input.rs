@@ -281,7 +281,7 @@ impl ExecSpec {
     pub fn from_byte(b: u8) -> Self {
         #[cfg(feature = "rayon")]
         {
-            if b % 2 == 0 {
+            if b.is_multiple_of(2) {
                 Self::Serial
             } else {
                 Self::Rayon {

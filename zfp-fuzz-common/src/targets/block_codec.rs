@@ -7,10 +7,14 @@
 //! `zfp_rs::codec::block`) — so this is the widest memory-safety surface in the
 //! pure-Rust crate, and the reason this target runs under `AddressSanitizer`.
 //!
-//! Buffers are allocated from the block's exact index span and the slice is
+//! Buffers are allocated from the block's exact index span and the pointer is
 //! offset so that negative strides reach backwards into the allocation, exactly
 //! as `src/compress.rs` does. `ASan` redzones therefore sit immediately on both
 //! sides of the span, and any off-by-one in a gather or scatter is a crash.
+//!
+//! The pointer is derived from the whole buffer rather than a subslice, so its
+//! provenance covers the backwards offsets too — a `&src[origin..]` would not,
+//! which Miri catches and `ASan` cannot.
 
 use zfp_rs::{
     ZfpBitStream, ZfpConfig,
@@ -144,11 +148,11 @@ fn typed<T: FuzzScalar>(
 
     let cap = 4096;
     let mut bs = ZfpBitStream::new(cap);
-    // SAFETY (both call sites below): `src`/`dst` are allocated to the block's
-    // exact index span and `origin` places the slice so that every offset the
-    // strides generate lands inside the allocation.
+    // SAFETY (all three call sites below): `src`/`dst` are allocated to the
+    // block's exact index span and `origin` places the pointer so that every
+    // offset the strides generate lands inside the allocation.
     let written = unsafe {
-        let block = &src[origin..];
+        let block = src.as_ptr().add(origin);
         if partial {
             encode_partial_block_strided_with_params(
                 &mut bs,
@@ -191,7 +195,7 @@ fn typed<T: FuzzScalar>(
     let mut dst: Vec<T> = vec![T::default(); span];
     bs.rewind();
     unsafe {
-        let block = &mut dst[origin..];
+        let block = dst.as_mut_ptr().add(origin);
         if partial {
             decode_partial_block_strided_with_params(
                 &mut bs,

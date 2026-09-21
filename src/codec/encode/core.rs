@@ -679,7 +679,7 @@ macro_rules! strided_encode_wrappers {
         #[cfg(feature = "ffi")]
         pub unsafe fn $full(
             bs: &mut dyn ZfpBitStreamMutOps,
-            data: &[$ty],
+            data: *const $ty,
             $($s: isize,)+
         ) -> usize {
             let block = unsafe { $gather(data, $($s),+) };
@@ -694,7 +694,7 @@ macro_rules! strided_encode_wrappers {
         #[cfg(feature = "ffi")]
         pub unsafe fn $partial(
             bs: &mut dyn ZfpBitStreamMutOps,
-            data: &[$ty],
+            data: *const $ty,
             $($n: usize,)+
             $($s: isize,)+
         ) -> usize {
@@ -709,7 +709,7 @@ macro_rules! strided_encode_wrappers {
         /// [`crate::codec::block`].
         pub unsafe fn $full_rate(
             bs: &mut dyn ZfpBitStreamMutOps,
-            data: &[$ty],
+            data: *const $ty,
             $($s: isize,)+
             $($p: $pty,)+
         ) -> usize {
@@ -724,7 +724,7 @@ macro_rules! strided_encode_wrappers {
         /// [`crate::codec::block`].
         pub unsafe fn $partial_rate(
             bs: &mut dyn ZfpBitStreamMutOps,
-            data: &[$ty],
+            data: *const $ty,
             $($n: usize,)+
             $($s: isize,)+
             $($p: $pty,)+

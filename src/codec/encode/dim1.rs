@@ -28,13 +28,12 @@ const DOUBLE_MINEXP: i32 = -1074;
 ///
 /// # Safety
 /// Caller must ensure `data` spans at least 4 elements with stride `sx`.
-unsafe fn gather_1d<T: Copy>(data: &[T], sx: isize) -> [T; 4] {
+unsafe fn gather_1d<T: Copy>(data: *const T, sx: isize) -> [T; 4] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 4] = unsafe { std::mem::zeroed() };
-    let p = data.as_ptr();
     for (dst, x) in block.iter_mut().zip(0isize..4) {
         // SAFETY: caller guarantees valid strides
-        *dst = unsafe { *p.offset(x * sx) };
+        *dst = unsafe { *data.offset(x * sx) };
     }
     block
 }
@@ -47,12 +46,11 @@ unsafe fn gather_1d<T: Copy>(data: &[T], sx: isize) -> [T; 4] {
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-unsafe fn gather_partial_1d<T: Copy>(data: &[T], nx: usize, sx: isize) -> [T; 4] {
+unsafe fn gather_partial_1d<T: Copy>(data: *const T, nx: usize, sx: isize) -> [T; 4] {
     // SAFETY: all elements are immediately written before being read.
     let mut block: [T; 4] = unsafe { std::mem::zeroed() };
-    let p = data.as_ptr();
     for (dst, x) in block[..nx].iter_mut().zip(0isize..) {
-        *dst = unsafe { *p.offset(x * sx) };
+        *dst = unsafe { *data.offset(x * sx) };
     }
     // Pad remaining positions: mirrors C pad_block fall-through.
     match nx {

@@ -23,14 +23,13 @@ const DOUBLE_MAXPREC: u32 = 64;
 
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
-unsafe fn scatter_3d<T: Copy>(block: &[T; 64], data: &mut [T], sx: isize, sy: isize, sz: isize) {
-    let p = data.as_mut_ptr();
+unsafe fn scatter_3d<T: Copy>(block: &[T; 64], data: *mut T, sx: isize, sy: isize, sz: isize) {
     let mut q = 0usize;
     for z in 0isize..4 {
         for y in 0isize..4 {
             for x in 0isize..4 {
                 // SAFETY: caller guarantees data spans 4^3 elements with strides sx, sy, sz
-                unsafe { *p.offset(z * sz + y * sy + x * sx) = block[q] };
+                unsafe { *data.offset(z * sz + y * sy + x * sx) = block[q] };
                 q += 1;
             }
         }
@@ -42,7 +41,7 @@ unsafe fn scatter_3d<T: Copy>(block: &[T; 64], data: &mut [T], sx: isize, sy: is
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
 unsafe fn scatter_partial_3d<T: Copy>(
     block: &[T; 64],
-    data: &mut [T],
+    data: *mut T,
     nx: usize,
     ny: usize,
     nz: usize,
@@ -50,14 +49,14 @@ unsafe fn scatter_partial_3d<T: Copy>(
     sy: isize,
     sz: isize,
 ) {
-    let p = data.as_mut_ptr();
     for z in 0..nz {
         for y in 0..ny {
             for x in 0..nx {
                 // SAFETY: caller guarantees data spans nx*ny*nz elements with strides
                 unsafe {
-                    *p.offset(z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx) =
-                        block[16 * z + 4 * y + x];
+                    *data.offset(
+                        z.cast_signed() * sz + y.cast_signed() * sy + x.cast_signed() * sx,
+                    ) = block[16 * z + 4 * y + x];
                 }
             }
         }
