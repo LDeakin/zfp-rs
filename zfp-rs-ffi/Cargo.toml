@@ -18,6 +18,14 @@ crate-type = ["rlib", "staticlib"]
 [features]
 default = []
 rayon = ["dep:rayon", "zfp-rs/rayon"]
+# Mirror zfp's build-time ZFP_ROUNDING_MODE / ZFP_WITH_TIGHT_ERROR: the C
+# `zfp_stream` has no field for them, so they are fixed at build time here too.
+# `round-first` and `round-last` are mutually exclusive.
+round-first = []
+round-last = []
+tight-error = []
+# Named to match the zfp-sys feature that sets the same two CMake defines.
+round-tight-error = ["round-first", "tight-error"]
 
 [dependencies]
 zfp-rs = { workspace = true, features = ["ffi"] }

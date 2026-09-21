@@ -319,11 +319,11 @@ pub const ZFP_MODE_SHORT_MAX: uint = 4094;
 // Rounding policy constants
 // ---------------------------------------------------------------------------
 
-/// Round towards zero for the first conversion (`ZFP_ROUND_FIRST`).
+/// Round during compression (`ZFP_ROUND_FIRST`).
 pub const ZFP_ROUND_FIRST: i32 = -1;
-/// Never round (`ZFP_ROUND_NEVER`).
+/// Truncate; never round (`ZFP_ROUND_NEVER`). The zfp default.
 pub const ZFP_ROUND_NEVER: uint = 0;
-/// Round towards zero for the last conversion (`ZFP_ROUND_LAST`).
+/// Round during decompression (`ZFP_ROUND_LAST`).
 pub const ZFP_ROUND_LAST: uint = 1;
 
 // ---------------------------------------------------------------------------

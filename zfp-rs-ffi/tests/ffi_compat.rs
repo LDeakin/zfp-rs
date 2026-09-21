@@ -313,10 +313,41 @@ mod zfp_sys {
         std::str::from_utf8(name.strip_suffix(b"\0").unwrap_or(name)).unwrap_or("<invalid utf8>")
     }
 
+    /// The CMake rounding defines matching this crate's features, and a suffix
+    /// that keeps each configuration in its own build directory.
+    fn rounding_defines() -> (Vec<String>, &'static str) {
+        let mode = if cfg!(feature = "round-first") {
+            "ZFP_ROUND_FIRST"
+        } else if cfg!(feature = "round-last") {
+            "ZFP_ROUND_LAST"
+        } else {
+            return (Vec::new(), "");
+        };
+        let mut defines = vec![format!("-DZFP_ROUNDING_MODE={mode}")];
+        if cfg!(feature = "tight-error") {
+            defines.push("-DZFP_WITH_TIGHT_ERROR=ON".to_string());
+        }
+        let suffix = if cfg!(feature = "round-first") {
+            if cfg!(feature = "tight-error") {
+                "-first-tight"
+            } else {
+                "-first"
+            }
+        } else if cfg!(feature = "tight-error") {
+            "-last-tight"
+        } else {
+            "-last"
+        };
+        (defines, suffix)
+    }
+
     fn build_shared_zfp() -> PathBuf {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let workspace = manifest_dir.parent().expect("workspace root");
-        let build_dir = workspace.join("target").join("zfp-rs-ffi-c-ref-shared");
+        let (defines, suffix) = rounding_defines();
+        let build_dir = workspace
+            .join("target")
+            .join(format!("zfp-rs-ffi-c-ref-shared{suffix}"));
         run(
             Command::new("cmake")
                 .arg("-S")
@@ -327,7 +358,8 @@ mod zfp_sys {
                 .arg("-DBUILD_TESTING=OFF")
                 .arg("-DBUILD_UTILITIES=OFF")
                 .arg("-DBUILD_EXAMPLES=OFF")
-                .arg("-DZFP_WITH_OPENMP=OFF"),
+                .arg("-DZFP_WITH_OPENMP=OFF")
+                .args(&defines),
             "configuring shared upstream zfp",
         );
         run(
@@ -1168,13 +1200,20 @@ fn negative_strided_field_matches_zfp_sys() {
         );
         // Reversible mode is bit-exact, and only the covered offsets may be
         // written: a slot the strides never reach must still hold its NaN.
-        for offset in field_offsets(&dims, &strides) {
-            let at = (origin as isize + offset) as usize;
-            assert_eq!(
-                ffi_out[at].to_bits(),
-                src[at].to_bits(),
-                "rank {rank}: element {at} not restored"
-            );
+        //
+        // Not under ZFP_ROUND_LAST: upstream's `revdecode.c` shares
+        // `decode_ints` with the lossy path, so `inv_round` biases reversible
+        // coefficients and reversible decode stops being exact. The ffi-vs-C
+        // comparison above still holds, which is what this test is for.
+        if !cfg!(feature = "round-last") {
+            for offset in field_offsets(&dims, &strides) {
+                let at = (origin as isize + offset) as usize;
+                assert_eq!(
+                    ffi_out[at].to_bits(),
+                    src[at].to_bits(),
+                    "rank {rank}: element {at} not restored"
+                );
+            }
         }
         let mut covered = vec![false; span];
         for offset in field_offsets(&dims, &strides) {

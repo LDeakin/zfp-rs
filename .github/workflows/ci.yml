@@ -40,6 +40,7 @@ jobs:
       # its own to reach the `not(feature = "ffi")` arms.
       - run: cargo clippy -p zfp-rs --all-targets -- -D warnings
       - run: cargo clippy -p zfp-rs --features rayon --all-targets -- -D warnings
+      - run: cargo clippy -p zfp-rs-ffi --features round-last,tight-error --all-targets -- -D warnings
 
   build:
     name: Build
@@ -66,6 +67,25 @@ jobs:
       # zfp-fuzz-common would enable `ffi` anyway, leaving the default-feature
       # build untested.
       - run: cargo test -p zfp-rs
+
+  rounding:
+    name: Test (rounding modes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # `-p` and `--test`, not `--workspace`: zfp-sys feature unification would
+      # otherwise build a rounding C zfp for the stock-zfp targets too.
+      - run: cargo test -p zfp-rs --features ffi,internals,c-round-tight-error --test c_rounding
+      # zfp-rs-ffi builds its own reference zfp with matching CMake defines, so
+      # every mode is cross-validated here.
+      - run: cargo test -p zfp-rs-ffi --features round-first
+      - run: cargo test -p zfp-rs-ffi --features round-last
+      - run: cargo test -p zfp-rs-ffi --features round-tight-error
+      - run: cargo test -p zfp-rs-ffi --features round-last,tight-error
 
   fuzz:
     name: Fuzz (smoke)

@@ -19,9 +19,35 @@ fn params_from_c(stream: &zfp_stream) -> (uint, uint, uint, i32) {
     )
 }
 
-/// Rounding for every entry point: the C `zfp_stream` has no field for it,
-/// so it is fixed at build time as in C zfp.
-pub(crate) const FFI_ROUNDING: ZfpRounding = ZfpRounding::Never;
+#[cfg(all(feature = "round-first", feature = "round-last"))]
+compile_error!("features `round-first` and `round-last` are mutually exclusive");
+
+#[cfg(all(
+    feature = "tight-error",
+    not(any(feature = "round-first", feature = "round-last"))
+))]
+compile_error!("feature `tight-error` requires `round-first` or `round-last`");
+
+/// Rounding for every entry point: the C `zfp_stream` has no field for it, so
+/// it is fixed at build time as in C zfp. Selected by the crate's features.
+pub(crate) const FFI_ROUNDING: ZfpRounding = {
+    #[cfg(feature = "round-first")]
+    {
+        ZfpRounding::First {
+            tight_error: cfg!(feature = "tight-error"),
+        }
+    }
+    #[cfg(all(feature = "round-last", not(feature = "round-first")))]
+    {
+        ZfpRounding::Last {
+            tight_error: cfg!(feature = "tight-error"),
+        }
+    }
+    #[cfg(not(any(feature = "round-first", feature = "round-last")))]
+    {
+        ZfpRounding::Never
+    }
+};
 
 fn write_params(stream: &mut zfp_stream, zfp: &ZfpConfig) {
     stream.minbits = zfp.min_bits();

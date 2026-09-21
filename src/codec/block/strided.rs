@@ -182,7 +182,7 @@ macro_rules! reversible_dispatch {
         }
     };
     (
-        decode $bs:ident, $dims:ident, $block:ident,
+        decode $bs:ident, $dims:ident, $block:ident, $rounding:ident,
         d1: [$i1:path, $q1:path, $f1:path, $g1:path $(,)?],
         d2: [$i2:path, $q2:path, $f2:path, $g2:path $(,)?],
         d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
@@ -192,66 +192,82 @@ macro_rules! reversible_dispatch {
             (ZfpScalarType::Int32, ZfpDimensionality::D1) => $i1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, i32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Int64, ZfpDimensionality::D1) => $q1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, i64>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Float, ZfpDimensionality::D1) => $f1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, f32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Double, ZfpDimensionality::D1) => $g1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, f64>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Int32, ZfpDimensionality::D2) => $i2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, i32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Int64, ZfpDimensionality::D2) => $q2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, i64>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Float, ZfpDimensionality::D2) => $f2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, f32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Double, ZfpDimensionality::D2) => $g2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, f64>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Int32, ZfpDimensionality::D3) => $i3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, i32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Int64, ZfpDimensionality::D3) => $q3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, i64>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Float, ZfpDimensionality::D3) => $f3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, f32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Double, ZfpDimensionality::D3) => $g3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, f64>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Int32, ZfpDimensionality::D4) => $i4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, i32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Int64, ZfpDimensionality::D4) => $q4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, i64>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Float, ZfpDimensionality::D4) => $f4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, f32>(&mut $block)),
+                $rounding,
             ),
             (ZfpScalarType::Double, ZfpDimensionality::D4) => $g4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, f64>(&mut $block)),
+                $rounding,
             ),
         }
     };
@@ -525,13 +541,14 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
+    rounding: ZfpRounding,
 ) -> usize {
     unsafe {
         use crate::codec::decode::reversible as rev;
 
         let mut block = vec![T::default(); 4usize.pow(u32::from(dims))];
         let bits = reversible_dispatch! {
-            decode bs, dims, block,
+            decode bs, dims, block, rounding,
             d1: [
                 rev::decode_block_reversible_1d_i32,
                 rev::decode_block_reversible_1d_i64,

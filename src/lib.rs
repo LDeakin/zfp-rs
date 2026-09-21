@@ -30,6 +30,10 @@
 //! all dimensionalities (1-D through 4-D), and all compression modes,
 //! **when running on a little-endian platform**.
 //!
+//! This holds against a stock `libzfp` build, which is [`ZfpRounding::Never`].
+//! The other [`ZfpRounding`] variants match a `libzfp` built with the
+//! corresponding `ZFP_ROUNDING_MODE` / `ZFP_WITH_TIGHT_ERROR`.
+//!
 //! ## Quick start
 //!
 //! See the [CHANGELOG] for release notes.

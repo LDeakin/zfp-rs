@@ -294,6 +294,10 @@ pub fn encode_block_reversible_f64(
 /// Reversible (lossless) decode of a contiguous 4^d block of `f32`;
 /// return bits read.
 ///
+/// Always decodes with [`ZfpRounding::Never`][crate::ZfpRounding::Never]: under
+/// `ZFP_ROUND_LAST` upstream biases reversible coefficients too, which would
+/// make this entry point lossy.
+///
 /// # Errors
 ///
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
@@ -311,24 +315,31 @@ pub fn decode_block_reversible_f32(
         ZfpDimensionality::D1 => Ok(decode_block_reversible_1d_f32(
             bs,
             as_block_1d_mut::<f32>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
         ZfpDimensionality::D2 => Ok(decode_block_reversible_2d_f32(
             bs,
             as_block_2d_mut::<f32>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
         ZfpDimensionality::D3 => Ok(decode_block_reversible_3d_f32(
             bs,
             as_block_3d_mut::<f32>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
         ZfpDimensionality::D4 => Ok(decode_block_reversible_4d_f32(
             bs,
             as_block_4d_mut::<f32>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
     }
 }
 
 /// Reversible (lossless) decode of a contiguous 4^d block of `f64`;
 /// return bits read.
+///
+/// Always decodes with [`ZfpRounding::Never`][crate::ZfpRounding::Never]: see
+/// [`decode_block_reversible_f32`].
 ///
 /// # Errors
 ///
@@ -347,18 +358,22 @@ pub fn decode_block_reversible_f64(
         ZfpDimensionality::D1 => Ok(decode_block_reversible_1d_f64(
             bs,
             as_block_1d_mut::<f64>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
         ZfpDimensionality::D2 => Ok(decode_block_reversible_2d_f64(
             bs,
             as_block_2d_mut::<f64>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
         ZfpDimensionality::D3 => Ok(decode_block_reversible_3d_f64(
             bs,
             as_block_3d_mut::<f64>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
         ZfpDimensionality::D4 => Ok(decode_block_reversible_4d_f64(
             bs,
             as_block_4d_mut::<f64>(data)?,
+            crate::config::ZfpRounding::Never,
         )),
     }
 }

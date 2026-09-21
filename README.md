@@ -18,6 +18,16 @@ Where it differs:
   Fixed-rate decompression is parallelized via per-thread bitstream seeking.
   The C library does not parallelize decompression.
 - **Zero-C dependency chain**: No C compiler and no pkg-config.
+- **Runtime rounding mode**: `ZFP_ROUNDING_MODE` and `ZFP_WITH_TIGHT_ERROR` are build-time CMake options in C.
+  Here they are per-call, via `ZfpConfig::with_rounding`, so one binary can read streams from any build.
+
+  | `ZfpRounding` | `ZFP_ROUNDING_MODE` | `ZFP_WITH_TIGHT_ERROR` |
+  | --- | --- | --- |
+  | `Never` (default) | `ZFP_ROUND_NEVER` | off |
+  | `First { tight_error }` | `ZFP_ROUND_FIRST` | per the field |
+  | `Last { tight_error }` | `ZFP_ROUND_LAST` | per the field |
+
+  Rounding is not encoded in the stream, so compression and decompression must use the same value.
 
 ## `zfp-rs-ffi`: drop-in replacement for `zfp-sys` and the `zfp` C library
 
@@ -27,6 +37,10 @@ The `zfp-rs-ffi` crate provides a C-compatible ABI mirroring [`zfp-sys`](https:/
 ```toml
 zfp-sys = { package = "zfp-rs-ffi", version = "0.1" }
 ```
+
+The C `zfp_stream` has no rounding field, so `zfp-rs-ffi` fixes it at build time as C does, via the
+`round-first`, `round-last` and `tight-error` features (`round-tight-error` matches the `zfp-sys`
+feature of the same name). `round-first` and `round-last` are mutually exclusive.
 
 ## Acknowledgement
 

@@ -34,6 +34,10 @@ ffi = []
 internals = []
 # Optional Rayon-based parallel execution support.
 rayon = ["dep:rayon"]
+# Test-only: build the bundled C zfp with ZFP_ROUNDING_MODE=ZFP_ROUND_FIRST and
+# ZFP_WITH_TIGHT_ERROR=ON, to cross-validate `ZfpRounding::First`. Cargo unifies
+# zfp-sys features, so the `c_rounding` target must be selected on its own.
+c-round-tight-error = ["zfp-sys/round-tight-error"]
 
 [dependencies]
 bitflags = "2"
@@ -48,6 +52,10 @@ zfp-test-utils = { path = "zfp-test-utils" }
 
 # The C-port and proptest suites split into two targets each: one covering the
 # public API, and one reaching the low-level codec behind `internals`.
+[[test]]
+name = "c_rounding"
+required-features = ["c-round-tight-error"]
+
 [[test]]
 name = "c"
 

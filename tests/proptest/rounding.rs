@@ -104,17 +104,29 @@ proptest! {
         prop_assert_ne!(&tight, &first);
     }
 
-    /// Reversible mode is exact regardless of the rounding setting: upstream
-    /// routes it through separate templates with no rounding step.
+    /// Reversible mode is unaffected by `Never` and `First`, and its stream is
+    /// unaffected by all three.
+    ///
+    /// `Last` is the exception on decode: upstream's `revdecode.c` shares
+    /// `decode_ints` with the lossy path, so `inv_round` biases reversible
+    /// coefficients too. That makes `Last` + reversible lossy in C, and this
+    /// crate matches it rather than silently diverging.
     #[test]
-    fn reversible_is_lossless_for_every_rounding(
+    fn reversible_is_lossless_except_under_round_last(
         data in normal_f64s(),
         rounding in rounding_strategy(),
     ) {
         let config = ZfpConfig::reversible().with_rounding(rounding);
         let (bytes, out) = round_trip(&config, &data);
+
+        // Reversible encode never rounds: `revencode.c` calls `encode_ints`
+        // directly, bypassing the `fwd_round` in `encode_block`.
         let (want_bytes, _) = round_trip(&ZfpConfig::reversible(), &data);
         prop_assert_eq!(bytes, want_bytes);
+
+        if matches!(rounding, ZfpRounding::Last { .. }) {
+            return Ok(());
+        }
         for (&want, &got) in data.iter().zip(out.iter()) {
             prop_assert!(want.to_bits() == got.to_bits(), "{} != {}", want, got);
         }
