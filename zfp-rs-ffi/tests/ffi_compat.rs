@@ -43,7 +43,9 @@ mod zfp_sys {
             usize,
             usize,
         ) -> *mut zfp_field,
+        zfp_field_begin: unsafe extern "C" fn(*const zfp_field) -> *mut c_void,
         zfp_field_free: unsafe extern "C" fn(*mut zfp_field),
+        zfp_field_size_bytes: unsafe extern "C" fn(*const zfp_field) -> usize,
         zfp_field_set_stride_1d: unsafe extern "C" fn(*mut zfp_field, isize),
         zfp_field_set_stride_2d: unsafe extern "C" fn(*mut zfp_field, isize, isize),
         zfp_field_set_stride_3d: unsafe extern "C" fn(*mut zfp_field, isize, isize, isize),
@@ -199,7 +201,9 @@ mod zfp_sys {
                 zfp_field_2d: sym(&lib, b"zfp_field_2d\0"),
                 zfp_field_3d: sym(&lib, b"zfp_field_3d\0"),
                 zfp_field_4d: sym(&lib, b"zfp_field_4d\0"),
+                zfp_field_begin: sym(&lib, b"zfp_field_begin\0"),
                 zfp_field_free: sym(&lib, b"zfp_field_free\0"),
+                zfp_field_size_bytes: sym(&lib, b"zfp_field_size_bytes\0"),
                 zfp_field_set_stride_1d: sym(&lib, b"zfp_field_set_stride_1d\0"),
                 zfp_field_set_stride_2d: sym(&lib, b"zfp_field_set_stride_2d\0"),
                 zfp_field_set_stride_3d: sym(&lib, b"zfp_field_set_stride_3d\0"),
@@ -384,7 +388,9 @@ mod zfp_sys {
     wrap!(zfp_field_2d(data: *mut c_void, ty: zfp_type, nx: usize, ny: usize) -> *mut zfp_field);
     wrap!(zfp_field_3d(data: *mut c_void, ty: zfp_type, nx: usize, ny: usize, nz: usize) -> *mut zfp_field);
     wrap!(zfp_field_4d(data: *mut c_void, ty: zfp_type, nx: usize, ny: usize, nz: usize, nw: usize) -> *mut zfp_field);
+    wrap!(zfp_field_begin(field: *const zfp_field) -> *mut c_void);
     wrap!(zfp_field_free(field: *mut zfp_field));
+    wrap!(zfp_field_size_bytes(field: *const zfp_field) -> usize);
     wrap!(zfp_field_set_stride_1d(field: *mut zfp_field, sx: isize));
     wrap!(zfp_field_set_stride_2d(field: *mut zfp_field, sx: isize, sy: isize));
     wrap!(zfp_field_set_stride_3d(field: *mut zfp_field, sx: isize, sy: isize, sz: isize));
@@ -1031,6 +1037,157 @@ prop_header_and_full_field_compat!(
     normal_f64(),
     zfp_sys::zfp_type_zfp_type_double
 );
+
+/// Dimensions and mixed-sign strides for a rank, alongside the element span
+/// they cover and the index of element `[0, 0, 0, 0]` within it.
+///
+/// At least one stride is negative in every rank, which is the case C and Rust
+/// anchor differently: `zfp_field.data` is element `[0, 0, 0, 0]`, so the span
+/// runs backwards from it, while `ZfpField` takes a buffer starting at the
+/// span's lowest address.
+fn negative_strided_dims_for(rank: u32) -> (Vec<usize>, Vec<isize>, usize, usize) {
+    let (dims, strides): (Vec<usize>, Vec<isize>) = match rank {
+        1 => (vec![6], vec![-2]),
+        2 => (vec![3, 4], vec![2, -8]),
+        3 => (vec![2, 3, 3], vec![-2, 5, -16]),
+        4 => (vec![2, 2, 2, 2], vec![-2, -5, 12, -28]),
+        _ => unreachable!(),
+    };
+    let mut lo = 0isize;
+    let mut hi = 0isize;
+    for (stride, dim) in strides.iter().zip(dims.iter()) {
+        let extent = stride * (*dim as isize - 1);
+        lo += extent.min(0);
+        hi += extent.max(0);
+    }
+    let span = (hi - lo + 1) as usize;
+    (dims, strides, span, (-lo) as usize)
+}
+
+/// Element offsets of every scalar the field covers, relative to element
+/// `[0, 0, 0, 0]`.
+fn field_offsets(dims: &[usize], strides: &[isize]) -> Vec<isize> {
+    let total: usize = dims.iter().product();
+    (0..total)
+        .map(|mut linear| {
+            let mut offset = 0isize;
+            for (stride, dim) in strides.iter().zip(dims.iter()) {
+                offset += stride * (linear % dim) as isize;
+                linear /= dim;
+            }
+            offset
+        })
+        .collect()
+}
+
+/// A field whose strides run backwards must agree with C on where its buffer
+/// begins, how many bytes it spans, and what compressing and decompressing it
+/// produces — with the buffer sized to the exact span, so any disagreement
+/// about the origin runs off one end of it.
+#[test]
+fn negative_strided_field_matches_zfp_sys() {
+    for rank in 1u32..=4 {
+        let (dims, strides, span, origin) = negative_strided_dims_for(rank);
+        let src: Vec<f64> = (0..span).map(|i| i as f64).collect();
+
+        let c_bytes;
+        let ffi_bytes;
+        unsafe {
+            // C anchors the field at element [0, 0, 0, 0], which sits `origin`
+            // elements into the buffer when a stride is negative.
+            let element_zero = src.as_ptr().add(origin).cast::<c_void>().cast_mut();
+            let c_field = c_field(element_zero, zfp_sys::zfp_type_zfp_type_double, &dims);
+            let ffi_field = ffi_field_from(element_zero, ffi::zfp_type_zfp_type_double, &dims);
+            set_c_stride(c_field, &strides);
+            set_ffi_stride(ffi_field, &strides);
+
+            assert_eq!(
+                ffi::zfp_field_begin(ffi_field),
+                zfp_sys::zfp_field_begin(c_field),
+                "rank {rank}: field_begin disagrees with C"
+            );
+            assert_eq!(
+                ffi::zfp_field_begin(ffi_field).cast::<f64>().cast_const(),
+                src.as_ptr(),
+                "rank {rank}: field_begin is not the low end of the span"
+            );
+            assert_eq!(
+                ffi::zfp_field_size_bytes(ffi_field),
+                zfp_sys::zfp_field_size_bytes(c_field),
+                "rank {rank}: size_bytes disagrees with C"
+            );
+
+            let mut c = CStream::new();
+            let mut ffi = FfiStream::new();
+            zfp_sys::zfp_stream_set_reversible(c.zfp);
+            ffi::zfp_stream_set_reversible(ffi.zfp);
+            assert!(zfp_sys::zfp_compress(c.zfp, c_field) > 0);
+            assert!(ffi::zfp_compress(ffi.zfp, ffi_field) > 0);
+            zfp_sys::zfp_field_free(c_field);
+            ffi::zfp_field_free(ffi_field);
+            c.flush();
+            ffi.flush();
+            c_bytes = c.bytes();
+            ffi_bytes = ffi.bytes();
+        }
+        assert_eq!(ffi_bytes, c_bytes, "rank {rank}: compressed bytes differ");
+
+        // Decompress both ways into buffers sized to the exact span.
+        let mut c_out = vec![f64::NAN; span];
+        let mut ffi_out = vec![f64::NAN; span];
+        unsafe {
+            let c_decode = CStream::with_bytes(&ffi_bytes);
+            let ffi_decode = FfiStream::with_bytes(&c_bytes);
+            zfp_sys::zfp_stream_set_reversible(c_decode.zfp);
+            ffi::zfp_stream_set_reversible(ffi_decode.zfp);
+
+            let c_field = c_field(
+                c_out.as_mut_ptr().add(origin).cast::<c_void>(),
+                zfp_sys::zfp_type_zfp_type_double,
+                &dims,
+            );
+            let ffi_field = ffi_field_from(
+                ffi_out.as_mut_ptr().add(origin).cast::<c_void>(),
+                ffi::zfp_type_zfp_type_double,
+                &dims,
+            );
+            set_c_stride(c_field, &strides);
+            set_ffi_stride(ffi_field, &strides);
+            assert!(zfp_sys::zfp_decompress(c_decode.zfp, c_field) > 0);
+            assert!(ffi::zfp_decompress(ffi_decode.zfp, ffi_field) > 0);
+            zfp_sys::zfp_field_free(c_field);
+            ffi::zfp_field_free(ffi_field);
+        }
+
+        // Compare bit patterns: untouched slots hold NaN, which is not `==`
+        // itself.
+        assert_eq!(
+            bytemuck::cast_slice::<f64, u8>(&ffi_out),
+            bytemuck::cast_slice::<f64, u8>(&c_out),
+            "rank {rank}: decompressed values differ"
+        );
+        // Reversible mode is bit-exact, and only the covered offsets may be
+        // written: a slot the strides never reach must still hold its NaN.
+        for offset in field_offsets(&dims, &strides) {
+            let at = (origin as isize + offset) as usize;
+            assert_eq!(
+                ffi_out[at].to_bits(),
+                src[at].to_bits(),
+                "rank {rank}: element {at} not restored"
+            );
+        }
+        let mut covered = vec![false; span];
+        for offset in field_offsets(&dims, &strides) {
+            covered[(origin as isize + offset) as usize] = true;
+        }
+        for (at, touched) in covered.iter().enumerate() {
+            assert!(
+                *touched || ffi_out[at].is_nan(),
+                "rank {rank}: wrote to element {at}, which no stride offset covers"
+            );
+        }
+    }
+}
 
 #[test]
 fn field_alloc_preserves_c_untyped_sentinel() {

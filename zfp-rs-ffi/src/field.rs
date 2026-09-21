@@ -44,23 +44,40 @@ pub(crate) fn field_to_rust(field: &zfp_field) -> Option<ZfpField<'static>> {
     let scalar_type = crate::util::zfp_type_to_rust_type(field.r#type)?;
     let dims = active_dims(field);
     let strides = active_strides(field);
-    let byte_count = if field.data.is_null() {
-        0
-    } else {
-        let (imin, imax) = ZfpField::field_index_span_static(&dims, &strides);
-        (imax - imin + 1).cast_unsigned() * scalar_type.size()
-    };
+    if field.data.is_null() {
+        // SAFETY: a null pointer with a zero byte count yields an empty field.
+        return Some(unsafe {
+            ZfpField::from_raw(std::ptr::null(), 0, scalar_type, dims, strides)
+        });
+    }
+    let (begin, byte_count) = span_of(field.data.cast_const(), scalar_type, &dims, &strides);
     // SAFETY: the C caller guarantees that the field data pointer spans
     // the descriptor's memory footprint.
-    Some(unsafe {
-        ZfpField::from_raw(
-            field.data as *const u8,
-            byte_count,
-            scalar_type,
-            dims,
-            strides,
-        )
-    })
+    Some(unsafe { ZfpField::from_raw(begin, byte_count, scalar_type, dims, strides) })
+}
+
+/// Translate a C `zfp_field.data` pointer into the `(begin, byte_count)` pair
+/// the Rust constructors take.
+///
+/// The two APIs anchor a strided field at opposite ends of its span: C's
+/// `data` points at the element with index `[0, 0, 0, 0]`, so with a negative
+/// stride the span runs *backwards* from it, while `ZfpField`/`ZfpFieldMut`
+/// take a buffer that starts at the span's lowest address. Shifting by `imin`
+/// converts one to the other; without it the constructed slice would claim
+/// `-imin` elements past the end of the caller's buffer.
+fn span_of(
+    data: *const std::ffi::c_void,
+    scalar_type: zfp_rs::types::ZfpScalarType,
+    dims: &[usize; 4],
+    strides: &[isize; 4],
+) -> (*const u8, usize) {
+    let (imin, imax) = ZfpField::field_index_span_static(dims, strides);
+    let elem_size = scalar_type.size();
+    let byte_count = (imax - imin + 1).cast_unsigned() * elem_size;
+    // SAFETY: `imin <= 0` is the lowest element index the strides reach from
+    // `data`, which the C caller guarantees is inside its buffer.
+    let begin = unsafe { data.cast::<u8>().offset(imin * elem_size.cast_signed()) };
+    (begin, byte_count)
 }
 
 pub(crate) unsafe fn field_mut_to_rust(
@@ -72,17 +89,14 @@ pub(crate) unsafe fn field_mut_to_rust(
     if field.data.is_null() {
         return None;
     }
-    let byte_count = {
-        let (imin, imax) = ZfpField::field_index_span_static(&dims, &strides);
-        (imax - imin + 1).cast_unsigned() * scalar_type.size()
-    };
+    let (begin, byte_count) = span_of(field.data.cast_const(), scalar_type, &dims, &strides);
     if byte_count == 0 {
         return None;
     }
     // SAFETY: the C caller guarantees that the field data pointer spans
     // the descriptor's memory footprint.
     Some(zfp_rs::ZfpFieldMut::from_raw(
-        field.data.cast::<u8>(),
+        begin.cast_mut(),
         byte_count,
         scalar_type,
         dims,
@@ -451,4 +465,46 @@ pub unsafe extern "C" fn zfp_field_set_metadata(
         write_header_metadata(&mut *field, metadata);
     }
     zfp_true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::abi::zfp_type_zfp_type_double;
+
+    /// `zfp_field_3d(.., 5, 0, 5)` is a 1-D field: `zfp_field_dimensionality`
+    /// stops at `ny == 0`, so the codec walks 5 elements from `data` and `nz`
+    /// is inert. `span_of` must ignore it too — folding `sz = -100` into the
+    /// span would hand `from_raw` a slice starting 3200 bytes *below* the
+    /// caller's buffer, which is instant UB even before the codec reads it.
+    #[test]
+    fn inert_axes_do_not_move_the_span_off_the_callers_buffer() {
+        let mut buf = [1.5f64; 5];
+        let field = field_with(
+            buf.as_mut_ptr().cast(),
+            zfp_type_zfp_type_double,
+            5,
+            0,
+            5,
+            0,
+        );
+        let field = zfp_field {
+            sx: 1,
+            sz: -100,
+            ..field
+        };
+
+        let (begin, byte_count) = span_of(
+            field.data.cast_const(),
+            zfp_rs::types::ZfpScalarType::Double,
+            &active_dims(&field),
+            &active_strides(&field),
+        );
+        assert_eq!(begin, buf.as_ptr().cast::<u8>());
+        assert_eq!(byte_count, std::mem::size_of_val(&buf));
+
+        let rust = field_to_rust(&field).expect("a double field converts");
+        assert_eq!(rust.begin().unwrap(), buf.as_ptr().cast::<u8>());
+        assert_eq!(rust.size_bytes(), byte_count);
+    }
 }

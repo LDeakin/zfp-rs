@@ -65,6 +65,15 @@ impl DecompressInfo {
             return Err(ZfpDecompressionError::InvalidField { required, actual });
         }
 
+        // The codec reinterprets this buffer as the scalar type and walks it
+        // with raw pointer offsets, so it must be correctly aligned. Only
+        // reachable via `from_raw`: `ZfpField::new` goes through
+        // `bytemuck::cast_slice`, which is always aligned.
+        let align = ty.align();
+        if !field.data().as_ptr().addr().is_multiple_of(align) {
+            return Err(ZfpDecompressionError::MisalignedData { align });
+        }
+
         let [nx, ny, nz, nw] = field.dims();
         let dims = field.dimensionality();
         let dim_count = usize::from(dims);

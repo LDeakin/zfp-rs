@@ -112,6 +112,15 @@ pub enum ZfpCompressionError {
         /// Bytes actually available in the field's data buffer.
         actual: usize,
     },
+    /// The input field's data buffer is not aligned for its scalar type.
+    ///
+    /// The codec reinterprets the buffer as the scalar type and indexes it
+    /// through raw pointers, so a misaligned buffer is rejected. Only
+    /// reachable via `from_raw`, i.e. from the C ABI.
+    MisalignedData {
+        /// Alignment the scalar type requires, in bytes.
+        align: usize,
+    },
 }
 
 impl fmt::Display for ZfpCompressionError {
@@ -121,6 +130,10 @@ impl fmt::Display for ZfpCompressionError {
             ZfpCompressionError::InvalidField { required, actual } => write!(
                 f,
                 "input field spans {required} bytes but its data buffer holds only {actual}"
+            ),
+            ZfpCompressionError::MisalignedData { align } => write!(
+                f,
+                "input field data buffer is not {align}-byte aligned for its scalar type"
             ),
         }
     }
@@ -153,6 +166,15 @@ pub enum ZfpDecompressionError {
         /// Bytes actually available in the field's data buffer.
         actual: usize,
     },
+    /// The output field's data buffer is not aligned for its scalar type.
+    ///
+    /// The codec reinterprets the buffer as the scalar type and indexes it
+    /// through raw pointers, so a misaligned buffer is rejected. Only
+    /// reachable via `from_raw`, i.e. from the C ABI.
+    MisalignedData {
+        /// Alignment the scalar type requires, in bytes.
+        align: usize,
+    },
 }
 
 impl fmt::Display for ZfpDecompressionError {
@@ -162,6 +184,10 @@ impl fmt::Display for ZfpDecompressionError {
             ZfpDecompressionError::InvalidField { required, actual } => write!(
                 f,
                 "output field spans {required} bytes but its data buffer holds only {actual}"
+            ),
+            ZfpDecompressionError::MisalignedData { align } => write!(
+                f,
+                "output field data buffer is not {align}-byte aligned for its scalar type"
             ),
         }
     }
@@ -276,6 +302,22 @@ impl ZfpScalarType {
         match self {
             ZfpScalarType::Int32 | ZfpScalarType::Float => 4,
             ZfpScalarType::Int64 | ZfpScalarType::Double => 8,
+        }
+    }
+
+    /// Alignment a buffer of this scalar type requires, in bytes.
+    ///
+    /// This is the target's alignment for the corresponding Rust type, which
+    /// is not always [`size`][Self::size]: 64-bit scalars are 4-byte aligned
+    /// on some 32-bit targets. Buffers passed to
+    /// [`ZfpField::from_raw`][crate::ZfpField::from_raw] must satisfy this.
+    #[must_use]
+    pub const fn align(&self) -> usize {
+        match self {
+            ZfpScalarType::Int32 => align_of::<i32>(),
+            ZfpScalarType::Int64 => align_of::<i64>(),
+            ZfpScalarType::Float => align_of::<f32>(),
+            ZfpScalarType::Double => align_of::<f64>(),
         }
     }
 
