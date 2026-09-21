@@ -1,5 +1,15 @@
 [workspace]
-members = [".", "zfp-test-utils", "zfp-rs-ffi", "zfp-benchmarks"]
+members = [
+    ".",
+    "zfp-test-utils",
+    "zfp-rs-ffi",
+    "zfp-benchmarks",
+    "zfp-fuzz-common",
+]
+# `fuzz/` is a cargo-fuzz crate with its own [workspace] table. It requires a
+# nightly toolchain and libFuzzer, so it must never be pulled into
+# `cargo build --workspace` or `cargo clippy --workspace --all-targets`.
+exclude = ["fuzz"]
 
 [package]
 name = "zfp-rs"

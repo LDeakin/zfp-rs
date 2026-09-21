@@ -6,3 +6,5 @@
 .cargo_vcs_info.json
 Cargo.toml.orig
 Cargo.lock
+# The fuzz crate is an application, not a library: pin its dependencies.
+!/fuzz/Cargo.lock
