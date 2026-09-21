@@ -86,7 +86,7 @@ fn gen_structured(dir: &Path, payloads: &[(&str, &[u8])]) -> usize {
 /// `block_codec` framing: kind, rank, 4 stride bytes, 4 length bytes, mode.
 ///
 /// The mode family deliberately excludes reversible (`family % 5 == 3`): the
-/// target drives the `_with_params` entry points, which do not implement it,
+/// target drives the parameterised entry points, which do not implement it,
 /// and skips any input whose config has `min_exp < ZFP_MIN_EXP`. A seed in
 /// that family would exercise nothing.
 fn gen_block_codec(dir: &Path) -> usize {

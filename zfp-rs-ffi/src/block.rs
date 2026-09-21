@@ -3,7 +3,7 @@
 //! Implements all `zfp_encode_block_*` and `zfp_decode_block_*` functions
 //! for contiguous (1-D) and strided/partial variants.
 //!
-//! Dispatches to `zfp_rs::codec::block::{encode_block_strided_with_params, ...}`
+//! Dispatches to `zfp_rs::codec::block::{encode_block_strided, ...}`
 //! using the stream's compression parameters.
 
 use crate::abi::zfp_stream;
@@ -46,7 +46,7 @@ macro_rules! impl_encode_block_1d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
@@ -73,7 +73,7 @@ macro_rules! impl_encode_block_2d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
@@ -100,7 +100,7 @@ macro_rules! impl_encode_block_3d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
@@ -127,7 +127,7 @@ macro_rules! impl_encode_block_4d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
@@ -158,7 +158,7 @@ macro_rules! impl_decode_block_1d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
@@ -185,7 +185,7 @@ macro_rules! impl_decode_block_2d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
@@ -212,7 +212,7 @@ macro_rules! impl_decode_block_3d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
@@ -239,7 +239,7 @@ macro_rules! impl_decode_block_4d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
@@ -274,7 +274,7 @@ macro_rules! impl_encode_block_strided_1d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
@@ -306,7 +306,7 @@ macro_rules! impl_encode_block_strided_2d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
@@ -339,7 +339,7 @@ macro_rules! impl_encode_block_strided_3d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
@@ -373,7 +373,7 @@ macro_rules! impl_encode_block_strided_4d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
@@ -409,7 +409,7 @@ macro_rules! impl_encode_partial_block_strided_1d {
             if block.is_null() || lx == 0 || lx > 4 {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
@@ -444,7 +444,7 @@ macro_rules! impl_encode_partial_block_strided_2d {
             if block.is_null() || lx == 0 || ly == 0 || lx > 4 || ly > 4 {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
@@ -481,7 +481,7 @@ macro_rules! impl_encode_partial_block_strided_3d {
             if block.is_null() || lx == 0 || ly == 0 || lz == 0 || lx > 4 || ly > 4 || lz > 4 {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
@@ -529,7 +529,7 @@ macro_rules! impl_encode_partial_block_strided_4d {
             {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
@@ -565,7 +565,7 @@ macro_rules! impl_decode_block_strided_1d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
@@ -597,7 +597,7 @@ macro_rules! impl_decode_block_strided_2d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
@@ -630,7 +630,7 @@ macro_rules! impl_decode_block_strided_3d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
@@ -664,7 +664,7 @@ macro_rules! impl_decode_block_strided_4d {
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
@@ -700,7 +700,7 @@ macro_rules! impl_decode_partial_block_strided_1d {
             if block.is_null() || lx == 0 || lx > 4 {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
@@ -735,7 +735,7 @@ macro_rules! impl_decode_partial_block_strided_2d {
             if block.is_null() || lx == 0 || ly == 0 || lx > 4 || ly > 4 {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
@@ -772,7 +772,7 @@ macro_rules! impl_decode_partial_block_strided_3d {
             if block.is_null() || lx == 0 || ly == 0 || lz == 0 || lx > 4 || ly > 4 || lz > 4 {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
@@ -820,7 +820,7 @@ macro_rules! impl_decode_partial_block_strided_4d {
             {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided_with_params::<$ty>(
+            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
