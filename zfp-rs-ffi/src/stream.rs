@@ -224,7 +224,7 @@ pub unsafe extern "C" fn zfp_stream_compressed_size(stream: *const zfp_stream) -
     }
 }
 
-/// Maximum compressed bytes per block, by scalar type and dimensionality.
+/// Maximum compressed bits per block, by scalar type and dimensionality.
 ///
 /// Table ported verbatim from `zfp/src/zfp.c`.
 #[unsafe(no_mangle)]

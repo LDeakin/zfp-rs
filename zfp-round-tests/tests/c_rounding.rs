@@ -2,14 +2,12 @@
 //! and `ZFP_WITH_TIGHT_ERROR=ON`, which is what `zfp-sys/round-tight-error` does.
 //!
 //! Cargo unifies `zfp-sys` features across a build, so a rounding-enabled C zfp
-//! and a stock one cannot coexist in one invocation. This target is gated behind
-//! `c-round-tight-error` and must be selected with `--test c_rounding`, leaving
-//! the stock-zfp targets built against stock zfp.
+//! and a stock one cannot coexist in one invocation. That is why this lives in
+//! its own workspace, outside the root one that holds the stock-zfp suites.
 //!
 //! `zfp-sys` exposes only the coupled build, so this covers `First` alone.
 //! Every mode, `Last` included, is cross-validated through `zfp-rs-ffi`, whose
 //! `ffi_compat` suite builds the in-repo `zfp` with matching CMake defines.
-#![cfg(feature = "c-round-tight-error")]
 #![expect(unsafe_op_in_unsafe_fn)]
 
 use proptest::prelude::*;
@@ -168,7 +166,7 @@ fn stock_rounding_does_not_match_the_c_library() {
 }
 
 macro_rules! compat {
-    ($name:ident, $scalar:ty, $rs_ty:expr, $c_ty:expr, $lens:expr, $strategy:expr) => {
+    ($name:ident, $rs_ty:expr, $c_ty:expr, $lens:expr, $strategy:expr) => {
         proptest! {
             #[test]
             fn $name(data in prop::collection::vec($strategy, $lens.iter().product::<usize>())) {
@@ -189,8 +187,8 @@ macro_rules! compat {
     };
 }
 
-// Subnormals are excluded for the same reason as in `tests/proptest`: they
-// overflow `fwd_cast`, where C's cast is implementation-defined.
+// Subnormals are excluded for the same reason as in the `zfp-rs` proptest
+// suite: they overflow `fwd_cast`, where C's cast is implementation-defined.
 fn normal_f32() -> impl Strategy<Value = f32> {
     any::<f32>().prop_filter("normal or zero", |f| !f.is_subnormal())
 }
@@ -201,7 +199,6 @@ fn normal_f64() -> impl Strategy<Value = f64> {
 
 compat!(
     rounding_1d_i32,
-    i32,
     ZfpScalarType::Int32,
     zfp_sys::zfp_type_zfp_type_int32,
     [37usize],
@@ -209,7 +206,6 @@ compat!(
 );
 compat!(
     rounding_1d_i64,
-    i64,
     ZfpScalarType::Int64,
     zfp_sys::zfp_type_zfp_type_int64,
     [37usize],
@@ -217,7 +213,6 @@ compat!(
 );
 compat!(
     rounding_1d_f32,
-    f32,
     ZfpScalarType::Float,
     zfp_sys::zfp_type_zfp_type_float,
     [37usize],
@@ -225,7 +220,6 @@ compat!(
 );
 compat!(
     rounding_1d_f64,
-    f64,
     ZfpScalarType::Double,
     zfp_sys::zfp_type_zfp_type_double,
     [37usize],
@@ -234,7 +228,6 @@ compat!(
 
 compat!(
     rounding_2d_i32,
-    i32,
     ZfpScalarType::Int32,
     zfp_sys::zfp_type_zfp_type_int32,
     [7usize, 5],
@@ -242,7 +235,6 @@ compat!(
 );
 compat!(
     rounding_2d_f32,
-    f32,
     ZfpScalarType::Float,
     zfp_sys::zfp_type_zfp_type_float,
     [7usize, 5],
@@ -250,7 +242,6 @@ compat!(
 );
 compat!(
     rounding_2d_f64,
-    f64,
     ZfpScalarType::Double,
     zfp_sys::zfp_type_zfp_type_double,
     [7usize, 5],
@@ -259,7 +250,6 @@ compat!(
 
 compat!(
     rounding_3d_i64,
-    i64,
     ZfpScalarType::Int64,
     zfp_sys::zfp_type_zfp_type_int64,
     [5usize, 3, 6],
@@ -267,7 +257,6 @@ compat!(
 );
 compat!(
     rounding_3d_f32,
-    f32,
     ZfpScalarType::Float,
     zfp_sys::zfp_type_zfp_type_float,
     [5usize, 3, 6],
@@ -275,7 +264,6 @@ compat!(
 );
 compat!(
     rounding_3d_f64,
-    f64,
     ZfpScalarType::Double,
     zfp_sys::zfp_type_zfp_type_double,
     [5usize, 3, 6],
@@ -285,7 +273,6 @@ compat!(
 // 4-D exercises the `*_many_ints_*` decoders (block size 256 > 64).
 compat!(
     rounding_4d_i32,
-    i32,
     ZfpScalarType::Int32,
     zfp_sys::zfp_type_zfp_type_int32,
     [5usize, 3, 2, 6],
@@ -293,7 +280,6 @@ compat!(
 );
 compat!(
     rounding_4d_f32,
-    f32,
     ZfpScalarType::Float,
     zfp_sys::zfp_type_zfp_type_float,
     [5usize, 3, 2, 6],
@@ -301,7 +287,6 @@ compat!(
 );
 compat!(
     rounding_4d_f64,
-    f64,
     ZfpScalarType::Double,
     zfp_sys::zfp_type_zfp_type_double,
     [5usize, 3, 2, 6],

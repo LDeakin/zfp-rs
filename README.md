@@ -40,7 +40,8 @@ zfp-sys = { package = "zfp-rs-ffi", version = "0.1" }
 
 The C `zfp_stream` has no rounding field, so `zfp-rs-ffi` fixes it at build time as C does, via the
 `round-first`, `round-last` and `tight-error` features (`round-tight-error` matches the `zfp-sys`
-feature of the same name). `round-first` and `round-last` are mutually exclusive.
+feature of the same name). `round-first` and `round-last` are mutually exclusive, and `tight-error`
+requires one of them.
 
 ## Acknowledgement
 

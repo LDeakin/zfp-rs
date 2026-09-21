@@ -10,7 +10,7 @@ names, so C consumers can include the generated `zfp.h` and link
 
 ## Scope
 
-The target API is `zfp-sys` version `0.1.15` as generated in this workspace. This includes `stream_*` functions except `stream_set_stride` (not enabled in `zfp-sys`), and excludes CFP APIs and `zfp_block_maximum_size`.
+The target API is `zfp-sys` version `0.4` as generated in this workspace. This includes `stream_*` functions except `stream_set_stride` (not enabled in `zfp-sys`), and excludes CFP APIs.
 
 ## Module Layout
 

@@ -4,6 +4,7 @@ default: fmt clippy build test
 # Check formatting (no-op if already clean)
 fmt:
 	cargo fmt --all -- --check
+	cargo fmt --manifest-path zfp-round-tests/Cargo.toml --all -- --check
 
 # Lint with Clippy (denies all warnings)
 clippy:
@@ -17,6 +18,18 @@ build:
 test:
 	cargo test --features ffi,internals --workspace
 	cargo test -p zfp-rs
+
+# Cross-validate the rounding modes against C (own workspace; needs cmake)
+test_rounding:
+	cargo test --manifest-path zfp-round-tests/Cargo.toml
+	cargo test -p zfp-rs-ffi --features round-first
+	cargo test -p zfp-rs-ffi --features round-last
+	cargo test -p zfp-rs-ffi --features round-tight-error
+	cargo test -p zfp-rs-ffi --features round-last,tight-error
+
+# Lint the rounding test crate (it is outside the workspace, so `just clippy` misses it)
+round_clippy:
+	cargo clippy --manifest-path zfp-round-tests/Cargo.toml --all-targets -- -D warnings
 
 # Run benchmarks
 bench:

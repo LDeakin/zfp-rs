@@ -38,9 +38,10 @@ fn round_trip(config: &ZfpConfig, data: &[f64]) -> (Vec<u8>, Vec<f64>) {
 }
 
 proptest! {
-    /// `ZFP_ROUND_LAST` is decode-only: the stream is byte-identical to `Never`.
+    /// `ZFP_ROUND_LAST`'s bias is decode-only, so its stream is byte-identical
+    /// to that of the mode sharing its precision formula.
     #[test]
-    fn round_last_leaves_the_bitstream_unchanged(
+    fn round_last_matches_the_stream_of_its_precision_peer(
         data in normal_f64s(),
         e in -1074i32..=843i32,
         tight_error in any::<bool>(),

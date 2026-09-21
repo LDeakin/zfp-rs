@@ -43,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - C zfp fixes both at build time. Here they are per-call, via `ZfpConfig::with_rounding`, so one binary can read streams from any build
   - Not encoded in the stream: compression and decompression must be given the same value
   - Defaults to `ZfpRounding::Never`, which is what every existing stream and the reference `libzfp` build use
+  - `#[non_exhaustive]`, so further rounding modes can be added without a breaking change
   - Under `ZfpRounding::Last`, reversible decode is no longer lossless, matching C: upstream's `revdecode.c` shares `decode_ints` with the lossy path, so `inv_round` biases reversible coefficients too
 - `zfp-rs-ffi`: `round-first`, `round-last`, `tight-error` and `round-tight-error` features
   - The C `zfp_stream` has no rounding field, so the C ABI layer fixes it at build time as C does

@@ -6,10 +6,12 @@ members = [
     "zfp-benchmarks",
     "zfp-fuzz-common",
 ]
-# `fuzz/` is a cargo-fuzz crate with its own [workspace] table. It requires a
-# nightly toolchain and libFuzzer, so it must never be pulled into
-# `cargo build --workspace` or `cargo clippy --workspace --all-targets`.
-exclude = ["fuzz"]
+# Both have their own [workspace] table and must never be pulled into
+# `cargo build --workspace` or `cargo clippy --workspace --all-targets`:
+# `fuzz/` needs a nightly toolchain and libFuzzer, and `zfp-round-tests/` needs
+# a `zfp-sys` built with rounding enabled, which cargo would unify onto the
+# stock-zfp suites.
+exclude = ["fuzz", "zfp-round-tests"]
 
 [package]
 name = "zfp-rs"
@@ -34,10 +36,6 @@ ffi = []
 internals = []
 # Optional Rayon-based parallel execution support.
 rayon = ["dep:rayon"]
-# Test-only: build the bundled C zfp with ZFP_ROUNDING_MODE=ZFP_ROUND_FIRST and
-# ZFP_WITH_TIGHT_ERROR=ON, to cross-validate `ZfpRounding::First`. Cargo unifies
-# zfp-sys features, so the `c_rounding` target must be selected on its own.
-c-round-tight-error = ["zfp-sys/round-tight-error"]
 
 [dependencies]
 bitflags = "2"
@@ -52,10 +50,6 @@ zfp-test-utils = { path = "zfp-test-utils" }
 
 # The C-port and proptest suites split into two targets each: one covering the
 # public API, and one reaching the low-level codec behind `internals`.
-[[test]]
-name = "c_rounding"
-required-features = ["c-round-tight-error"]
-
 [[test]]
 name = "c"
 

@@ -55,6 +55,7 @@ fn valid_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> bo
 /// Not part of the stream mode word: encoder and decoder must be given the
 /// same value. Only [`Never`][Self::Never] matches a stock `libzfp` build.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
 pub enum ZfpRounding {
     /// `ZFP_ROUND_NEVER`: truncate. The zfp default.
     #[default]
@@ -64,7 +65,11 @@ pub enum ZfpRounding {
         /// `ZFP_WITH_TIGHT_ERROR`: one fewer bit plane in fixed-accuracy and expert mode.
         tight_error: bool,
     },
-    /// `ZFP_ROUND_LAST`: bias coefficients after decoding. Leaves the bitstream unchanged.
+    /// `ZFP_ROUND_LAST`: bias coefficients after decoding.
+    ///
+    /// The bias is decode-only, but `tight_error` applies to both sides, so the
+    /// stream matches [`Never`][Self::Never] when it is `false` and
+    /// [`First { tight_error: true }`][Self::First] when it is `true`.
     Last {
         /// `ZFP_WITH_TIGHT_ERROR`: one fewer bit plane in fixed-accuracy and expert mode.
         tight_error: bool,
