@@ -10,6 +10,20 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  semver:
+    name: Semver (${{ matrix.package }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [zfp-rs, zfp-rs-ffi]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: ${{ matrix.package }}
+
   fmt:
     name: Format
     runs-on: ubuntu-latest
