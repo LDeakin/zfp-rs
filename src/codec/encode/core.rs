@@ -44,6 +44,10 @@ pub(crate) const PERM_4: [u8; 256] = [
 // Negabinary (int2uint) conversion
 // ---------------------------------------------------------------------------
 
+/// Negabinary mask (`0xaaaa...`).
+pub(crate) const NBMASK_U32: u32 = 0xaaaa_aaaa;
+pub(crate) const NBMASK_U64: u64 = 0xaaaa_aaaa_aaaa_aaaa;
+
 /// Map two's-complement `i32` → negabinary `u32`.
 ///
 /// Formula: `((x as u32).wrapping_add(NBMASK)) ^ NBMASK`
@@ -51,16 +55,14 @@ pub(crate) const PERM_4: [u8; 256] = [
 #[inline]
 #[allow(clippy::cast_sign_loss)] // i32→u32 for negabinary encoding
 pub(crate) fn int2uint_i32(x: i32) -> u32 {
-    const NBMASK: u32 = 0xaaaa_aaaa_u32;
-    (x as u32).wrapping_add(NBMASK) ^ NBMASK
+    (x as u32).wrapping_add(NBMASK_U32) ^ NBMASK_U32
 }
 
 /// Map two's-complement `i64` → negabinary `u64`.
 #[inline]
 #[allow(clippy::cast_sign_loss)] // i64→u64 for negabinary encoding
 pub(crate) fn int2uint_i64(x: i64) -> u64 {
-    const NBMASK: u64 = 0xaaaa_aaaa_aaaa_aaaa;
-    (x as u64).wrapping_add(NBMASK) ^ NBMASK
+    (x as u64).wrapping_add(NBMASK_U64) ^ NBMASK_U64
 }
 
 // ---------------------------------------------------------------------------
