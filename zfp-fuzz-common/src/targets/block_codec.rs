@@ -135,13 +135,6 @@ fn typed<T: FuzzScalar>(
     let origin = (-lo).cast_unsigned();
     let src: Vec<T> = decode_scalars::<T>(payload, span);
 
-    let (min_bits, max_bits, max_prec, min_exp) = (
-        config.min_bits(),
-        config.max_bits(),
-        config.max_prec(),
-        config.min_exp(),
-    );
-
     let cap = 4096;
     let mut bs = ZfpBitStream::new(cap);
     // SAFETY (all three call sites below): `src`/`dst` are allocated to the
@@ -156,22 +149,10 @@ fn typed<T: FuzzScalar>(
                 dims,
                 &effective[..rank],
                 &strides[..rank],
-                min_bits,
-                max_bits,
-                max_prec,
-                min_exp,
+                &config,
             )
         } else {
-            encode_block_strided(
-                &mut bs,
-                block,
-                dims,
-                &strides[..rank],
-                min_bits,
-                max_bits,
-                max_prec,
-                min_exp,
-            )
+            encode_block_strided(&mut bs, block, dims, &strides[..rank], &config)
         }
     };
     assert!(
@@ -199,22 +180,10 @@ fn typed<T: FuzzScalar>(
                 dims,
                 &effective[..rank],
                 &strides[..rank],
-                min_bits,
-                max_bits,
-                max_prec,
-                min_exp,
+                &config,
             )
         } else {
-            decode_block_strided(
-                &mut bs,
-                block,
-                dims,
-                &strides[..rank],
-                min_bits,
-                max_bits,
-                max_prec,
-                min_exp,
-            )
+            decode_block_strided(&mut bs, block, dims, &strides[..rank], &config)
         };
     }
 

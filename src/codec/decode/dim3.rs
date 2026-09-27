@@ -6,20 +6,10 @@
 
 use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::decode::core::strided_decode_wrappers;
-use crate::codec::decode::float::{
-    DOUBLE_MINEXP, FLOAT_MINEXP, decode_block_3d_f32, decode_block_3d_f64,
-};
+use crate::codec::decode::float::{decode_block_3d_f32, decode_block_3d_f64};
 use crate::codec::decode::integer::{decode_block_3d_i32, decode_block_3d_i64};
-
-const MINBITS: u32 = 0;
-const INT32_MAXBITS: u32 = 32 * 64 + 1;
-const INT64_MAXBITS: u32 = 64 * 64 + 1;
-const INT32_MAXPREC: u32 = 32;
-const INT64_MAXPREC: u32 = 64;
-const FLOAT_MAXBITS: u32 = (8 + 1) + 32 * 64;
-const DOUBLE_MAXBITS: u32 = (11 + 1) + 64 * 64;
-const FLOAT_MAXPREC: u32 = 32;
-const DOUBLE_MAXPREC: u32 = 64;
+use crate::config::ZfpConfig;
+use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
@@ -66,22 +56,34 @@ unsafe fn scatter_partial_3d<T: Copy>(
 // Contiguous
 pub fn decode_block_3d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i32; 64]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_3d_i32(bs, MINBITS, INT32_MAXBITS, INT32_MAXPREC);
+    *block = decode_block_3d_i32(
+        bs,
+        &ZfpConfig::block_default(ZfpScalarType::Int32, ZfpDimensionality::D3),
+    );
     (bs.read_pos() - before) as usize
 }
 pub fn decode_block_3d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i64; 64]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_3d_i64(bs, MINBITS, INT64_MAXBITS, INT64_MAXPREC);
+    *block = decode_block_3d_i64(
+        bs,
+        &ZfpConfig::block_default(ZfpScalarType::Int64, ZfpDimensionality::D3),
+    );
     (bs.read_pos() - before) as usize
 }
 pub fn decode_block_3d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f32; 64]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_3d_f32(bs, MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP);
+    *block = decode_block_3d_f32(
+        bs,
+        &ZfpConfig::block_default(ZfpScalarType::Float, ZfpDimensionality::D3),
+    );
     (bs.read_pos() - before) as usize
 }
 pub fn decode_block_3d_f64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f64; 64]) -> usize {
     let before = bs.read_pos();
-    *block = decode_block_3d_f64(bs, MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP);
+    *block = decode_block_3d_f64(
+        bs,
+        &ZfpConfig::block_default(ZfpScalarType::Double, ZfpDimensionality::D3),
+    );
     (bs.read_pos() - before) as usize
 }
 
@@ -100,8 +102,7 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_3d_f64_rate,
     partial_rate: decode_partial_block_strided_3d_f64_rate,
     decode: decode_block_3d_f64,
-    defaults: [MINBITS, DOUBLE_MAXBITS, DOUBLE_MAXPREC, DOUBLE_MINEXP],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    default: ZfpConfig::block_default(ZfpScalarType::Double, ZfpDimensionality::D3),
 }
 
 strided_decode_wrappers! {
@@ -115,8 +116,7 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_3d_f32_rate,
     partial_rate: decode_partial_block_strided_3d_f32_rate,
     decode: decode_block_3d_f32,
-    defaults: [MINBITS, FLOAT_MAXBITS, FLOAT_MAXPREC, FLOAT_MINEXP],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
+    default: ZfpConfig::block_default(ZfpScalarType::Float, ZfpDimensionality::D3),
 }
 
 strided_decode_wrappers! {
@@ -130,8 +130,7 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_3d_i32_rate,
     partial_rate: decode_partial_block_strided_3d_i32_rate,
     decode: decode_block_3d_i32,
-    defaults: [MINBITS, INT32_MAXBITS, INT32_MAXPREC],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    default: ZfpConfig::block_default(ZfpScalarType::Int32, ZfpDimensionality::D3),
 }
 
 strided_decode_wrappers! {
@@ -145,6 +144,5 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_3d_i64_rate,
     partial_rate: decode_partial_block_strided_3d_i64_rate,
     decode: decode_block_3d_i64,
-    defaults: [MINBITS, INT64_MAXBITS, INT64_MAXPREC],
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
+    default: ZfpConfig::block_default(ZfpScalarType::Int64, ZfpDimensionality::D3),
 }

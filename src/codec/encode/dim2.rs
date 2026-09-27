@@ -7,18 +7,8 @@ use crate::codec::encode::core::pad_strided;
 use crate::codec::encode::core::strided_encode_wrappers;
 use crate::codec::encode::float::{encode_block_2d_f32, encode_block_2d_f64};
 use crate::codec::encode::integer::{encode_block_2d_i32, encode_block_2d_i64};
-
-const MINBITS: u32 = 0;
-const INT32_MAXBITS: u32 = 32 * 16 + 1;
-const INT64_MAXBITS: u32 = 64 * 16 + 1;
-const INT32_MAXPREC: u32 = 32;
-const INT64_MAXPREC: u32 = 64;
-const FLOAT_MAXBITS: u32 = (8 + 1) + 32 * 16;
-const DOUBLE_MAXBITS: u32 = (11 + 1) + 64 * 16;
-const FLOAT_MAXPREC: u32 = 32;
-const DOUBLE_MAXPREC: u32 = 64;
-const FLOAT_MINEXP: i32 = -149;
-const DOUBLE_MINEXP: i32 = -1074;
+use crate::config::ZfpConfig;
+use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
 // Generic strided gather helpers (type-parameterised)
@@ -75,12 +65,20 @@ unsafe fn gather_partial_2d<T: Copy + Default>(
 
 /// Encode a contiguous 2-D block of 16 `i32` values; return bits written.
 pub fn encode_block_2d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 16]) -> usize {
-    encode_block_2d_i32(bs, block, MINBITS, INT32_MAXBITS, INT32_MAXPREC)
+    encode_block_2d_i32(
+        bs,
+        block,
+        &ZfpConfig::block_default(ZfpScalarType::Int32, ZfpDimensionality::D2),
+    )
 }
 
 /// Encode a contiguous 2-D block of 16 `i64` values; return bits written.
 pub fn encode_block_2d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 16]) -> usize {
-    encode_block_2d_i64(bs, block, MINBITS, INT64_MAXBITS, INT64_MAXPREC)
+    encode_block_2d_i64(
+        bs,
+        block,
+        &ZfpConfig::block_default(ZfpScalarType::Int64, ZfpDimensionality::D2),
+    )
 }
 
 /// Encode a contiguous 2-D block of 16 `f32` values; return bits written.
@@ -88,10 +86,7 @@ pub fn encode_block_2d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32
     encode_block_2d_f32(
         bs,
         block,
-        MINBITS,
-        FLOAT_MAXBITS,
-        FLOAT_MAXPREC,
-        FLOAT_MINEXP,
+        &ZfpConfig::block_default(ZfpScalarType::Float, ZfpDimensionality::D2),
     )
 }
 
@@ -100,10 +95,7 @@ pub fn encode_block_2d_f64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64
     encode_block_2d_f64(
         bs,
         block,
-        MINBITS,
-        DOUBLE_MAXBITS,
-        DOUBLE_MAXPREC,
-        DOUBLE_MINEXP,
+        &ZfpConfig::block_default(ZfpScalarType::Double, ZfpDimensionality::D2),
     )
 }
 
@@ -123,7 +115,6 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_2d_f64_rate,
     encode: encode_block_2d_f64,
     encode_default: encode_block_2d_f64_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
 }
 
 strided_encode_wrappers! {
@@ -138,7 +129,6 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_2d_f32_rate,
     encode: encode_block_2d_f32,
     encode_default: encode_block_2d_f32_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32, minexp: i32],
 }
 
 strided_encode_wrappers! {
@@ -153,7 +143,6 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_2d_i32_rate,
     encode: encode_block_2d_i32,
     encode_default: encode_block_2d_i32_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
 }
 
 strided_encode_wrappers! {
@@ -168,5 +157,4 @@ strided_encode_wrappers! {
     partial_rate: encode_partial_block_strided_2d_i64_rate,
     encode: encode_block_2d_i64,
     encode_default: encode_block_2d_i64_default,
-    rate_params: [minbits: u32, maxbits: u32, maxprec: u32],
 }

@@ -13,6 +13,7 @@ use super::{
     as_typed_block_3d, as_typed_block_3d_mut, as_typed_block_4d, as_typed_block_4d_mut,
 };
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
+use crate::config::ZfpConfig;
 use crate::types::{ZfpDimensionality, ZfpScalar, ZfpScalarType};
 
 /// Reinterpret a scalar pointer as the concrete type the enclosing match arm has
@@ -46,14 +47,11 @@ fn cast_ptr_mut<T: ZfpScalar, U: ZfpScalar>(p: *mut T) -> *mut U {
 /// Expand the 4 scalar type x 4 dimensionality dispatch that every `*_strided*`
 /// entry point shares.
 ///
-/// `lengths` is absent for full blocks. `tail_int` and `tail_float` differ
-/// because only the float codecs take `min_exp`.
+/// `lengths` is absent for full blocks.
 macro_rules! strided_dispatch {
     (
-        $bs:ident, $data:ident, $dims:ident, $strides:ident, $cast:ident,
+        $bs:ident, $data:ident, $dims:ident, $strides:ident, $cast:ident, $config:ident,
         lengths: [$($len:ident)?],
-        tail_int: [$($ti:expr),* $(,)?],
-        tail_float: [$($tf:expr),* $(,)?],
         d1: [$i1:path, $q1:path, $f1:path, $g1:path $(,)?],
         d2: [$i2:path, $q2:path, $f2:path, $g2:path $(,)?],
         d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
@@ -61,52 +59,52 @@ macro_rules! strided_dispatch {
     ) => {
         match (T::scalar_type(), $dims) {
             (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
-                $i1($bs, $cast::<T, i32>($data), $($len[0],)? $strides[0], $($ti,)*)
+                $i1($bs, $cast::<T, i32>($data), $($len[0],)? $strides[0], $config)
             }
             (ZfpScalarType::Int64, ZfpDimensionality::D1) => {
-                $q1($bs, $cast::<T, i64>($data), $($len[0],)? $strides[0], $($ti,)*)
+                $q1($bs, $cast::<T, i64>($data), $($len[0],)? $strides[0], $config)
             }
             (ZfpScalarType::Float, ZfpDimensionality::D1) => {
-                $f1($bs, $cast::<T, f32>($data), $($len[0],)? $strides[0], $($tf,)*)
+                $f1($bs, $cast::<T, f32>($data), $($len[0],)? $strides[0], $config)
             }
             (ZfpScalarType::Double, ZfpDimensionality::D1) => {
-                $g1($bs, $cast::<T, f64>($data), $($len[0],)? $strides[0], $($tf,)*)
+                $g1($bs, $cast::<T, f64>($data), $($len[0],)? $strides[0], $config)
             }
             (ZfpScalarType::Int32, ZfpDimensionality::D2) => {
-                $i2($bs, $cast::<T, i32>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $($ti,)*)
+                $i2($bs, $cast::<T, i32>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
             (ZfpScalarType::Int64, ZfpDimensionality::D2) => {
-                $q2($bs, $cast::<T, i64>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $($ti,)*)
+                $q2($bs, $cast::<T, i64>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
             (ZfpScalarType::Float, ZfpDimensionality::D2) => {
-                $f2($bs, $cast::<T, f32>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $($tf,)*)
+                $f2($bs, $cast::<T, f32>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
             (ZfpScalarType::Double, ZfpDimensionality::D2) => {
-                $g2($bs, $cast::<T, f64>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $($tf,)*)
+                $g2($bs, $cast::<T, f64>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
             (ZfpScalarType::Int32, ZfpDimensionality::D3) => {
-                $i3($bs, $cast::<T, i32>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $($ti,)*)
+                $i3($bs, $cast::<T, i32>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
             (ZfpScalarType::Int64, ZfpDimensionality::D3) => {
-                $q3($bs, $cast::<T, i64>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $($ti,)*)
+                $q3($bs, $cast::<T, i64>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
             (ZfpScalarType::Float, ZfpDimensionality::D3) => {
-                $f3($bs, $cast::<T, f32>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $($tf,)*)
+                $f3($bs, $cast::<T, f32>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
             (ZfpScalarType::Double, ZfpDimensionality::D3) => {
-                $g3($bs, $cast::<T, f64>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $($tf,)*)
+                $g3($bs, $cast::<T, f64>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
             (ZfpScalarType::Int32, ZfpDimensionality::D4) => {
-                $i4($bs, $cast::<T, i32>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $($ti,)*)
+                $i4($bs, $cast::<T, i32>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
             (ZfpScalarType::Int64, ZfpDimensionality::D4) => {
-                $q4($bs, $cast::<T, i64>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $($ti,)*)
+                $q4($bs, $cast::<T, i64>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
             (ZfpScalarType::Float, ZfpDimensionality::D4) => {
-                $f4($bs, $cast::<T, f32>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $($tf,)*)
+                $f4($bs, $cast::<T, f32>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
             (ZfpScalarType::Double, ZfpDimensionality::D4) => {
-                $g4($bs, $cast::<T, f64>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $($tf,)*)
+                $g4($bs, $cast::<T, f64>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
         }
     };
@@ -576,18 +574,13 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
     data: *const T,
     dims: ZfpDimensionality,
     strides: &[isize],
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
+    config: &ZfpConfig,
 ) -> usize {
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_ptr,
+            bs, data, dims, strides, cast_ptr, config,
             lengths: [],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
             d1: [
                 dim1::encode_block_strided_1d_i32_rate,
                 dim1::encode_block_strided_1d_i64_rate,
@@ -627,18 +620,13 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
+    config: &ZfpConfig,
 ) -> usize {
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_ptr,
+            bs, data, dims, strides, cast_ptr, config,
             lengths: [lengths],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
             d1: [
                 dim1::encode_partial_block_strided_1d_i32_rate,
                 dim1::encode_partial_block_strided_1d_i64_rate,
@@ -681,18 +669,13 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
     data: *mut T,
     dims: ZfpDimensionality,
     strides: &[isize],
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
+    config: &ZfpConfig,
 ) -> usize {
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_ptr_mut,
+            bs, data, dims, strides, cast_ptr_mut, config,
             lengths: [],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
             d1: [
                 dim1::decode_block_strided_1d_i32_rate,
                 dim1::decode_block_strided_1d_i64_rate,
@@ -732,18 +715,13 @@ pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     dims: ZfpDimensionality,
     lengths: &[usize],
     strides: &[isize],
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
+    config: &ZfpConfig,
 ) -> usize {
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
-            bs, data, dims, strides, cast_ptr_mut,
+            bs, data, dims, strides, cast_ptr_mut, config,
             lengths: [lengths],
-            tail_int: [min_bits, max_bits, max_prec],
-            tail_float: [min_bits, max_bits, max_prec, min_exp],
             d1: [
                 dim1::decode_partial_block_strided_1d_i32_rate,
                 dim1::decode_partial_block_strided_1d_i64_rate,

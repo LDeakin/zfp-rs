@@ -7,35 +7,25 @@
 //! using the stream's compression parameters.
 
 use crate::abi::zfp_stream;
-use zfp_rs::{ZfpBitStreamMutOps, ZfpDimensionality};
+use zfp_rs::{ZfpBitStreamMutOps, ZfpConfig, ZfpDimensionality};
 
 /// Get the bitstream and params from a `zfp_stream`.
 struct StreamContext<'a> {
     bs: &'a mut dyn ZfpBitStreamMutOps,
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
+    config: ZfpConfig,
 }
 
 fn get_ctx(stream: *mut zfp_stream) -> Option<StreamContext<'static>> {
     if stream.is_null() {
         return None;
     }
-    let (min_bits, max_bits, max_prec, min_exp, bitstream) =
-        unsafe { crate::stream::stream_params(stream)? };
+    let (config, bitstream) = unsafe { crate::stream::stream_params(stream)? };
     let bs = unsafe {
         crate::bitstream_api::get_handle_mut(bitstream)?
             .inner
             .as_ops_mut()
     };
-    Some(StreamContext {
-        bs,
-        min_bits,
-        max_bits,
-        max_prec,
-        min_exp,
-    })
+    Some(StreamContext { bs, config })
 }
 
 macro_rules! impl_encode_block_1d {
@@ -51,10 +41,7 @@ macro_rules! impl_encode_block_1d {
                 block,
                 ZfpDimensionality::D1,
                 &[1],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -78,10 +65,7 @@ macro_rules! impl_encode_block_2d {
                 block,
                 ZfpDimensionality::D2,
                 &[1, 4],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -105,10 +89,7 @@ macro_rules! impl_encode_block_3d {
                 block,
                 ZfpDimensionality::D3,
                 &[1, 4, 16],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -132,10 +113,7 @@ macro_rules! impl_encode_block_4d {
                 block,
                 ZfpDimensionality::D4,
                 &[1, 4, 16, 64],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -163,10 +141,7 @@ macro_rules! impl_decode_block_1d {
                 block,
                 ZfpDimensionality::D1,
                 &[1],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -190,10 +165,7 @@ macro_rules! impl_decode_block_2d {
                 block,
                 ZfpDimensionality::D2,
                 &[1, 4],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -217,10 +189,7 @@ macro_rules! impl_decode_block_3d {
                 block,
                 ZfpDimensionality::D3,
                 &[1, 4, 16],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -244,10 +213,7 @@ macro_rules! impl_decode_block_4d {
                 block,
                 ZfpDimensionality::D4,
                 &[1, 4, 16, 64],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -279,10 +245,7 @@ macro_rules! impl_encode_block_strided_1d {
                 block,
                 ZfpDimensionality::D1,
                 &[stride],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -311,10 +274,7 @@ macro_rules! impl_encode_block_strided_2d {
                 block,
                 ZfpDimensionality::D2,
                 &[stride_x, stride_y],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -344,10 +304,7 @@ macro_rules! impl_encode_block_strided_3d {
                 block,
                 ZfpDimensionality::D3,
                 &[stride_x, stride_y, stride_z],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -378,10 +335,7 @@ macro_rules! impl_encode_block_strided_4d {
                 block,
                 ZfpDimensionality::D4,
                 &[stride_x, stride_y, stride_z, stride_w],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -415,10 +369,7 @@ macro_rules! impl_encode_partial_block_strided_1d {
                 ZfpDimensionality::D1,
                 &[lx],
                 &[stride],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -450,10 +401,7 @@ macro_rules! impl_encode_partial_block_strided_2d {
                 ZfpDimensionality::D2,
                 &[lx, ly],
                 &[stride_x, stride_y],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -487,10 +435,7 @@ macro_rules! impl_encode_partial_block_strided_3d {
                 ZfpDimensionality::D3,
                 &[lx, ly, lz],
                 &[stride_x, stride_y, stride_z],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -535,10 +480,7 @@ macro_rules! impl_encode_partial_block_strided_4d {
                 ZfpDimensionality::D4,
                 &[lx, ly, lz, lw],
                 &[stride_x, stride_y, stride_z, stride_w],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -570,10 +512,7 @@ macro_rules! impl_decode_block_strided_1d {
                 block,
                 ZfpDimensionality::D1,
                 &[stride],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -602,10 +541,7 @@ macro_rules! impl_decode_block_strided_2d {
                 block,
                 ZfpDimensionality::D2,
                 &[stride_x, stride_y],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -635,10 +571,7 @@ macro_rules! impl_decode_block_strided_3d {
                 block,
                 ZfpDimensionality::D3,
                 &[stride_x, stride_y, stride_z],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -669,10 +602,7 @@ macro_rules! impl_decode_block_strided_4d {
                 block,
                 ZfpDimensionality::D4,
                 &[stride_x, stride_y, stride_z, stride_w],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -706,10 +636,7 @@ macro_rules! impl_decode_partial_block_strided_1d {
                 ZfpDimensionality::D1,
                 &[lx],
                 &[stride],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -741,10 +668,7 @@ macro_rules! impl_decode_partial_block_strided_2d {
                 ZfpDimensionality::D2,
                 &[lx, ly],
                 &[stride_x, stride_y],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -778,10 +702,7 @@ macro_rules! impl_decode_partial_block_strided_3d {
                 ZfpDimensionality::D3,
                 &[lx, ly, lz],
                 &[stride_x, stride_y, stride_z],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };
@@ -826,10 +747,7 @@ macro_rules! impl_decode_partial_block_strided_4d {
                 ZfpDimensionality::D4,
                 &[lx, ly, lz, lw],
                 &[stride_x, stride_y, stride_z, stride_w],
-                ctx.min_bits,
-                ctx.max_bits,
-                ctx.max_prec,
-                ctx.min_exp,
+                &ctx.config,
             ) as usize
         }
     };

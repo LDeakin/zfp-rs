@@ -17,6 +17,7 @@
 #![allow(dead_code)] // Ported from upstream; not all modes/variants are exercised.
 #![cfg(feature = "ffi")]
 
+use zfp_rs::ZfpConfig;
 use zfp_rs::bitstream::ZfpBitStream;
 
 use super::checksums::{
@@ -110,7 +111,6 @@ macro_rules! encode_block_strided_tests_1d {
         $hash_strided_fn:ident,
         $enc_strided_rate:path,
         $enc_partial_rate:path
-        $(, $dec_minexp:expr)?
     ) => {
         mod $mod_name {
             use super::*;
@@ -120,6 +120,7 @@ macro_rules! encode_block_strided_tests_1d {
             const PX: usize = 1;
             const DUMMY_VAL: $scalar = 99 as $scalar;
             const MAXBITS: u32 = (BLOCK_SIDE_LEN as u32) * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
@@ -176,7 +177,7 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
-                unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, &CONFIG) };
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
                 let (key1, key2) = compute_key(
@@ -234,7 +235,7 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_partial_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
-                unsafe { $enc_partial_rate(&mut bs, data.as_ptr(), PX, SX, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?) };
+                unsafe { $enc_partial_rate(&mut bs, data.as_ptr(), PX, SX, &CONFIG) };
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
                 let (key1, key2) = compute_key(
@@ -269,7 +270,6 @@ macro_rules! encode_block_strided_tests_2d {
         $hash_strided_fn:ident,
         $enc_strided_rate:path,
         $enc_partial_rate:path
-        $(, $dec_minexp:expr)?
     ) => {
         mod $mod_name {
             use super::*;
@@ -282,6 +282,7 @@ macro_rules! encode_block_strided_tests_2d {
             const DUMMY_VAL: $scalar = 99 as $scalar;
             const MAXBITS: u32 =
                 (BLOCK_SIDE_LEN as u32 * BLOCK_SIDE_LEN as u32) * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
@@ -350,7 +351,7 @@ macro_rules! encode_block_strided_tests_2d {
                 let mut bs = ZfpBitStream::new(4096);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, &CONFIG,
                     )
                 };
                 bs.flush();
@@ -416,7 +417,7 @@ macro_rules! encode_block_strided_tests_2d {
                 let mut bs = ZfpBitStream::new(4096);
                 unsafe {
                     $enc_partial_rate(
-                        &mut bs, data.as_ptr(), PX, PY, SX, SY, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), PX, PY, SX, SY, &CONFIG,
                     )
                 };
                 bs.flush();
@@ -453,7 +454,6 @@ macro_rules! encode_block_strided_tests_3d {
         $hash_strided_fn:ident,
         $enc_strided_rate:path,
         $enc_partial_rate:path
-        $(, $dec_minexp:expr)?
     ) => {
         mod $mod_name {
             use super::*;
@@ -470,6 +470,7 @@ macro_rules! encode_block_strided_tests_3d {
                 * BLOCK_SIDE_LEN as u32
                 * BLOCK_SIDE_LEN as u32)
                 * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
@@ -542,7 +543,7 @@ macro_rules! encode_block_strided_tests_3d {
                 let mut bs = ZfpBitStream::new(65536);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, SZ, &CONFIG,
                     )
                 };
                 bs.flush();
@@ -611,8 +612,7 @@ macro_rules! encode_block_strided_tests_3d {
                 let mut bs = ZfpBitStream::new(65536);
                 unsafe {
                     $enc_partial_rate(
-                        &mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ, MAXBITS, MAXBITS, ZFP_MAX_PREC
-                        $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ, &CONFIG,
                     )
                 };
                 bs.flush();
@@ -649,7 +649,6 @@ macro_rules! encode_block_strided_tests_4d {
         $hash_strided_fn:ident,
         $enc_strided_rate:path,
         $enc_partial_rate:path
-        $(, $dec_minexp:expr)?
     ) => {
         mod $mod_name {
             use super::*;
@@ -669,6 +668,7 @@ macro_rules! encode_block_strided_tests_4d {
                 * BLOCK_SIDE_LEN as u32
                 * BLOCK_SIDE_LEN as u32)
                 * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
@@ -748,7 +748,7 @@ macro_rules! encode_block_strided_tests_4d {
                 let mut bs = ZfpBitStream::new(1 << 20);
                 unsafe {
                     $enc_strided_rate(
-                        &mut bs, data.as_ptr(), SX, SY, SZ, SW, MAXBITS, MAXBITS, ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), SX, SY, SZ, SW, &CONFIG,
                     )
                 };
                 bs.flush();
@@ -821,8 +821,7 @@ macro_rules! encode_block_strided_tests_4d {
                 let mut bs = ZfpBitStream::new(1 << 20);
                 unsafe {
                     $enc_partial_rate(
-                        &mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW, MAXBITS, MAXBITS,
-                        ZFP_MAX_PREC $(, $dec_minexp)?,
+                        &mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW, &CONFIG,
                     )
                 };
                 bs.flush();
@@ -859,8 +858,7 @@ encode_block_strided_tests_1d!(
     u64,
     hash_strided_array64,
     dim1::encode_block_strided_1d_f64_rate,
-    dim1::encode_partial_block_strided_1d_f64_rate,
-    ZFP_MIN_EXP
+    dim1::encode_partial_block_strided_1d_f64_rate
 );
 encode_block_strided_tests_1d!(
     dim1_float,
@@ -873,8 +871,7 @@ encode_block_strided_tests_1d!(
     u32,
     hash_strided_array32,
     dim1::encode_block_strided_1d_f32_rate,
-    dim1::encode_partial_block_strided_1d_f32_rate,
-    ZFP_MIN_EXP
+    dim1::encode_partial_block_strided_1d_f32_rate
 );
 encode_block_strided_tests_1d!(
     dim1_int32,
@@ -914,8 +911,7 @@ encode_block_strided_tests_2d!(
     u64,
     hash_strided_array64,
     dim2::encode_block_strided_2d_f64_rate,
-    dim2::encode_partial_block_strided_2d_f64_rate,
-    ZFP_MIN_EXP
+    dim2::encode_partial_block_strided_2d_f64_rate
 );
 encode_block_strided_tests_2d!(
     dim2_float,
@@ -928,8 +924,7 @@ encode_block_strided_tests_2d!(
     u32,
     hash_strided_array32,
     dim2::encode_block_strided_2d_f32_rate,
-    dim2::encode_partial_block_strided_2d_f32_rate,
-    ZFP_MIN_EXP
+    dim2::encode_partial_block_strided_2d_f32_rate
 );
 encode_block_strided_tests_2d!(
     dim2_int32,
@@ -969,8 +964,7 @@ encode_block_strided_tests_3d!(
     u64,
     hash_strided_array64,
     dim3::encode_block_strided_3d_f64_rate,
-    dim3::encode_partial_block_strided_3d_f64_rate,
-    ZFP_MIN_EXP
+    dim3::encode_partial_block_strided_3d_f64_rate
 );
 encode_block_strided_tests_3d!(
     dim3_float,
@@ -983,8 +977,7 @@ encode_block_strided_tests_3d!(
     u32,
     hash_strided_array32,
     dim3::encode_block_strided_3d_f32_rate,
-    dim3::encode_partial_block_strided_3d_f32_rate,
-    ZFP_MIN_EXP
+    dim3::encode_partial_block_strided_3d_f32_rate
 );
 encode_block_strided_tests_3d!(
     dim3_int32,
@@ -1024,8 +1017,7 @@ encode_block_strided_tests_4d!(
     u64,
     hash_strided_array64,
     dim4::encode_block_strided_4d_f64_rate,
-    dim4::encode_partial_block_strided_4d_f64_rate,
-    ZFP_MIN_EXP
+    dim4::encode_partial_block_strided_4d_f64_rate
 );
 encode_block_strided_tests_4d!(
     dim4_float,
@@ -1038,8 +1030,7 @@ encode_block_strided_tests_4d!(
     u32,
     hash_strided_array32,
     dim4::encode_block_strided_4d_f32_rate,
-    dim4::encode_partial_block_strided_4d_f32_rate,
-    ZFP_MIN_EXP
+    dim4::encode_partial_block_strided_4d_f32_rate
 );
 encode_block_strided_tests_4d!(
     dim4_int32,

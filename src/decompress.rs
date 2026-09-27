@@ -138,14 +138,12 @@ unsafe fn decompress_block(
                                 );
                             } else if full {
                                 decode_block_strided(
-                                    bs, block, dims, &info.strides, config.min_bits(),
-                                    config.max_bits(), config.max_prec(), config.min_exp(),
+                                    bs, block, dims, &info.strides, config,
                                 );
                             } else {
                                 decode_partial_block_strided(
                                     bs, block, dims, &lengths, &info.strides,
-                                    config.min_bits(), config.max_bits(), config.max_prec(),
-                                    config.min_exp(),
+                                    config,
                                 );
                             }
                         }

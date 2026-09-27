@@ -4,36 +4,20 @@
 
 use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::decode::core::{decode_double_block, decode_float_block};
+use crate::config::ZfpConfig;
 use crate::types::ZfpDimensionality;
-
-pub const FLOAT_MINEXP: i32 = -149;
-pub const DOUBLE_MINEXP: i32 = -1074;
 
 // ---------------------------------------------------------------------------
 // 1-D
 // ---------------------------------------------------------------------------
 
-pub fn decode_block_1d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f32; 4] {
-    let (block, _) =
-        decode_float_block::<4>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D1);
+pub fn decode_block_1d_f32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f32; 4] {
+    let (block, _) = decode_float_block::<4>(bs, config, ZfpDimensionality::D1);
     block
 }
 
-pub fn decode_block_1d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f64; 4] {
-    let (block, _) =
-        decode_double_block::<4>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D1);
+pub fn decode_block_1d_f64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f64; 4] {
+    let (block, _) = decode_double_block::<4>(bs, config, ZfpDimensionality::D1);
     block
 }
 
@@ -41,27 +25,13 @@ pub fn decode_block_1d_f64(
 // 2-D
 // ---------------------------------------------------------------------------
 
-pub fn decode_block_2d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f32; 16] {
-    let (block, _) =
-        decode_float_block::<16>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D2);
+pub fn decode_block_2d_f32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f32; 16] {
+    let (block, _) = decode_float_block::<16>(bs, config, ZfpDimensionality::D2);
     block
 }
 
-pub fn decode_block_2d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f64; 16] {
-    let (block, _) =
-        decode_double_block::<16>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D2);
+pub fn decode_block_2d_f64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f64; 16] {
+    let (block, _) = decode_double_block::<16>(bs, config, ZfpDimensionality::D2);
     block
 }
 
@@ -69,27 +39,13 @@ pub fn decode_block_2d_f64(
 // 3-D
 // ---------------------------------------------------------------------------
 
-pub fn decode_block_3d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f32; 64] {
-    let (block, _) =
-        decode_float_block::<64>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D3);
+pub fn decode_block_3d_f32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f32; 64] {
+    let (block, _) = decode_float_block::<64>(bs, config, ZfpDimensionality::D3);
     block
 }
 
-pub fn decode_block_3d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f64; 64] {
-    let (block, _) =
-        decode_double_block::<64>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D3);
+pub fn decode_block_3d_f64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f64; 64] {
+    let (block, _) = decode_double_block::<64>(bs, config, ZfpDimensionality::D3);
     block
 }
 
@@ -97,26 +53,12 @@ pub fn decode_block_3d_f64(
 // 4-D
 // ---------------------------------------------------------------------------
 
-pub fn decode_block_4d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f32; 256] {
-    let (block, _) =
-        decode_float_block::<256>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D4);
+pub fn decode_block_4d_f32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f32; 256] {
+    let (block, _) = decode_float_block::<256>(bs, config, ZfpDimensionality::D4);
     block
 }
 
-pub fn decode_block_4d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
-) -> [f64; 256] {
-    let (block, _) =
-        decode_double_block::<256>(bs, minbits, maxbits, maxprec, minexp, ZfpDimensionality::D4);
+pub fn decode_block_4d_f64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [f64; 256] {
+    let (block, _) = decode_double_block::<256>(bs, config, ZfpDimensionality::D4);
     block
 }
