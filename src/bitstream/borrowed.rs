@@ -119,7 +119,8 @@ mod tests {
         let field = ZfpField::new(&data, [4usize, 4, 4]);
         let config = ZfpConfig::reversible();
         let mut bs = ZfpBitStream::new(4096);
-        assert_ne!(bs.write_header(&config, &field, ZfpHeaderMask::FULL), 0);
+        bs.write_header(&config, &field, ZfpHeaderMask::FULL)
+            .expect("write header");
         bs.compress(&config, &field).expect("compress");
         let words = bs.into_words();
 
@@ -140,7 +141,8 @@ mod tests {
         let mut words = vec![0u64; 512];
 
         let mut bs = ZfpBitStreamRefMut::from_words_mut(&mut words);
-        assert_ne!(bs.write_header(&config, &field, ZfpHeaderMask::FULL), 0);
+        bs.write_header(&config, &field, ZfpHeaderMask::FULL)
+            .expect("write header");
         bs.compress(&config, &field).expect("compress");
         bs.flush();
         bs.rewind();

@@ -8,6 +8,7 @@
 
 use zfp_rs::types::{
     ZFP_MAGIC_BITS, ZFP_META_BITS, ZFP_MODE_LONG_BITS, ZFP_MODE_SHORT_BITS, ZfpHeaderMask,
+    ZfpMetadataError,
 };
 use zfp_rs::{
     ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMetadata, ZfpScalarType,
@@ -150,7 +151,9 @@ fn when_zfp_write_header_magic_expect_num_bits_written_equal_to_zfp_magic_bits()
     let config = make_params();
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
-    let bits = bs.write_header(&config, &field, ZfpHeaderMask::MAGIC);
+    let bits = bs
+        .write_header(&config, &field, ZfpHeaderMask::MAGIC)
+        .unwrap();
     assert_eq!(bits, ZFP_MAGIC_BITS as usize);
 }
 
@@ -160,7 +163,8 @@ fn when_zfp_write_header_magic_expect_24_bits_are_chars_zfp_followed_by_8_bits_z
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
     assert_eq!(
-        bs.write_header(&config, &field, ZfpHeaderMask::MAGIC),
+        bs.write_header(&config, &field, ZfpHeaderMask::MAGIC)
+            .unwrap(),
         ZFP_MAGIC_BITS as usize
     );
     bs.flush();
@@ -180,7 +184,9 @@ fn when_zfp_write_header_metadata_expect_num_bits_written_equal_to_zfp_meta_bits
     let config = make_params();
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
-    let bits = bs.write_header(&config, &field, ZfpHeaderMask::META);
+    let bits = bs
+        .write_header(&config, &field, ZfpHeaderMask::META)
+        .unwrap();
     assert_eq!(bits, ZFP_META_BITS as usize);
 }
 
@@ -190,7 +196,9 @@ fn given_fixed_rate_when_zfp_write_header_mode_expect_12_bits_written_to_bitstre
     let config = make_params();
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
-    let bits = bs.write_header(&config, &field, ZfpHeaderMask::MODE);
+    let bits = bs
+        .write_header(&config, &field, ZfpHeaderMask::MODE)
+        .unwrap();
     assert_eq!(bits, ZFP_MODE_SHORT_BITS as usize);
 }
 
@@ -199,7 +207,9 @@ fn given_fixed_precision_when_zfp_write_header_mode_expect_12_bits_written_to_bi
     let config = ZfpConfig::fixed_precision(PREC);
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
-    let bits = bs.write_header(&config, &field, ZfpHeaderMask::MODE);
+    let bits = bs
+        .write_header(&config, &field, ZfpHeaderMask::MODE)
+        .unwrap();
     assert_eq!(bits, ZFP_MODE_SHORT_BITS as usize);
 }
 
@@ -208,7 +218,9 @@ fn given_fixed_accuracy_when_zfp_write_header_mode_expect_12_bits_written_to_bit
     let config = ZfpConfig::fixed_accuracy(ACC);
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
-    let bits = bs.write_header(&config, &field, ZfpHeaderMask::MODE);
+    let bits = bs
+        .write_header(&config, &field, ZfpHeaderMask::MODE)
+        .unwrap();
     assert_eq!(bits, ZFP_MODE_SHORT_BITS as usize);
 }
 
@@ -219,8 +231,23 @@ fn given_custom_compress_params_set_when_zfp_write_header_mode_expect_64_bits_wr
     let config = ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM);
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
-    let bits = bs.write_header(&config, &field, ZfpHeaderMask::MODE);
+    let bits = bs
+        .write_header(&config, &field, ZfpHeaderMask::MODE)
+        .unwrap();
     assert_eq!(bits, ZFP_MODE_LONG_BITS as usize);
+}
+
+#[test]
+fn given_oversized_field_when_zfp_write_header_full_expect_error_and_nothing_written() {
+    let config = make_params();
+    let mut bs = ZfpBitStream::new(4096);
+    let field = ZfpField::new(&[] as &[f64], [1usize << 25, 1]);
+    assert_eq!(
+        bs.write_header(&config, &field, ZfpHeaderMask::FULL),
+        Err(ZfpMetadataError::DimensionTooLarge)
+    );
+    bs.flush();
+    assert!(bs.as_bytes().is_empty());
 }
 
 // ---------------------------------------------------------------------------
@@ -238,7 +265,10 @@ fn assert_proper_bits_read(
     expected_write_bits: usize,
     expected_read_bits: usize,
 ) {
-    assert_eq!(bs.write_header(config, field, mask), expected_write_bits);
+    assert_eq!(
+        bs.write_header(config, field, mask).unwrap(),
+        expected_write_bits
+    );
     bs.flush();
     bs.rewind();
     let result = bs.read_header(mask);
@@ -302,7 +332,8 @@ fn given_proper_header_when_zfp_read_header_metadata_expect_field_array_dims_set
     let orig = field.dims();
 
     assert_eq!(
-        bs.write_header(&config, &field, ZfpHeaderMask::META),
+        bs.write_header(&config, &field, ZfpHeaderMask::META)
+            .unwrap(),
         ZFP_META_BITS as usize
     );
     bs.flush();
@@ -380,7 +411,8 @@ fn assert_compress_params_restored(
     expected_read_bits: usize,
 ) {
     assert_eq!(
-        bs.write_header(&config, field, ZfpHeaderMask::MODE),
+        bs.write_header(&config, field, ZfpHeaderMask::MODE)
+            .unwrap(),
         expected_write_bits
     );
     bs.flush();
