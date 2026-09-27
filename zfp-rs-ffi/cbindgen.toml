@@ -67,6 +67,14 @@ typedef uint16_t uint16;
 typedef int32_t int32;
 typedef int64_t int64;
 
+typedef enum zfp_type {
+  zfp_type_none = 0,
+  zfp_type_int32 = 1,
+  zfp_type_int64 = 2,
+  zfp_type_float = 3,
+  zfp_type_double = 4,
+} zfp_type;
+
 """
 
 [export]
@@ -119,6 +127,7 @@ exclude = [
   "zfp_mode_zfp_mode_null",
   "zfp_mode_zfp_mode_reversible",
   "zfp_true",
+  "zfp_type",
   "zfp_type_zfp_type_double",
   "zfp_type_zfp_type_float",
   "zfp_type_zfp_type_int32",

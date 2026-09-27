@@ -67,13 +67,15 @@ typedef uint16_t uint16;
 typedef int32_t int32;
 typedef int64_t int64;
 
+typedef enum zfp_type {
+  zfp_type_none = 0,
+  zfp_type_int32 = 1,
+  zfp_type_int64 = 2,
+  zfp_type_float = 3,
+  zfp_type_double = 4,
+} zfp_type;
 
 
-typedef enum zfp_exec_policy {
-  zfp_exec_serial = 0,
-  zfp_exec_omp = 1,
-  zfp_exec_cuda = 2,
-} zfp_exec_policy;
 
 typedef enum zfp_mode {
   zfp_mode_null = 0,
@@ -84,13 +86,11 @@ typedef enum zfp_mode {
   zfp_mode_reversible = 5,
 } zfp_mode;
 
-typedef enum zfp_type {
-  zfp_type_none = 0,
-  zfp_type_int32 = 1,
-  zfp_type_int64 = 2,
-  zfp_type_float = 3,
-  zfp_type_double = 4,
-} zfp_type;
+typedef enum zfp_exec_policy {
+  zfp_exec_serial = 0,
+  zfp_exec_omp = 1,
+  zfp_exec_cuda = 2,
+} zfp_exec_policy;
 
 typedef size_t bitstream_count;
 
@@ -103,7 +103,7 @@ typedef uint64 bitstream_offset;
 typedef bitstream_offset bitstream_size;
 
 typedef struct zfp_field {
-  enum zfp_type type;
+  zfp_type type;
   size_t nx;
   size_t ny;
   size_t nz;
@@ -208,18 +208,14 @@ void stream_copy(bitstream *dst, bitstream *src, bitstream_size n);
 
 struct zfp_field *zfp_field_alloc(void);
 
-struct zfp_field *zfp_field_1d(void *data, enum zfp_type scalar_type, size_t nx);
+struct zfp_field *zfp_field_1d(void *data, zfp_type scalar_type, size_t nx);
 
-struct zfp_field *zfp_field_2d(void *data, enum zfp_type scalar_type, size_t nx, size_t ny);
+struct zfp_field *zfp_field_2d(void *data, zfp_type scalar_type, size_t nx, size_t ny);
 
-struct zfp_field *zfp_field_3d(void *data,
-                               enum zfp_type scalar_type,
-                               size_t nx,
-                               size_t ny,
-                               size_t nz);
+struct zfp_field *zfp_field_3d(void *data, zfp_type scalar_type, size_t nx, size_t ny, size_t nz);
 
 struct zfp_field *zfp_field_4d(void *data,
-                               enum zfp_type scalar_type,
+                               zfp_type scalar_type,
                                size_t nx,
                                size_t ny,
                                size_t nz,
@@ -231,7 +227,7 @@ void *zfp_field_pointer(const struct zfp_field *field);
 
 void *zfp_field_begin(const struct zfp_field *field);
 
-enum zfp_type zfp_field_type(const struct zfp_field *field);
+zfp_type zfp_field_type(const struct zfp_field *field);
 
 uint zfp_field_precision(const struct zfp_field *field);
 
@@ -251,7 +247,7 @@ uint64 zfp_field_metadata(const struct zfp_field *field);
 
 void zfp_field_set_pointer(struct zfp_field *field, void *ptr);
 
-enum zfp_type zfp_field_set_type(struct zfp_field *field, enum zfp_type ty);
+zfp_type zfp_field_set_type(struct zfp_field *field, zfp_type ty);
 
 void zfp_field_set_size_1d(struct zfp_field *field, size_t nx);
 
@@ -290,7 +286,7 @@ struct zfp_config zfp_config_expert(uint32_t minbits,
                                     uint32_t maxprec,
                                     int32_t minexp);
 
-size_t zfp_type_size(enum zfp_type ty);
+size_t zfp_type_size(zfp_type ty);
 
 struct zfp_stream *zfp_stream_open(bitstream *bs);
 
@@ -334,7 +330,7 @@ void zfp_stream_set_reversible(struct zfp_stream *stream);
 
 double zfp_stream_set_rate(struct zfp_stream *stream,
                            double rate,
-                           enum zfp_type ty,
+                           zfp_type ty,
                            uint dims,
                            zfp_bool align);
 
