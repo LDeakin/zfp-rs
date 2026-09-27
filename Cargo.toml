@@ -43,7 +43,7 @@ rayon = { version = "1", optional = true }
 
 [dev-dependencies]
 proptest = "1"
-zfp-sys = "0.1"
+zfp-sys = "0.4"
 zfp-test-utils = { path = "zfp-test-utils" }
 
 # The C-port and proptest suites split into two targets each: one covering the
