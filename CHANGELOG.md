@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The strided entry points move to `codec::block::strided`, public only with `ffi`; `codec::{encode, decode}` are public only with the new `internals` feature; `codec::promote` only with `ffi`; `codec::transform` is now private
   - These are the monomorphised codec internals. `ffi` is the C-ABI seam; `internals` exists for the C-port and proptest suites, which are the only consumers of `codec::encode` and `codec::decode`
   - Without either feature the public `codec` API is six safe functions
+- **Breaking**: `zfp-rs-ffi`'s `zfp_type` is now a `#[repr(transparent)]` integer newtype rather than a Rust enum
+  - C callers may pass any value, which was undefined behaviour as a Rust enum. The ABI and the `zfp_type::zfp_type_*` constants are unchanged
 
 ### Fixed
 - Validate `ZfpField` length in `FieldPlan::new`

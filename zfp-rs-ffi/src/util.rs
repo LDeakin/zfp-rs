@@ -3,7 +3,6 @@
 use crate::abi::{
     bitstream, uint, zfp_bool, zfp_false, zfp_mode, zfp_true, zfp_type, zfp_type_zfp_type_double,
     zfp_type_zfp_type_float, zfp_type_zfp_type_int32, zfp_type_zfp_type_int64,
-    zfp_type_zfp_type_none,
 };
 use zfp_rs::{ZfpDimensionality, ZfpMode, ZfpScalarType};
 
@@ -58,14 +57,14 @@ pub fn rust_mode_to_zfp(mode: ZfpMode) -> zfp_mode {
 }
 
 /// Convert C `zfp_type` to Rust `ZfpScalarType`.
-/// Returns `None` for `zfp_type_none`.
+/// Returns `None` for `zfp_type_none` and out-of-range values.
 pub fn zfp_type_to_rust_type(ty: zfp_type) -> Option<ZfpScalarType> {
     match ty {
-        zfp_type_zfp_type_none => None,
         zfp_type_zfp_type_int32 => Some(ZfpScalarType::Int32),
         zfp_type_zfp_type_int64 => Some(ZfpScalarType::Int64),
         zfp_type_zfp_type_float => Some(ZfpScalarType::Float),
         zfp_type_zfp_type_double => Some(ZfpScalarType::Double),
+        _ => None,
     }
 }
 

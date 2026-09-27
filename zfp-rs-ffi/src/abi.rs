@@ -62,15 +62,19 @@ pub const zfp_mode_zfp_mode_fixed_precision: zfp_mode = zfp_mode::zfp_mode_fixed
 pub const zfp_mode_zfp_mode_fixed_accuracy: zfp_mode = zfp_mode::zfp_mode_fixed_accuracy;
 pub const zfp_mode_zfp_mode_reversible: zfp_mode = zfp_mode::zfp_mode_reversible;
 
-/// C `zfp_type` values
-#[repr(C)]
+/// C `zfp_type` values.
+///
+/// An integer rather than a Rust enum: C callers may pass any value.
+#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum zfp_type {
-    zfp_type_none = 0,
-    zfp_type_int32 = 1,
-    zfp_type_int64 = 2,
-    zfp_type_float = 3,
-    zfp_type_double = 4,
+pub struct zfp_type(pub std::ffi::c_uint);
+#[allow(non_upper_case_globals)]
+impl zfp_type {
+    pub const zfp_type_none: Self = Self(0);
+    pub const zfp_type_int32: Self = Self(1);
+    pub const zfp_type_int64: Self = Self(2);
+    pub const zfp_type_float: Self = Self(3);
+    pub const zfp_type_double: Self = Self(4);
 }
 pub const zfp_type_zfp_type_none: zfp_type = zfp_type::zfp_type_none;
 pub const zfp_type_zfp_type_int32: zfp_type = zfp_type::zfp_type_int32;
