@@ -54,8 +54,10 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     // the allocation and the runtime. Sizing the stream to exactly this value
     // also turns any violation of the documented upper bound into an immediate
     // crash rather than a silent over-allocation.
-    let cap = config.maximum_size(ty, &dims[..rank]);
-    if cap == 0 || cap > MAX_STREAM_BYTES {
+    let Some(cap) = config.maximum_size(ty, &dims[..rank]) else {
+        return;
+    };
+    if cap > MAX_STREAM_BYTES {
         return;
     }
 

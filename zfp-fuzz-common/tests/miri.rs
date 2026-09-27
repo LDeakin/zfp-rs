@@ -197,7 +197,7 @@ fn roundtrip<T: Sample>(case: &Case, config: &ZfpConfig) {
 
     let cap = config
         .maximum_size(T::scalar_type(), &case.dims[..rank])
-        .max(64);
+        .map_or(64, |size| size.max(64));
     let mut bs = ZfpBitStream::new(cap);
 
     let written = {

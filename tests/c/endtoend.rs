@@ -395,7 +395,9 @@ fn run_compress_decompress<T: ZfpScalar>(
             CompressionMode::Reversible => ZfpConfig::reversible(),
         };
 
-        let buf_size = config.maximum_size(T::scalar_type(), &n[..dims as usize]);
+        let buf_size = config
+            .maximum_size(T::scalar_type(), &n[..dims as usize])
+            .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
 
         // Compression field: pass the full backing array. For reversed layouts,
@@ -497,7 +499,9 @@ fn run_reversible<T: ZfpScalar + PartialEq + std::fmt::Debug>(
     let total_strided_len = strided.data.len();
 
     let config = ZfpConfig::reversible();
-    let buf_size = config.maximum_size(T::scalar_type(), &n[..dims as usize]);
+    let buf_size = config
+        .maximum_size(T::scalar_type(), &n[..dims as usize])
+        .expect("maximum size");
     let mut bs = ZfpBitStream::new(buf_size);
 
     let field = make_field(&strided.data, dims, n, strided.strides);
@@ -637,7 +641,9 @@ fn test_bitrate<T: ZfpScalar>(dims: u32, n: [usize; 4], src: &[T]) {
             ZfpDimensionality::try_from(dims).unwrap(),
             ZfpStreamAlignment::None,
         );
-        let buf_size = config.maximum_size(T::scalar_type(), &n[..dims as usize]);
+        let buf_size = config
+            .maximum_size(T::scalar_type(), &n[..dims as usize])
+            .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
         let field = make_field(src, dims, n, [0; 4]);
         let compressed_bytes = bs.compress(&config, &field).unwrap();
@@ -679,7 +685,9 @@ fn test_accuracy<T: ZfpScalar>(dims: u32, n: [usize; 4], strided: &StridedData<T
     for param_num in 0..3 {
         let tolerance = fixed_accuracy_param(param_num);
         let config = ZfpConfig::fixed_accuracy(tolerance);
-        let buf_size = config.maximum_size(T::scalar_type(), &n[..dims as usize]);
+        let buf_size = config
+            .maximum_size(T::scalar_type(), &n[..dims as usize])
+            .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
 
         let field = make_field(&strided.data, dims, n, strided.strides);

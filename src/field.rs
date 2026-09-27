@@ -897,7 +897,11 @@ mod tests {
         let data = [1.5f64; 64];
         let field = ZfpField::new(&data, [4usize, 4, 4]);
         let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(config.maximum_size(ZfpScalarType::Double, &[4, 4, 4]));
+        let mut bs = ZfpBitStream::new(
+            config
+                .maximum_size(ZfpScalarType::Double, &[4, 4, 4])
+                .unwrap(),
+        );
 
         let written = bs
             .compress(&config, &field)
