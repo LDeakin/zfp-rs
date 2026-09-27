@@ -6,10 +6,12 @@ members = [
     "zfp-benchmarks",
     "zfp-fuzz-common",
 ]
-# `fuzz/` is a cargo-fuzz crate with its own [workspace] table. It requires a
-# nightly toolchain and libFuzzer, so it must never be pulled into
-# `cargo build --workspace` or `cargo clippy --workspace --all-targets`.
-exclude = ["fuzz"]
+# Both have their own [workspace] table and must never be pulled into
+# `cargo build --workspace` or `cargo clippy --workspace --all-targets`:
+# `fuzz/` needs a nightly toolchain and libFuzzer, and `zfp-round-tests/` needs
+# a `zfp-sys` built with rounding enabled, which cargo would unify onto the
+# stock-zfp suites.
+exclude = ["fuzz", "zfp-round-tests"]
 
 [package]
 name = "zfp-rs"
