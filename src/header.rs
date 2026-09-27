@@ -17,6 +17,10 @@ pub struct ZfpHeader {
     /// Field metadata, present only when [`ZfpHeaderMask::META`] was read.
     pub metadata: Option<ZfpFieldMetadata>,
     /// Compression configuration, present only when [`ZfpHeaderMask::MODE`] was read.
+    ///
+    /// Rounding is not stored in the stream, so this always uses
+    /// [`ZfpRounding::Never`][crate::ZfpRounding::Never]. Apply the encoder's
+    /// rounding with [`ZfpConfig::with_rounding`] before decompressing.
     pub config: Option<ZfpConfig>,
 }
 

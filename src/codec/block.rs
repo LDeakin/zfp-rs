@@ -24,6 +24,7 @@
 //! the pointer accordingly.
 
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
+use crate::config::ZfpRounding;
 use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
 mod strided;
 
@@ -294,6 +295,10 @@ pub fn encode_block_reversible_f64(
 /// Reversible (lossless) decode of a contiguous 4^d block of `f32`;
 /// return bits read.
 ///
+/// As upstream, [`ZfpRounding::Last`] biases reversible coefficients too, so
+/// decoding is lossless only with [`ZfpRounding::Never`] or
+/// [`ZfpRounding::First`].
+///
 /// # Errors
 ///
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
@@ -302,6 +307,7 @@ pub fn decode_block_reversible_f32(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [f32],
     dims: ZfpDimensionality,
+    rounding: ZfpRounding,
 ) -> Result<usize, ZfpBlockError> {
     use crate::codec::decode::reversible::{
         decode_block_reversible_1d_f32, decode_block_reversible_2d_f32,
@@ -311,24 +317,30 @@ pub fn decode_block_reversible_f32(
         ZfpDimensionality::D1 => Ok(decode_block_reversible_1d_f32(
             bs,
             as_block_1d_mut::<f32>(data)?,
+            rounding,
         )),
         ZfpDimensionality::D2 => Ok(decode_block_reversible_2d_f32(
             bs,
             as_block_2d_mut::<f32>(data)?,
+            rounding,
         )),
         ZfpDimensionality::D3 => Ok(decode_block_reversible_3d_f32(
             bs,
             as_block_3d_mut::<f32>(data)?,
+            rounding,
         )),
         ZfpDimensionality::D4 => Ok(decode_block_reversible_4d_f32(
             bs,
             as_block_4d_mut::<f32>(data)?,
+            rounding,
         )),
     }
 }
 
 /// Reversible (lossless) decode of a contiguous 4^d block of `f64`;
 /// return bits read.
+///
+/// See [`decode_block_reversible_f32`] for how `rounding` affects losslessness.
 ///
 /// # Errors
 ///
@@ -338,6 +350,7 @@ pub fn decode_block_reversible_f64(
     bs: &mut dyn ZfpBitStreamOps,
     data: &mut [f64],
     dims: ZfpDimensionality,
+    rounding: ZfpRounding,
 ) -> Result<usize, ZfpBlockError> {
     use crate::codec::decode::reversible::{
         decode_block_reversible_1d_f64, decode_block_reversible_2d_f64,
@@ -347,18 +360,22 @@ pub fn decode_block_reversible_f64(
         ZfpDimensionality::D1 => Ok(decode_block_reversible_1d_f64(
             bs,
             as_block_1d_mut::<f64>(data)?,
+            rounding,
         )),
         ZfpDimensionality::D2 => Ok(decode_block_reversible_2d_f64(
             bs,
             as_block_2d_mut::<f64>(data)?,
+            rounding,
         )),
         ZfpDimensionality::D3 => Ok(decode_block_reversible_3d_f64(
             bs,
             as_block_3d_mut::<f64>(data)?,
+            rounding,
         )),
         ZfpDimensionality::D4 => Ok(decode_block_reversible_4d_f64(
             bs,
             as_block_4d_mut::<f64>(data)?,
+            rounding,
         )),
     }
 }

@@ -381,7 +381,7 @@ macro_rules! decode_block_tests_float {
                     let data = $make_special($block_size, special_bits);
                     let mut bs = encode_reversible_and_rewind(&data);
                     let mut out = vec![0 as $scalar; $block_size];
-                    $decode_rev(&mut bs, &mut out, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
+                    $decode_rev(&mut bs, &mut out, ZfpDimensionality::try_from($dims as u32).unwrap(), zfp_rs::ZfpRounding::Never).unwrap();
                     // bit-for-bit comparison via integer representation
                     for (i, (&orig, &decoded)) in data.iter().zip(out.iter()).enumerate() {
                         assert_eq!(

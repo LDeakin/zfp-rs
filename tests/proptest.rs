@@ -12,3 +12,5 @@ mod compress_compat;
 mod decompress_compat;
 #[path = "proptest/header_compat.rs"]
 mod header_compat;
+#[path = "proptest/rounding.rs"]
+mod rounding;

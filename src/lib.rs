@@ -30,6 +30,10 @@
 //! all dimensionalities (1-D through 4-D), and all compression modes,
 //! **when running on a little-endian platform**.
 //!
+//! This holds against a stock `libzfp` build, which is [`ZfpRounding::Never`].
+//! The other [`ZfpRounding`] variants match a `libzfp` built with the
+//! corresponding `ZFP_ROUNDING_MODE` / `ZFP_WITH_TIGHT_ERROR`.
+//!
 //! ## Quick start
 //!
 //! See the [CHANGELOG] for release notes.
@@ -87,7 +91,7 @@ pub mod types;
 pub use bitstream::{
     ZfpBitStream, ZfpBitStreamMutOps, ZfpBitStreamOps, ZfpBitStreamRef, ZfpBitStreamRefMut,
 };
-pub use config::{STREAM_WORD_BITS, STREAM_WORD_BYTES, ZfpConfig, ZfpStreamAlignment};
+pub use config::{STREAM_WORD_BITS, STREAM_WORD_BYTES, ZfpConfig, ZfpRounding, ZfpStreamAlignment};
 pub use execution::ZfpExecution;
 pub use field::{ZfpField, ZfpFieldMetadata, ZfpFieldMut};
 pub use header::{ZfpHeader, ZfpHeaderError};

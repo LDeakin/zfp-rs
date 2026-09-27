@@ -134,7 +134,7 @@ unsafe fn decompress_block(
                         unsafe {
                             if config.min_exp() < ZFP_MIN_EXP {
                                 decode_block_strided_reversible(
-                                    bs, block, dims, &info.strides, lengths,
+                                    bs, block, dims, &info.strides, lengths, config,
                                 );
                             } else if full {
                                 decode_block_strided(

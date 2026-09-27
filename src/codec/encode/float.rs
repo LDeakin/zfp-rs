@@ -36,7 +36,13 @@ fn encode_float_block<T: Transform32<N>, const N: usize>(
     #[allow(clippy::cast_possible_truncation)]
     let dims = N.trailing_zeros() / 2;
     let emax = exponent_block_f32(fblock);
-    let prec = precision_f(emax, config.max_prec(), config.min_exp(), dims);
+    let prec = precision_f(
+        emax,
+        config.max_prec(),
+        config.min_exp(),
+        dims,
+        config.rounding().tight_error(),
+    );
     let e = if prec != 0 {
         (emax + EBIAS_F32) as u32
     } else {
@@ -55,6 +61,7 @@ fn encode_float_block<T: Transform32<N>, const N: usize>(
                 minbits.saturating_sub(header_bits),
                 config.max_bits().saturating_sub(header_bits),
                 prec,
+                config.rounding(),
             )
     } else {
         bs.write_bit(0);
@@ -80,7 +87,13 @@ fn encode_double_block<T: Transform64<N>, const N: usize>(
     #[allow(clippy::cast_possible_truncation)]
     let dims = N.trailing_zeros() / 2;
     let emax = exponent_block_f64(fblock);
-    let prec = precision_f(emax, config.max_prec(), config.min_exp(), dims);
+    let prec = precision_f(
+        emax,
+        config.max_prec(),
+        config.min_exp(),
+        dims,
+        config.rounding().tight_error(),
+    );
     let e = if prec != 0 {
         (emax + EBIAS_F64) as u32
     } else {
@@ -99,6 +112,7 @@ fn encode_double_block<T: Transform64<N>, const N: usize>(
                 minbits.saturating_sub(header_bits),
                 config.max_bits().saturating_sub(header_bits),
                 prec,
+                config.rounding(),
             )
     } else {
         bs.write_bit(0);
