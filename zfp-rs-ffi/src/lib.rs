@@ -14,7 +14,7 @@
 //!
 //! The target API is `zfp-sys` version `0.1.15` as generated in this workspace.
 //! This includes `stream_*` functions except `stream_set_stride` (not enabled
-//! in `zfp-sys`), and excludes CFP APIs and `zfp_block_maximum_size`.
+//! in `zfp-sys`), and excludes CFP APIs.
 
 // Missing docs are suppressed during development. The FFI layer also
 // intentionally mirrors C/bindgen names and keeps unsafe pointer operations

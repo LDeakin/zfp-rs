@@ -312,6 +312,8 @@ void zfp_stream_params(const struct zfp_stream *stream,
 
 size_t zfp_stream_compressed_size(const struct zfp_stream *stream);
 
+size_t zfp_block_maximum_size(zfp_type ty, uint dims, zfp_bool reversible);
+
 size_t zfp_stream_maximum_size(const struct zfp_stream *stream, const struct zfp_field *field);
 
 size_t zfp_write_header(struct zfp_stream *stream, const struct zfp_field *field, uint mask);
