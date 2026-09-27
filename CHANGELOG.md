@@ -26,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reject undersized or misaligned field buffers.
 - Correct negative-stride buffer origins in `ZfpField::begin`, `ZfpFieldMut::begin`, and the C ABI.
-- Avoid a Rayon data race by decoding fields with aliasing strides serially.
+- Decode fields whose strides may alias serially under `ZfpExecution::Rayon`.
 - Fix undefined behaviour in strided gather/scatter by replacing per-block slices with raw pointers.
 - Handle out-of-range bitstream reads and seeks without panicking; reads yield zero.
 - Avoid arithmetic panics for extreme expert parameters; `ZfpConfig::maximum_size` returns zero on overflow.

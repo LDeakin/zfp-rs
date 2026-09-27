@@ -13,6 +13,10 @@ pub enum ZfpExecution {
     ///
     /// `threads` = number of threads (0 means use Rayon default).
     /// `chunk_size` = number of blocks per chunk (0 means one chunk per thread).
+    ///
+    /// Decompression runs serially instead for streams that are not fixed-rate,
+    /// and for fields whose strides may alias (where two blocks could write the
+    /// same element).
     Rayon { threads: u32, chunk_size: u32 },
 }
 
