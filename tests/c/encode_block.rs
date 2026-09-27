@@ -12,6 +12,7 @@
 #![allow(dead_code)] // Ported from upstream; not all modes/variants are exercised.
 #![cfg(feature = "ffi")]
 
+use zfp_rs::ZfpConfig;
 use zfp_rs::ZfpDimensionality;
 use zfp_rs::bitstream::ZfpBitStream;
 use zfp_rs::codec::block::{encode_block_reversible_f32, encode_block_reversible_f64};
@@ -166,6 +167,7 @@ macro_rules! encode_block_tests_int {
 
             // maxbits for fixed-rate mode: block_size * ZFP_RATE_PARAM_BITS
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn make_block() -> Vec<$scalar> {
                 let mut rng = $rng_new();
@@ -201,7 +203,7 @@ macro_rules! encode_block_tests_int {
                 let mut bs = ZfpBitStream::new(65536);
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
                 // minbits = maxbits for fixed-rate mode (matches C: zfp_stream_set_rate)
-                let bits_written = $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC);
+                let bits_written = $enc_fn(&mut bs, block, &CONFIG);
                 // do not flush — extra zero padding would inflate wtell
                 assert_eq!(bits_written, bs.bits_written());
             }
@@ -211,7 +213,7 @@ macro_rules! encode_block_tests_int {
                 let data = make_block();
                 let mut bs = ZfpBitStream::new(65536);
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
-                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC);
+                $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
                 let (key1, key2) = compute_key(
@@ -256,6 +258,7 @@ macro_rules! encode_block_tests_float {
             use super::*;
 
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn make_block() -> Vec<$scalar> {
                 let mut rng = $rng_new();
@@ -291,7 +294,7 @@ macro_rules! encode_block_tests_float {
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
                 // minbits = maxbits for fixed-rate mode (matches C: zfp_stream_set_rate)
                 let bits_written =
-                    $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                    $enc_fn(&mut bs, block, &CONFIG);
                 assert_eq!(bits_written, bs.bits_written());
             }
 
@@ -300,7 +303,7 @@ macro_rules! encode_block_tests_float {
                 let data = make_block();
                 let mut bs = ZfpBitStream::new(65536);
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
-                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
                 let (key1, key2) = compute_key(

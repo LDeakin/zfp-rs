@@ -668,8 +668,7 @@ macro_rules! strided_encode_wrappers {
         full_rate: $full_rate:ident,
         partial_rate: $partial_rate:ident,
         encode: $encode:ident,
-        encode_default: $encode_default:ident,
-        rate_params: [$($p:ident: $pty:ty),+] $(,)?
+        encode_default: $encode_default:ident $(,)?
     ) => {
         /// Encode a strided block; return bits written.
         ///
@@ -711,10 +710,10 @@ macro_rules! strided_encode_wrappers {
             bs: &mut dyn ZfpBitStreamMutOps,
             data: *const $ty,
             $($s: isize,)+
-            $($p: $pty,)+
+            config: &$crate::config::ZfpConfig,
         ) -> usize {
             let block = unsafe { $gather(data, $($s),+) };
-            $encode(bs, &block, $($p),+)
+            $encode(bs, &block, config)
         }
 
         /// Encode a partial strided block with explicit stream parameters.
@@ -727,10 +726,10 @@ macro_rules! strided_encode_wrappers {
             data: *const $ty,
             $($n: usize,)+
             $($s: isize,)+
-            $($p: $pty,)+
+            config: &$crate::config::ZfpConfig,
         ) -> usize {
             let block = unsafe { $gather_partial(data, $($n,)+ $($s),+) };
-            $encode(bs, &block, $($p),+)
+            $encode(bs, &block, config)
         }
     };
 }

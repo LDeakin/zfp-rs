@@ -12,6 +12,7 @@
 #![allow(dead_code)] // Ported from upstream; not all modes/variants are exercised.
 #![cfg(feature = "ffi")]
 
+use zfp_rs::ZfpConfig;
 use zfp_rs::ZfpDimensionality;
 use zfp_rs::bitstream::ZfpBitStream;
 use zfp_rs::codec::block::{decode_block, encode_block};
@@ -171,6 +172,7 @@ macro_rules! decode_block_tests {
             use super::*;
 
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn dim_lens() -> [usize; 4] {
                 let mut n = [0usize; 4];
@@ -196,7 +198,7 @@ macro_rules! decode_block_tests {
             fn encode_rate_and_rewind(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(65536);
                 let block: &[$scalar; $block_size] = data[..].try_into().unwrap();
-                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC);
+                $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
                 bs.rewind();
                 bs
@@ -230,7 +232,7 @@ macro_rules! decode_block_tests {
             fn given_block_when_decode_block_expect_array_checksum_matches() {
                 let data = make_block();
                 let mut bs = encode_rate_and_rewind(&data);
-                let decoded = $dec_fn(&mut bs, MAXBITS, MAXBITS, ZFP_MAX_PREC);
+                let decoded = $dec_fn(&mut bs, &CONFIG);
                 let words: Vec<$cast> = unsafe {
                     std::slice::from_raw_parts(decoded.as_ptr().cast::<$cast>(), $block_size)
                         .to_vec()
@@ -280,6 +282,7 @@ macro_rules! decode_block_tests_float {
             use zfp_rs::codec::block::{$decode_rev, $encode_rev};
 
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
+            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
 
             fn dim_lens() -> [usize; 4] {
                 let mut n = [0usize; 4];
@@ -305,7 +308,7 @@ macro_rules! decode_block_tests_float {
             fn encode_rate_and_rewind(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(65536);
                 let block: &[$scalar; $block_size] = data[..].try_into().unwrap();
-                $enc_fn(&mut bs, block, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
                 bs.rewind();
                 bs
@@ -351,7 +354,7 @@ macro_rules! decode_block_tests_float {
             fn given_block_when_decode_block_expect_array_checksum_matches() {
                 let data = make_block();
                 let mut bs = encode_rate_and_rewind(&data);
-                let decoded = $dec_fn(&mut bs, MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+                let decoded = $dec_fn(&mut bs, &CONFIG);
                 let words: Vec<$cast> = unsafe {
                     std::slice::from_raw_parts(decoded.as_ptr().cast::<$cast>(), $block_size)
                         .to_vec()

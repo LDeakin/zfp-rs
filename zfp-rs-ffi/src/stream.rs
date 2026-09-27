@@ -36,18 +36,12 @@ fn stream_with_c_state(stream: &zfp_stream) -> ZfpConfig {
 
 pub(crate) unsafe fn stream_params(
     stream: *const zfp_stream,
-) -> Option<(u32, u32, u32, i32, *mut bitstream)> {
+) -> Option<(ZfpConfig, *mut bitstream)> {
     if stream.is_null() {
         return None;
     }
     let stream = unsafe { &*stream };
-    Some((
-        stream.minbits,
-        stream.maxbits,
-        stream.maxprec,
-        stream.minexp,
-        stream.stream,
-    ))
+    Some((stream_with_c_state(stream), stream.stream))
 }
 
 fn header_mask(mask: uint) -> ZfpHeaderMask {

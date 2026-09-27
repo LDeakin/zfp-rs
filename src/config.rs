@@ -365,13 +365,32 @@ impl ZfpConfig {
 
     /// Expert mode with explicit parameters.
     #[must_use]
-    pub fn expert(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> Self {
+    pub const fn expert(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> Self {
         Self {
             min_bits,
             max_bits,
             max_prec,
             min_exp,
         }
+    }
+
+    /// Block-codec defaults when the caller passes no stream config: no rate
+    /// constraint and full precision, down to the type's smallest exponent.
+    pub(crate) const fn block_default(ty: ZfpScalarType, dims: ZfpDimensionality) -> Self {
+        let values = match dims {
+            ZfpDimensionality::D1 => 4,
+            ZfpDimensionality::D2 => 16,
+            ZfpDimensionality::D3 => 64,
+            ZfpDimensionality::D4 => 256,
+        };
+        // max_bits exceeds every value at full precision, plus the float exponent.
+        let (max_bits, max_prec, min_exp) = match ty {
+            ZfpScalarType::Int32 => (32 * values + 1, 32, ZFP_MIN_EXP),
+            ZfpScalarType::Int64 => (64 * values + 1, 64, ZFP_MIN_EXP),
+            ZfpScalarType::Float => ((8 + 1) + 32 * values, 32, -149),
+            ZfpScalarType::Double => ((11 + 1) + 64 * values, 64, -1074),
+        };
+        Self::expert(0, max_bits, max_prec, min_exp)
     }
 
     /// Default expert-mode config with all parameters at their maximum range.

@@ -7,6 +7,7 @@
 
 use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::encode::core::{PERM_1, PERM_2, PERM_3, PERM_4, precision_f, with_maxbits};
+use crate::config::ZfpConfig;
 use crate::types::ZfpDimensionality;
 
 // ---------------------------------------------------------------------------
@@ -683,21 +684,19 @@ pub(crate) fn inv_cast_f64(iblock: &[i64], fblock: &mut [f64], emax: i32) {
 /// Returns (decoded values, bits read).
 pub(crate) fn decode_float_block<const N: usize>(
     bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
+    config: &ZfpConfig,
     dims: ZfpDimensionality,
 ) -> ([f32; N], usize) {
     const EBITS: u32 = 8;
     const EBIAS: i32 = 127;
+    let (minbits, maxbits) = (config.min_bits(), config.max_bits());
     let mut fblock = [0f32; N];
     let mut bits: u32 = 1;
     if bs.read_bit() != 0 {
         // block has nonzero values
         bits += EBITS;
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
-        let prec = precision_f(emax, maxprec, minexp, u32::from(dims));
+        let prec = precision_f(emax, config.max_prec(), config.min_exp(), u32::from(dims));
         let remaining_min = minbits.saturating_sub(bits);
         let remaining_max = maxbits.saturating_sub(bits);
         let iblock_bits = match dims {
@@ -734,20 +733,18 @@ pub(crate) fn decode_float_block<const N: usize>(
 /// Decode a double block: read exponent, then integer block, then `inv_cast`.
 pub(crate) fn decode_double_block<const N: usize>(
     bs: &mut dyn ZfpBitStreamOps,
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    minexp: i32,
+    config: &ZfpConfig,
     dims: ZfpDimensionality,
 ) -> ([f64; N], usize) {
     const EBITS: u32 = 11;
     const EBIAS: i32 = 1023;
+    let (minbits, maxbits) = (config.min_bits(), config.max_bits());
     let mut fblock = [0f64; N];
     let mut bits: u32 = 1;
     if bs.read_bit() != 0 {
         bits += EBITS;
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
-        let prec = precision_f(emax, maxprec, minexp, u32::from(dims));
+        let prec = precision_f(emax, config.max_prec(), config.min_exp(), u32::from(dims));
         let remaining_min = minbits.saturating_sub(bits);
         let remaining_max = maxbits.saturating_sub(bits);
         match dims {
@@ -798,8 +795,7 @@ macro_rules! strided_decode_wrappers {
         full_rate: $full_rate:ident,
         partial_rate: $partial_rate:ident,
         decode: $decode:ident,
-        defaults: [$($d:expr),+],
-        rate_params: [$($p:ident: $pty:ty),+] $(,)?
+        default: $default:expr $(,)?
     ) => {
         /// Decode a strided block; return bits read.
         ///
@@ -813,7 +809,7 @@ macro_rules! strided_decode_wrappers {
             $($s: isize,)+
         ) -> usize {
             let before = bs.read_pos();
-            let block = $decode(bs, $($d),+);
+            let block = $decode(bs, &$default);
             unsafe { $scatter(&block, data, $($s),+) };
             (bs.read_pos() - before) as usize
         }
@@ -831,7 +827,7 @@ macro_rules! strided_decode_wrappers {
             $($s: isize,)+
         ) -> usize {
             let before = bs.read_pos();
-            let block = $decode(bs, $($d),+);
+            let block = $decode(bs, &$default);
             unsafe { $scatter_partial(&block, data, $($n,)+ $($s),+) };
             (bs.read_pos() - before) as usize
         }
@@ -845,10 +841,10 @@ macro_rules! strided_decode_wrappers {
             bs: &mut dyn ZfpBitStreamOps,
             data: *mut $ty,
             $($s: isize,)+
-            $($p: $pty,)+
+            config: &$crate::config::ZfpConfig,
         ) -> usize {
             let before = bs.read_pos();
-            let block = $decode(bs, $($p),+);
+            let block = $decode(bs, config);
             unsafe { $scatter(&block, data, $($s),+) };
             (bs.read_pos() - before) as usize
         }
@@ -863,10 +859,10 @@ macro_rules! strided_decode_wrappers {
             data: *mut $ty,
             $($n: usize,)+
             $($s: isize,)+
-            $($p: $pty,)+
+            config: &$crate::config::ZfpConfig,
         ) -> usize {
             let before = bs.read_pos();
-            let block = $decode(bs, $($p),+);
+            let block = $decode(bs, config);
             unsafe { $scatter_partial(&block, data, $($n,)+ $($s),+) };
             (bs.read_pos() - before) as usize
         }
