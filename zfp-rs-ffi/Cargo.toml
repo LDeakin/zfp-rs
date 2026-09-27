@@ -18,6 +18,8 @@ crate-type = ["rlib", "staticlib"]
 [features]
 default = []
 rayon = ["dep:rayon", "zfp-rs/rayon"]
+# Matches zfp-sys: ZFP_ROUNDING_MODE=ZFP_ROUND_FIRST with ZFP_WITH_TIGHT_ERROR.
+round-tight-error = []
 
 [dependencies]
 zfp-rs = { workspace = true, features = ["ffi"] }

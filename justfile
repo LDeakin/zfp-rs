@@ -22,6 +22,7 @@ test:
 # Cross-validate the rounding modes against C (own workspace; needs cmake)
 test_rounding:
 	cargo test --manifest-path zfp-round-tests/Cargo.toml
+	cargo test -p zfp-rs-ffi --features round-tight-error
 
 # Lint the rounding test crate (it is outside the workspace, so `just clippy` misses it)
 round_clippy:

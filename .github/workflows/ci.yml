@@ -45,6 +45,7 @@ jobs:
       # its own to reach the `not(feature = "ffi")` arms.
       - run: cargo clippy -p zfp-rs --all-targets -- -D warnings
       - run: cargo clippy -p zfp-rs --features rayon --all-targets -- -D warnings
+      - run: cargo clippy -p zfp-rs-ffi --features round-tight-error --all-targets -- -D warnings
       # Outside the workspace, so `--workspace` above misses it.
       - run: cargo clippy --manifest-path zfp-round-tests/Cargo.toml --all-targets -- -D warnings
 
@@ -90,6 +91,8 @@ jobs:
       # Its own workspace: zfp-sys feature unification would otherwise build a
       # rounding C zfp for the stock-zfp targets too.
       - run: cargo test --manifest-path zfp-round-tests/Cargo.toml
+      # zfp-rs-ffi builds its own reference zfp with matching CMake defines.
+      - run: cargo test -p zfp-rs-ffi --features round-tight-error
 
   fuzz:
     name: Fuzz (smoke)

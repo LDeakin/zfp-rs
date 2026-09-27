@@ -12,6 +12,7 @@ mod zfp_sys {
     use std::path::{Path, PathBuf};
     use std::process::Command;
     use std::sync::OnceLock;
+    use zfp_rs::ZfpRounding;
 
     pub type bitstream = c_void;
     pub type zfp_field = ffi::zfp_field;
@@ -315,10 +316,30 @@ mod zfp_sys {
         std::str::from_utf8(name.strip_suffix(b"\0").unwrap_or(name)).unwrap_or("<invalid utf8>")
     }
 
+    /// The CMake rounding defines matching `FFI_ROUNDING`, and a suffix that
+    /// keeps each configuration in its own build directory.
+    fn rounding_defines() -> (Vec<String>, String) {
+        let (mode, tight_error) = match ffi::FFI_ROUNDING {
+            ZfpRounding::Never => return (Vec::new(), String::new()),
+            ZfpRounding::First { tight_error } => ("FIRST", tight_error),
+            ZfpRounding::Last { tight_error } => ("LAST", tight_error),
+        };
+        let mut defines = vec![format!("-DZFP_ROUNDING_MODE=ZFP_ROUND_{mode}")];
+        let mut suffix = format!("-{}", mode.to_lowercase());
+        if tight_error {
+            defines.push("-DZFP_WITH_TIGHT_ERROR=ON".to_string());
+            suffix.push_str("-tight");
+        }
+        (defines, suffix)
+    }
+
     fn build_shared_zfp() -> PathBuf {
         let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
         let workspace = manifest_dir.parent().expect("workspace root");
-        let build_dir = workspace.join("target").join("zfp-rs-ffi-c-ref-shared");
+        let (defines, suffix) = rounding_defines();
+        let build_dir = workspace
+            .join("target")
+            .join(format!("zfp-rs-ffi-c-ref-shared{suffix}"));
         run(
             Command::new("cmake")
                 .arg("-S")
@@ -329,7 +350,8 @@ mod zfp_sys {
                 .arg("-DBUILD_TESTING=OFF")
                 .arg("-DBUILD_UTILITIES=OFF")
                 .arg("-DBUILD_EXAMPLES=OFF")
-                .arg("-DZFP_WITH_OPENMP=OFF"),
+                .arg("-DZFP_WITH_OPENMP=OFF")
+                .args(&defines),
             "configuring shared upstream zfp",
         );
         run(
