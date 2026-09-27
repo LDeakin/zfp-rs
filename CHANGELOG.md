@@ -50,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Not encoded in the stream: compression and decompression must be given the same value, and `ZfpHeader::config` always has `ZfpRounding::Never`
   - Defaults to `ZfpRounding::Never`, which is what every existing stream and the reference `libzfp` build use
   - Under `ZfpRounding::Last`, reversible decode is no longer lossless, matching C: upstream's `revdecode.c` shares `decode_ints` with the lossy path, so `inv_round` biases reversible coefficients too
+- `zfp-rs-ffi`: `round-tight-error` feature, matching `zfp-sys`
+  - The C `zfp_stream` has no rounding field, so the C ABI layer fixes it at build time as C does
+  - `FFI_ROUNDING` exposes the selected `ZfpRounding`
 - `zfp-rs-ffi`: `zfp_block_maximum_size`, new in the zfp version `zfp-sys` 0.4 bundles
 - `ZfpScalarType::align`, the alignment a buffer passed to `ZfpField::from_raw` must satisfy
 - `ZfpScalarType::is_aligned`, checking a buffer pointer against `align`

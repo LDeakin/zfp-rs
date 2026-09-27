@@ -38,6 +38,9 @@ The `zfp-rs-ffi` crate provides a C-compatible ABI mirroring [`zfp-sys`](https:/
 zfp-sys = { package = "zfp-rs-ffi", version = "0.1" }
 ```
 
+The C `zfp_stream` has no rounding field, so `zfp-rs-ffi` fixes it at build time as C does, via the
+`round-tight-error` feature, matching `zfp-sys`.
+
 ## Acknowledgement
 
 This implementation is based on [zfp](https://github.com/LLNL/zfp).
