@@ -16,7 +16,7 @@ exclude = ["fuzz", "zfp-round-tests"]
 [package]
 name = "zfp-rs"
 authors = ["Lachlan Deakin <ljdgit@gmail.com>"]
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 description = "A pure-Rust implementation of the ZFP compression algorithm"
 license = "MIT OR Apache-2.0"
@@ -65,5 +65,5 @@ name = "proptest_internals"
 required-features = ["internals"]
 
 [workspace.dependencies.zfp-rs]
-version = "0.1.1"
+version = "0.2.0"
 path = "."

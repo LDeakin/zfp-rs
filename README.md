@@ -35,7 +35,7 @@ The `zfp-rs-ffi` crate provides a C-compatible ABI mirroring [`zfp-sys`](https:/
 `zfp-rs-ffi` can be used as a drop-in replacement for the `zfp-sys` in Rust projects:
 
 ```toml
-zfp-sys = { package = "zfp-rs-ffi", version = "0.1" }
+zfp-sys = { package = "zfp-rs-ffi", version = "0.2" }
 ```
 
 The C `zfp_stream` has no rounding field, so `zfp-rs-ffi` fixes it at build time as C does, via the
