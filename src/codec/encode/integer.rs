@@ -3,12 +3,14 @@
 //! Reference: `zfp/src/template/encodei.c`, `encode.c`
 
 use crate::bitstream::ZfpBitStreamMutOps;
-use crate::codec::encode::core::{encode_ints_u32, encode_ints_u64, fwd_order_i32, fwd_order_i64};
+use crate::codec::encode::core::{
+    encode_ints_u32, encode_ints_u64, fwd_order_i32, fwd_order_i64, fwd_round_i32, fwd_round_i64,
+};
 use crate::codec::transform::{
     fwd_xform_1d, fwd_xform_1d_i64, fwd_xform_2d, fwd_xform_2d_i64, fwd_xform_3d, fwd_xform_3d_i64,
     fwd_xform_4d, fwd_xform_4d_i64,
 };
-use crate::config::ZfpConfig;
+use crate::config::{ZfpConfig, ZfpRounding};
 
 // ---------------------------------------------------------------------------
 // Transform trait: selects dimension-specific transform + permutation
@@ -128,9 +130,13 @@ pub(crate) fn encode_int_block_32<T: Transform32<N>, const N: usize>(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
     let mut block = *iblock;
     T::transform(&mut block);
+    if matches!(rounding, ZfpRounding::First { .. }) {
+        fwd_round_i32(&mut block, maxprec);
+    }
     let mut ublock = [0u32; N];
     #[allow(clippy::cast_sign_loss)] // i32→u32 for negabinary encoding
     fwd_order_i32(&mut ublock, &block, T::perm());
@@ -151,9 +157,13 @@ pub(crate) fn encode_int_block_64<T: Transform64<N>, const N: usize>(
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
+    rounding: ZfpRounding,
 ) -> usize {
     let mut block = *iblock;
     T::transform(&mut block);
+    if matches!(rounding, ZfpRounding::First { .. }) {
+        fwd_round_i64(&mut block, maxprec);
+    }
     let mut ublock = [0u64; N];
     fwd_order_i64(&mut ublock, &block, T::perm());
     let bits = encode_ints_u64(bs, maxbits, maxprec, &ublock);
@@ -184,6 +194,7 @@ pub fn encode_block_1d_i32(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }
 
@@ -199,6 +210,7 @@ pub fn encode_block_1d_i64(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }
 
@@ -214,6 +226,7 @@ pub fn encode_block_2d_i32(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }
 
@@ -229,6 +242,7 @@ pub fn encode_block_2d_i64(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }
 
@@ -244,6 +258,7 @@ pub fn encode_block_3d_i32(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }
 
@@ -259,6 +274,7 @@ pub fn encode_block_3d_i64(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }
 
@@ -274,6 +290,7 @@ pub fn encode_block_4d_i32(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }
 
@@ -289,5 +306,6 @@ pub fn encode_block_4d_i64(
         config.min_bits(),
         config.max_bits(),
         config.max_prec(),
+        config.rounding(),
     )
 }

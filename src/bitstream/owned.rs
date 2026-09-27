@@ -260,7 +260,8 @@ impl ZfpBitStream {
     ///
     /// The returned header contains metadata only when `mask` includes
     /// [`ZfpHeaderMask::META`], and a compression config only when `mask`
-    /// includes [`ZfpHeaderMask::MODE`].
+    /// includes [`ZfpHeaderMask::MODE`]. That config never carries the
+    /// encoder's rounding; see [`ZfpHeader::config`][crate::header::ZfpHeader::config].
     ///
     /// # Errors
     ///
