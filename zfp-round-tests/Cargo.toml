@@ -1,0 +1,19 @@
+[package]
+name = "zfp-round-tests"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Deliberately NOT part of the root workspace. It needs a `zfp-sys` built with
+# ZFP_ROUNDING_MODE=ZFP_ROUND_FIRST and ZFP_WITH_TIGHT_ERROR=ON, and cargo
+# unifies features across an invocation, so sharing a workspace with the
+# stock-zfp suites would rebuild the C library under them too. The root
+# manifest also lists `zfp-round-tests` under `workspace.exclude`.
+[workspace]
+members = ["."]
+
+[dev-dependencies]
+libm = "0.2"
+proptest = "1"
+zfp-rs = { path = ".." }
+zfp-sys = { version = "0.4", features = ["round-tight-error"] }
