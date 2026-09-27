@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/LDeakin/zfp-rs/compare/v0.1.1...HEAD)
 
+### Added
+- `ZfpRounding`, selecting zfp's `ZFP_ROUNDING_MODE` and `ZFP_WITH_TIGHT_ERROR` at runtime
+  - C zfp fixes both at build time. Here they are per-call, via `ZfpConfig::with_rounding`, so one binary can read streams from any build
+  - Not encoded in the stream: compression and decompression must be given the same value, and `ZfpHeader::config` always has `ZfpRounding::Never`
+  - Defaults to `ZfpRounding::Never`, which is what every existing stream and the reference `libzfp` build use
+  - Under `ZfpRounding::Last`, reversible decode is no longer lossless, matching C: upstream's `revdecode.c` shares `decode_ints` with the lossy path, so `inv_round` biases reversible coefficients too
+- `zfp-rs-ffi`: `round-tight-error` feature, matching `zfp-sys`
+  - The C `zfp_stream` has no rounding field, so the C ABI layer fixes it at build time as C does
+  - `FFI_ROUNDING` exposes the selected `ZfpRounding`
+- `zfp-rs-ffi`: `zfp_block_maximum_size`, new in the zfp version `zfp-sys` 0.4 bundles
+- `ZfpScalarType::align`, the alignment a buffer passed to `ZfpField::from_raw` must satisfy
+- `ZfpScalarType::is_aligned`, checking a buffer pointer against `align`
+- Fuzz targets (`cargo fuzz`) with a stable-toolchain crash-replay harness
+- A Miri regression suite for the strided codec, run in CI under `-Zmiri-strict-provenance`
+
 ### Changed
 - **Breaking**: Add `InvalidField` variant to `ZfpCompressionError` and mark `#[non_exhaustive]`
 - **Breaking**: The `codec::block::*_strided*` entry points are now `unsafe`
@@ -43,21 +58,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The `*_strided*` entry points now take `*const T`/`*mut T`, derived from the whole field buffer so their provenance covers every offset the strides generate
 - Validate `ZfpField` data alignment in `FieldPlan::new`, reported as the new `MisalignedData` error variant
   - The required alignment is `ZfpScalarType::align`, the target alignment of the Rust type, rather than its size: 64-bit scalars are 4-byte aligned on some 32-bit targets
-
-### Added
-- `ZfpRounding`, selecting zfp's `ZFP_ROUNDING_MODE` and `ZFP_WITH_TIGHT_ERROR` at runtime
-  - C zfp fixes both at build time. Here they are per-call, via `ZfpConfig::with_rounding`, so one binary can read streams from any build
-  - Not encoded in the stream: compression and decompression must be given the same value, and `ZfpHeader::config` always has `ZfpRounding::Never`
-  - Defaults to `ZfpRounding::Never`, which is what every existing stream and the reference `libzfp` build use
-  - Under `ZfpRounding::Last`, reversible decode is no longer lossless, matching C: upstream's `revdecode.c` shares `decode_ints` with the lossy path, so `inv_round` biases reversible coefficients too
-- `zfp-rs-ffi`: `round-tight-error` feature, matching `zfp-sys`
-  - The C `zfp_stream` has no rounding field, so the C ABI layer fixes it at build time as C does
-  - `FFI_ROUNDING` exposes the selected `ZfpRounding`
-- `zfp-rs-ffi`: `zfp_block_maximum_size`, new in the zfp version `zfp-sys` 0.4 bundles
-- `ZfpScalarType::align`, the alignment a buffer passed to `ZfpField::from_raw` must satisfy
-- `ZfpScalarType::is_aligned`, checking a buffer pointer against `align`
-- Fuzz targets (`cargo fuzz`) with a stable-toolchain crash-replay harness
-- A Miri regression suite for the strided codec, run in CI under `-Zmiri-strict-provenance`
 
 ## [0.1.1](https://github.com/LDeakin/zfp-rs/releases/tag/v0.1.1) - 2026-05-21
 
