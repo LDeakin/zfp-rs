@@ -6,7 +6,9 @@
 #![allow(clippy::cast_precision_loss)] // i32→f32 and i64→f64 for reconstruction (intentional loss)
 
 use crate::bitstream::ZfpBitStreamOps;
-use crate::codec::encode::core::{PERM_1, PERM_2, PERM_3, PERM_4, precision_f, with_maxbits};
+use crate::codec::encode::core::{
+    NBMASK_U32, NBMASK_U64, PERM_1, PERM_2, PERM_3, PERM_4, precision_f, with_maxbits,
+};
 use crate::config::ZfpConfig;
 use crate::types::ZfpDimensionality;
 
@@ -19,15 +21,13 @@ use crate::types::ZfpDimensionality;
 /// Formula: `(x ^ NBMASK).wrapping_sub(NBMASK) as i32`
 #[inline]
 pub(crate) fn uint2int_u32(x: u32) -> i32 {
-    const NBMASK: u32 = 0xaaaa_aaaa_u32;
-    (x ^ NBMASK).wrapping_sub(NBMASK).cast_signed()
+    (x ^ NBMASK_U32).wrapping_sub(NBMASK_U32).cast_signed()
 }
 
 /// Map negabinary `u64` → two's-complement `i64`.
 #[inline]
 pub(crate) fn uint2int_u64(x: u64) -> i64 {
-    const NBMASK: u64 = 0xaaaa_aaaa_aaaa_aaaa;
-    (x ^ NBMASK).wrapping_sub(NBMASK).cast_signed()
+    (x ^ NBMASK_U64).wrapping_sub(NBMASK_U64).cast_signed()
 }
 
 // ---------------------------------------------------------------------------
