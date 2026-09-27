@@ -274,6 +274,25 @@ fn given_zfp_stream_when_set_params_with_invalid_params_expect_returns_false() {
 }
 
 #[test]
+fn given_valid_params_when_try_expert_expect_expert_config() {
+    let config = ZfpConfig::try_expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP);
+    assert_eq!(
+        config,
+        Some(ZfpConfig::expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP))
+    );
+}
+
+#[test]
+fn given_invalid_params_when_try_expert_expect_none() {
+    assert_eq!(
+        ZfpConfig::try_expert(MAX_BITS + 1, MAX_BITS, MAX_PREC, MIN_EXP),
+        None
+    );
+    assert_eq!(ZfpConfig::try_expert(MIN_BITS, MAX_BITS, 0, MIN_EXP), None);
+    assert_eq!(ZfpConfig::try_expert(MIN_BITS, MAX_BITS, 65, MIN_EXP), None);
+}
+
+#[test]
 fn given_zfp_stream_when_zfp_stream_rate_expect_rate_returned() {
     for zfp_type in [
         ZfpScalarType::Int32,

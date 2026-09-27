@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased](https://github.com/LDeakin/zfp-rs/compare/v0.2.0...HEAD)
 
+### Added
+
+- `ZfpConfig::try_expert`, which rejects invalid expert-mode parameters.
+
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28
 
 ### Added

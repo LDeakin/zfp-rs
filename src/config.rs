@@ -45,7 +45,7 @@ pub enum ZfpStreamAlignment {
 
 /// Validate expert-mode parameters.
 #[expect(unused_variables)]
-fn valid_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> bool {
+const fn valid_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> bool {
     min_bits <= max_bits && (0 < max_prec && max_prec <= 64)
 }
 
@@ -414,6 +414,10 @@ impl ZfpConfig {
     }
 
     /// Expert mode with explicit parameters.
+    ///
+    /// The parameters are not validated, so an invalid combination yields a config whose
+    /// [`compression_mode`][Self::compression_mode] is [`ZfpMode::Null`]. Use [`try_expert`][Self::try_expert] to
+    /// reject invalid parameters.
     #[must_use]
     pub const fn expert(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> Self {
         Self {
@@ -422,6 +426,24 @@ impl ZfpConfig {
             max_prec,
             min_exp,
             rounding: ZfpRounding::Never,
+        }
+    }
+
+    /// Expert mode with validated parameters.
+    ///
+    /// Returns [`None`] if `min_bits > max_bits` or `max_prec` is not in `1..=64`,
+    /// mirroring the failure case of C `zfp_stream_set_params`.
+    #[must_use]
+    pub const fn try_expert(
+        min_bits: u32,
+        max_bits: u32,
+        max_prec: u32,
+        min_exp: i32,
+    ) -> Option<Self> {
+        if valid_params(min_bits, max_bits, max_prec, min_exp) {
+            Some(Self::expert(min_bits, max_bits, max_prec, min_exp))
+        } else {
+            None
         }
     }
 
