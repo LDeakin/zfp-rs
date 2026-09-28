@@ -1,46 +1,52 @@
 use crate::bitstream::core::{
-    BitStreamStorage, WSIZE, align_impl, as_committed_bytes, backing_bytes, flush_impl, pad_impl,
-    read_bit_impl, read_bits_impl, read_pos_impl, read_word_impl, rewind_impl, seek_read_impl,
-    seek_write_impl, skip_impl, write_bit_impl, write_bits_impl, write_pos_impl, write_word_impl,
+    BitStreamStorage, BitStreamStorageMut, WSIZE, align_impl, backing_bytes, committed_words,
+    flush_impl, pad_impl, read_bits_impl, read_pos_impl, read_word_impl, rewind_impl,
+    seek_read_impl, seek_write_impl, skip_impl, write_bits_impl, write_pos_impl, write_word_impl,
 };
 use crate::bitstream::{ZfpBitStream, ZfpBitStreamRef, ZfpBitStreamRefMut};
 use crate::config::{STREAM_WORD_BYTES, ZfpConfig};
 use crate::field::{ZfpField, ZfpFieldMetadata, ZfpFieldMut};
 use crate::types::{ZfpBitStreamWord, ZfpHeaderMask};
 
-/// Common read/cursor/inspection operations for ZFP bitstreams.
-pub trait ZfpBitStreamOps {
+/// Read, cursor and inspection operations shared by every ZFP bitstream.
+///
+/// A stream has a single bit cursor used for both reading and writing, as in
+/// the C `bitstream`. Bit offsets are `u64`, counted from the start of the
+/// buffer.
+///
+/// This trait is sealed: it is implemented by [`ZfpBitStream`],
+/// [`ZfpBitStreamRef`] and [`ZfpBitStreamRefMut`], whose methods are also
+/// inherent, so it only needs importing to write code generic over streams.
+pub trait ZfpBitStreamOps: BitStreamStorage {
     /// Read one full 64-bit word.
     fn read_word(&mut self) -> u64;
-    /// Read `n` bits (0 <= n <= 64) from the stream, LSB first.
+    /// Read `n` bits (`n <= 64`), least significant first.
     fn read_bits(&mut self, n: u32) -> u64;
-    /// Read a single bit (0 or 1).
-    fn read_bit(&mut self) -> u32;
-    /// Rewind the stream to the beginning (bit position 0).
+    /// Read a single bit.
+    fn read_bit(&mut self) -> bool;
+    /// Move the cursor to the start of the stream.
     fn rewind(&mut self);
-    /// Position the stream for reading at `offset` bits from the beginning.
+    /// Position the stream for reading at `offset` bits from the start.
     fn seek_read(&mut self, offset: u64);
-    /// Return the current read bit offset (`stream_rtell`).
+    /// Return the current read offset in bits (`stream_rtell`).
     fn read_pos(&self) -> u64;
-    /// Return the current write bit offset (`stream_wtell`).
+    /// Return the current write offset in bits (`stream_wtell`).
     fn write_pos(&self) -> u64;
-    /// Return the backing word buffer (for parallel decompression access).
-    fn words(&self) -> &[ZfpBitStreamWord];
-    /// Skip `n` bits forward in the read cursor.
-    fn skip(&mut self, n: usize);
-    /// Discard buffered read bits and align to the next word boundary.
+    /// Skip `n` bits forward.
+    fn skip(&mut self, n: u64);
+    /// Discard buffered read bits up to the next word boundary; return the
+    /// number of bits skipped.
     fn align(&mut self) -> u32;
-    /// Total number of bits written so far, matching `stream_wtell`.
-    fn bits_written(&self) -> usize;
-    /// Index of the next word to be read/written.
-    fn word_pos(&self) -> usize;
-    /// Byte capacity of the stream (`stream_capacity`).
+    /// Size of the backing buffer in bytes (`stream_capacity`).
     fn capacity(&self) -> usize;
-    /// Committed byte size (`size` = `word_pos * word_bytes`).
-    fn size(&self) -> usize;
-    /// Return the committed bytes as a byte slice.
+    /// The words before the cursor.
+    fn as_words(&self) -> &[ZfpBitStreamWord];
+    /// The bytes before the cursor: after [`compress`][ZfpBitStreamMutOps::compress],
+    /// the whole compressed stream.
     fn as_bytes(&self) -> &[u8];
-    /// Return the complete backing buffer as a byte slice.
+    /// The whole backing buffer, as words.
+    fn backing_words(&self) -> &[ZfpBitStreamWord];
+    /// The whole backing buffer, as bytes.
     fn backing_bytes(&self) -> &[u8];
     /// Whether a write has fallen past the end of the buffer since the stream
     /// was created, rewound or last positioned with `seek_write`.
@@ -48,6 +54,9 @@ pub trait ZfpBitStreamOps {
     /// Such writes are dropped. [`compress`][ZfpBitStreamMutOps::compress]
     /// reports this as [`ZfpCompressionError::BufferTooSmall`][crate::ZfpCompressionError::BufferTooSmall].
     fn overflowed(&self) -> bool;
+    /// Bytes up to the cursor's word, unclamped (`stream_size`).
+    #[cfg(feature = "ffi")]
+    fn size(&self) -> usize;
     /// The backing buffer's start pointer.
     #[cfg(feature = "ffi")]
     fn data_ptr(&self) -> *mut std::os::raw::c_void;
@@ -72,10 +81,12 @@ pub trait ZfpBitStreamOps {
 
     /// Decompress from this bitstream into the field.
     ///
+    /// Returns the read position in bytes afterwards, which is word aligned.
+    ///
     /// # Errors
     ///
-    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if the target
-    /// field type or dimensions are unsupported for the selected configuration.
+    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if
+    /// the field is invalid, which is reachable only from the C ABI.
     fn decompress(
         &mut self,
         config: &ZfpConfig,
@@ -86,13 +97,13 @@ pub trait ZfpBitStreamOps {
 
     /// Decompress from this bitstream into the field using the given execution policy.
     ///
+    /// Returns the read position in bytes afterwards, which is word aligned.
+    /// Parallel decompression is only available for fixed-rate streams; other
+    /// modes run serially.
+    ///
     /// # Errors
     ///
-    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if the target
-    /// field type or dimensions are unsupported for the selected configuration.
-    ///
-    /// Note: Parallel decompression is only available for fixed-rate streams.
-    /// Other modes fall back to serial decompression.
+    /// As for [`decompress`][Self::decompress].
     fn decompress_with_execution(
         &mut self,
         config: &ZfpConfig,
@@ -117,22 +128,30 @@ pub trait ZfpBitStreamOps {
     }
 }
 
-/// Mutating operations for writable ZFP bitstreams.
-pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
-    /// Write one full 64-bit word; returns the word previously at that position.
-    fn write_word(&mut self, word: u64) -> u64;
-    /// Write the low `n` bits of `value`; return the overflow (bits above `n`).
+/// Write operations for writable ZFP bitstreams.
+///
+/// Writes past the end of the buffer are dropped and flagged; see
+/// [`overflowed`][ZfpBitStreamOps::overflowed].
+///
+/// This trait is sealed: it is implemented by [`ZfpBitStream`] and
+/// [`ZfpBitStreamRefMut`].
+pub trait ZfpBitStreamMutOps: ZfpBitStreamOps + BitStreamStorageMut {
+    /// Write one full 64-bit word.
+    fn write_word(&mut self, word: u64);
+    /// Write the low `n` bits of `value` (`n <= 64`); return `value >> n`.
     fn write_bits(&mut self, value: u64, n: u32) -> u64;
-    /// Write a single bit (must be 0 or 1); returns the bit written.
-    fn write_bit(&mut self, bit: u32) -> u32;
-    /// Position the stream for writing at `offset` bits from the beginning.
+    /// Write a single bit.
+    fn write_bit(&mut self, bit: bool);
+    /// Position the stream for writing at `offset` bits from the start.
     fn seek_write(&mut self, offset: u64);
-    /// Append `n` zero-bits to the write stream (`stream_pad`).
-    fn pad(&mut self, n: usize);
-    /// Flush the write buffer to the next word boundary; return padding bits written.
-    fn flush(&mut self) -> usize;
-    /// Copy `n` bits from `src` into `self` (`stream_copy`).
-    fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize);
+    /// Write `n` zero bits (`stream_pad`).
+    fn pad(&mut self, n: u64);
+    /// Pad with zero bits to the next word boundary, so that
+    /// [`as_bytes`][ZfpBitStreamOps::as_bytes] covers everything written;
+    /// return the number of bits padded.
+    fn flush(&mut self) -> u32;
+    /// Copy `n` bits from `src` (`stream_copy`).
+    fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: u64);
 
     /// Write the header sections indicated by `mask` into this bitstream.
     ///
@@ -156,14 +175,19 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
         crate::header::write_header_bs(self, metadata, mask, mode)
     }
 
-    /// Compress the field into this bitstream using the stream's parameters.
+    /// Compress the field into this bitstream.
+    ///
+    /// Returns the size of the stream in bytes afterwards, including anything
+    /// written before, such as a header. The stream is flushed, so
+    /// [`as_bytes`][ZfpBitStreamOps::as_bytes] is the whole compressed stream.
     ///
     /// # Errors
     ///
-    /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
-    /// is invalid, or [`BufferTooSmall`][crate::types::ZfpCompressionError::BufferTooSmall]
-    /// if the output does not fit in the stream. Size the stream with
-    /// [`ZfpConfig::maximum_size`] to rule the latter out.
+    /// Returns [`ZfpCompressionError::BufferTooSmall`][crate::types::ZfpCompressionError::BufferTooSmall]
+    /// if the output does not fit in the stream; size the stream with
+    /// [`ZfpConfig::maximum_size`] to rule this out. Returns
+    /// [`ZfpCompressionError::Field`][crate::types::ZfpCompressionError::Field] if
+    /// the field is invalid, which is reachable only from the C ABI.
     fn compress(
         &mut self,
         config: &ZfpConfig,
@@ -174,12 +198,12 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
 
     /// Compress the field into this bitstream using the given execution policy.
     ///
+    /// Returns the size of the stream in bytes afterwards, as for
+    /// [`compress`][Self::compress].
+    ///
     /// # Errors
     ///
-    /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
-    /// is invalid, or [`BufferTooSmall`][crate::types::ZfpCompressionError::BufferTooSmall]
-    /// if the output does not fit in the stream. Size the stream with
-    /// [`ZfpConfig::maximum_size`] to rule the latter out.
+    /// As for [`compress`][Self::compress].
     fn compress_with_execution(
         &mut self,
         config: &ZfpConfig,
@@ -217,8 +241,8 @@ macro_rules! impl_bitstream_ops {
                 read_bits_impl(self, n)
             }
 
-            pub fn read_bit(&mut self) -> u32 {
-                read_bit_impl(self)
+            pub fn read_bit(&mut self) -> bool {
+                self.get_bit() != 0
             }
 
             pub fn rewind(&mut self) {
@@ -237,11 +261,7 @@ macro_rules! impl_bitstream_ops {
                 write_pos_impl(self)
             }
 
-            pub fn words(&self) -> &[ZfpBitStreamWord] {
-                <Self as BitStreamStorage>::words(self)
-            }
-
-            pub fn skip(&mut self, n: usize) {
+            pub fn skip(&mut self, n: u64) {
                 skip_impl(self, n);
             }
 
@@ -249,28 +269,20 @@ macro_rules! impl_bitstream_ops {
                 align_impl(self)
             }
 
-            #[allow(
-                clippy::cast_possible_truncation,
-                reason = "bitstream capacities are addressable as usize on supported targets"
-            )]
-            pub fn bits_written(&self) -> usize {
-                self.write_pos() as usize
-            }
-
-            pub fn word_pos(&self) -> usize {
-                self.state().word_pos
-            }
-
             pub fn capacity(&self) -> usize {
-                self.words().len() * STREAM_WORD_BYTES
+                BitStreamStorage::words(self).len() * STREAM_WORD_BYTES
             }
 
-            pub fn size(&self) -> usize {
-                self.state().word_pos * STREAM_WORD_BYTES
+            pub fn as_words(&self) -> &[ZfpBitStreamWord] {
+                committed_words(self)
             }
 
             pub fn as_bytes(&self) -> &[u8] {
-                as_committed_bytes(self)
+                bytemuck::cast_slice(committed_words(self))
+            }
+
+            pub fn backing_words(&self) -> &[ZfpBitStreamWord] {
+                BitStreamStorage::words(self)
             }
 
             pub fn backing_bytes(&self) -> &[u8] {
@@ -282,8 +294,13 @@ macro_rules! impl_bitstream_ops {
             }
 
             #[cfg(feature = "ffi")]
+            pub fn size(&self) -> usize {
+                self.byte_len()
+            }
+
+            #[cfg(feature = "ffi")]
             pub fn data_ptr(&self) -> *mut std::os::raw::c_void {
-                self.words()
+                BitStreamStorage::words(self)
                     .as_ptr()
                     .cast_mut()
                     .cast::<std::os::raw::c_void>()
@@ -318,41 +335,42 @@ macro_rules! impl_bitstream_mut_ops {
     ($($ty:ty),* $(,)?) => {$(
         #[inherent::inherent]
         impl ZfpBitStreamMutOps for $ty {
-            pub fn write_word(&mut self, word: u64) -> u64 {
-                write_word_impl(self, word)
+            pub fn write_word(&mut self, word: u64) {
+                write_word_impl(self, word);
             }
 
             pub fn write_bits(&mut self, value: u64, n: u32) -> u64 {
                 write_bits_impl(self, value, n)
             }
 
-            pub fn write_bit(&mut self, bit: u32) -> u32 {
-                write_bit_impl(self, bit)
+            pub fn write_bit(&mut self, bit: bool) {
+                self.put_bit(u32::from(bit));
             }
 
             pub fn seek_write(&mut self, offset: u64) {
                 seek_write_impl(self, offset);
             }
 
-            pub fn pad(&mut self, n: usize) {
+            pub fn pad(&mut self, n: u64) {
                 pad_impl(self, n);
             }
 
-            pub fn flush(&mut self) -> usize {
+            pub fn flush(&mut self) -> u32 {
                 flush_impl(self)
             }
 
-            #[allow(clippy::cast_possible_truncation)]
-            pub fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize) {
+            pub fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: u64) {
                 let mut remaining = n;
-                while remaining > WSIZE as usize {
+                while remaining > u64::from(WSIZE) {
                     let w = src.read_bits(WSIZE);
                     write_bits_impl(self, w, WSIZE);
-                    remaining -= WSIZE as usize;
+                    remaining -= u64::from(WSIZE);
                 }
                 if remaining > 0 {
-                    let w = src.read_bits(remaining as u32);
-                    write_bits_impl(self, w, remaining as u32);
+                    #[allow(clippy::cast_possible_truncation, reason = "remaining <= 64")]
+                    let remaining = remaining as u32;
+                    let w = src.read_bits(remaining);
+                    write_bits_impl(self, w, remaining);
                 }
             }
 

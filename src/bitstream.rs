@@ -46,7 +46,7 @@ mod tests {
         let num_words: usize = 4;
         let s = ZfpBitStream::new(num_words * 8);
         assert_eq!(s.capacity(), num_words * 8);
-        assert_eq!(s.word_pos(), 0);
+        assert_eq!(s.state.word_pos, 0);
     }
 
     #[test]
@@ -64,12 +64,34 @@ mod tests {
     fn given_borrowed_mut_words_when_write_bits_expect_caller_buffer_updated() {
         let mut words = [0u64; 2];
         {
-            let mut s = ZfpBitStreamRefMut::from_words_mut(&mut words);
+            let mut s = ZfpBitStreamRefMut::from_words(&mut words);
             s.write_bits(0x0123_4567_89ab_cdef, WSIZE);
-            assert_eq!(s.size(), 8);
+            assert_eq!(s.as_bytes().len(), 8);
         }
 
         assert_eq!(words[0], 0x0123_4567_89ab_cdef);
+    }
+
+    #[test]
+    fn owned_conversions_round_trip_committed_data() {
+        // A trailing partial word is zero-padded rather than dropped.
+        let s = ZfpBitStream::from_bytes(&[1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        assert_eq!(s.capacity(), 16);
+        assert_eq!(s.backing_bytes()[8..], [9, 0, 0, 0, 0, 0, 0, 0]);
+
+        // `into_words` and `into_bytes` both return exactly what was written.
+        let mut s = ZfpBitStream::new(64);
+        s.write_bits(0xabc, 12);
+        assert!(s.as_words().is_empty());
+        assert_eq!(s.into_words(), vec![0xabc]);
+
+        let mut s = ZfpBitStream::from_words(vec![0; 8]);
+        s.write_word(WORD2);
+        s.write_bit(true);
+        assert_eq!(s.as_words(), [WORD2]);
+        let bytes = s.into_bytes();
+        assert_eq!(bytes.len(), 16);
+        assert_eq!(bytes[8], 1);
     }
 
     #[test]
@@ -115,7 +137,7 @@ mod tests {
         assert!(!small.overflowed());
 
         let mut words = vec![0u64; 2];
-        let mut borrowed = ZfpBitStreamRefMut::from_words_mut(&mut words);
+        let mut borrowed = ZfpBitStreamRefMut::from_words(&mut words);
         assert_eq!(
             borrowed.compress(&config, &field),
             Err(ZfpCompressionError::BufferTooSmall {
@@ -177,6 +199,43 @@ mod tests {
 
     #[cfg(feature = "rayon")]
     #[test]
+    fn given_fixed_rate_stream_when_rayon_decompress_expect_serial_cursor_and_size() {
+        use crate::config::{ZfpConfig, ZfpStreamAlignment};
+        use crate::execution::ZfpExecution;
+        use crate::field::{ZfpField, ZfpFieldMut};
+        use crate::types::{ZfpDimensionality, ZfpScalarType};
+
+        let data: Vec<f64> = (0..300).map(|i| f64::from(i).cos()).collect();
+        let field = ZfpField::new(&data, [300usize]).unwrap();
+        let config = ZfpConfig::fixed_rate(
+            7.0,
+            ZfpScalarType::F64,
+            ZfpDimensionality::D1,
+            ZfpStreamAlignment::Unaligned,
+        );
+        let mut bs = ZfpBitStream::new(config.maximum_size(ZfpScalarType::F64, 300usize).unwrap());
+        let written = bs.compress(&config, &field).unwrap();
+
+        let mut decode = |execution| {
+            let mut out = vec![0f64; 300];
+            let mut out_field = ZfpFieldMut::new(&mut out, [300usize]).unwrap();
+            bs.rewind();
+            let read = bs
+                .decompress_with_execution(&config, &mut out_field, execution)
+                .unwrap();
+            (read, bs.read_pos(), out)
+        };
+        let serial = decode(ZfpExecution::Serial);
+        let parallel = decode(ZfpExecution::Rayon {
+            threads: 3,
+            chunk_size: 7,
+        });
+        assert_eq!(serial.0, written);
+        assert_eq!(parallel, serial);
+    }
+
+    #[cfg(feature = "rayon")]
+    #[test]
     fn given_borrowed_mut_words_when_rayon_compress_expect_owned_output_match() {
         use crate::config::{ZfpConfig, ZfpStreamAlignment};
         use crate::execution::ZfpExecution;
@@ -204,7 +263,7 @@ mod tests {
 
         let mut borrowed_words = vec![0u64; 128];
         let borrowed_size = {
-            let mut borrowed = ZfpBitStreamRefMut::from_words_mut(&mut borrowed_words);
+            let mut borrowed = ZfpBitStreamRefMut::from_words(&mut borrowed_words);
             borrowed
                 .compress_with_execution(&config, &field, execution)
                 .unwrap()
@@ -220,9 +279,9 @@ mod tests {
     #[test]
     fn given_rewound_bitstream_when_write_word_expect_word_written_at_stream_begin() {
         let mut s = setup();
-        let prev_size = s.size();
+        let prev_size = s.as_bytes().len();
         s.write_word(WORD1);
-        assert_eq!(s.size(), prev_size + 8);
+        assert_eq!(s.as_bytes().len(), prev_size + 8);
         assert_eq!(s.word_at(0), WORD1);
     }
 
@@ -231,7 +290,7 @@ mod tests {
         let mut s = setup();
         s.write_word(WORD1);
         s.write_word(WORD2);
-        assert_eq!(s.size(), 16);
+        assert_eq!(s.as_bytes().len(), 16);
         assert_eq!(s.word_at(0), WORD1);
         assert_eq!(s.word_at(1), WORD2);
     }
@@ -271,11 +330,11 @@ mod tests {
 
         let mut s = setup();
         s.write_bits(existing_buffer, existing_bit_count);
-        let prev_size = s.size();
+        let prev_size = s.as_bytes().len();
 
-        s.pad((WSIZE - existing_bit_count) as usize);
+        s.pad(u64::from(WSIZE - existing_bit_count));
 
-        assert_eq!(s.size(), prev_size + 8);
+        assert_eq!(s.as_bytes().len(), prev_size + 8);
         s.rewind();
         assert_eq!(s.read_word(), existing_buffer);
     }
@@ -292,11 +351,11 @@ mod tests {
         s.write_word(WORD1);
         s.rewind();
         s.write_bits(existing_buffer, existing_bit_count);
-        let prev_size = s.size();
+        let prev_size = s.as_bytes().len();
 
-        s.pad(pad_amount as usize);
+        s.pad(u64::from(pad_amount));
 
-        assert_eq!(s.size(), prev_size + num_words * 8);
+        assert_eq!(s.as_bytes().len(), prev_size + num_words * 8);
         s.rewind();
         assert_eq!(s.read_word(), existing_buffer);
     }
@@ -306,7 +365,7 @@ mod tests {
         let place: u32 = 3;
         let mut s = setup();
         s.write_bits(0, place);
-        s.write_bit(1);
+        s.write_bit(true);
         assert_eq!(s.buffer_bits(), place + 1);
         assert_eq!(s.buffer_value(), 1u64 << place);
     }
@@ -317,8 +376,8 @@ mod tests {
         let place = WSIZE - 1;
         let mut s = setup();
         s.write_bits(0, place);
-        s.write_bit(1);
-        assert_eq!(s.size(), 8);
+        s.write_bit(true);
+        assert_eq!(s.as_bytes().len(), 8);
         assert_eq!(s.word_at(0), 1u64 << place);
         assert_eq!(s.buffer_value(), 0);
     }
@@ -326,11 +385,11 @@ mod tests {
     #[test]
     fn given_bitstream_with_bit_in_buffer_when_read_bit_expect_one_bit_read_from_lsb() {
         let mut s = setup();
-        s.write_bit(1);
+        s.write_bit(true);
         let prev_bits = s.buffer_bits();
         let prev_buffer = s.buffer_value();
         let bit = s.read_bit();
-        assert_eq!(bit, 1);
+        assert!(bit);
         assert_eq!(s.buffer_bits(), prev_bits - 1);
         assert_eq!(s.buffer_value(), prev_buffer >> 1);
     }
@@ -345,7 +404,7 @@ mod tests {
         // ptr is now at word 1, buffer=0, bits=0
         assert_eq!(s.buffer_value(), 0);
         let bit = s.read_bit();
-        assert_eq!(bit, 1);
+        assert!(bit);
         assert_eq!(s.buffer_bits(), WSIZE - 1);
         assert_eq!(s.buffer_value(), WORD1 >> 1);
     }
@@ -419,14 +478,14 @@ mod tests {
 
         let prev_bits = s.buffer_bits();
         let prev_buffer = s.buffer_value();
-        let prev_pos = s.word_pos();
+        let prev_pos = s.state.word_pos;
 
         let read_bits = s.read_bits(0);
 
         assert_eq!(s.buffer_bits(), prev_bits);
         assert_eq!(read_bits, 0);
         assert_eq!(s.buffer_value(), prev_buffer);
-        assert_eq!(s.word_pos(), prev_pos);
+        assert_eq!(s.state.word_pos, prev_pos);
     }
 
     #[test]
@@ -528,7 +587,7 @@ mod tests {
         s.write_bits(WORD1, WSIZE);
         s.write_bits(WORD2, WSIZE);
         s.seek_write(u64::from(WSIZE));
-        assert_eq!(s.word_pos(), 1);
+        assert_eq!(s.state.word_pos, 1);
         assert_eq!(s.buffer_bits(), 0);
         assert_eq!(s.buffer_value(), 0);
     }
@@ -543,7 +602,7 @@ mod tests {
         s.write_bits(WORD2, WSIZE);
         s.seek_write(bit_offset);
 
-        assert_eq!(s.word_pos(), 1);
+        assert_eq!(s.state.word_pos, 1);
         assert_eq!(s.buffer_bits(), (bit_offset % u64::from(WSIZE)) as u32);
         assert_eq!(s.buffer_value(), WORD2 & mask);
     }
@@ -554,7 +613,7 @@ mod tests {
         s.write_bits(WORD1, WSIZE);
         s.write_bits(WORD2, WSIZE);
         s.seek_read(u64::from(WSIZE));
-        assert_eq!(s.word_pos(), 1);
+        assert_eq!(s.state.word_pos, 1);
         assert_eq!(s.buffer_bits(), 0);
         assert_eq!(s.buffer_value(), 0);
     }
@@ -570,7 +629,7 @@ mod tests {
         s.write_bits(WORD2, WSIZE);
         s.seek_read(bit_offset);
 
-        assert_eq!(s.word_pos(), 2);
+        assert_eq!(s.state.word_pos, 2);
         assert_eq!(s.buffer_bits(), expected_bits);
         assert_eq!(s.buffer_value(), expected_buffer);
     }
@@ -583,13 +642,13 @@ mod tests {
         s.rewind();
         s.read_bits(2);
 
-        let prev_pos = s.word_pos();
+        let prev_pos = s.state.word_pos;
         let prev_bits = s.buffer_bits();
         let prev_buffer = s.buffer_value();
 
         s.skip(0);
 
-        assert_eq!(s.word_pos(), prev_pos);
+        assert_eq!(s.state.word_pos, prev_pos);
         assert_eq!(s.buffer_bits(), prev_bits);
         assert_eq!(s.buffer_value(), prev_buffer);
     }
@@ -597,8 +656,8 @@ mod tests {
     #[test]
     fn when_skip_within_buffer_expect_masked_buffer() {
         let read_bit_count: u32 = 3;
-        let skip_count: usize = 5;
-        let total_offset = u64::from(read_bit_count) + skip_count as u64;
+        let skip_count: u64 = 5;
+        let total_offset = u64::from(read_bit_count) + skip_count;
         let expected_bits = WSIZE - (total_offset % u64::from(WSIZE)) as u32;
         let expected_buffer = WORD1 >> (total_offset % u64::from(WSIZE));
 
@@ -606,11 +665,11 @@ mod tests {
         s.write_bits(WORD1, WSIZE);
         s.rewind();
         s.read_bits(read_bit_count);
-        let prev_pos = s.word_pos();
+        let prev_pos = s.state.word_pos;
 
         s.skip(skip_count);
 
-        assert_eq!(s.word_pos(), prev_pos);
+        assert_eq!(s.state.word_pos, prev_pos);
         assert_eq!(s.buffer_bits(), expected_bits);
         assert_eq!(s.buffer_value(), expected_buffer);
     }
@@ -618,8 +677,8 @@ mod tests {
     #[test]
     fn when_skip_past_buffer_end_expect_new_masked_word_in_buffer() {
         let read_bit_count: u32 = 3;
-        let skip_count: usize = WSIZE as usize + 5;
-        let total_offset = u64::from(read_bit_count) + skip_count as u64;
+        let skip_count = u64::from(WSIZE) + 5;
+        let total_offset = u64::from(read_bit_count) + skip_count;
         let expected_bits = WSIZE - (total_offset % u64::from(WSIZE)) as u32;
         let expected_buffer = WORD2 >> (total_offset % u64::from(WSIZE));
 
@@ -631,7 +690,7 @@ mod tests {
 
         s.skip(skip_count);
 
-        assert_eq!(s.word_pos(), 2);
+        assert_eq!(s.state.word_pos, 2);
         assert_eq!(s.buffer_bits(), expected_bits);
         assert_eq!(s.buffer_value(), expected_buffer);
     }
@@ -645,11 +704,11 @@ mod tests {
         s.write_bits(WORD2, WSIZE);
         s.rewind();
         s.read_bits(read_bit_count);
-        let prev_pos = s.word_pos();
+        let prev_pos = s.state.word_pos;
 
         s.align();
 
-        assert_eq!(s.word_pos(), prev_pos);
+        assert_eq!(s.state.word_pos, prev_pos);
         assert_eq!(s.buffer_bits(), 0);
         assert_eq!(s.buffer_value(), 0);
     }
@@ -657,13 +716,13 @@ mod tests {
     #[test]
     fn given_empty_buffer_when_flush_expect_nop() {
         let mut s = setup();
-        let prev_pos = s.word_pos();
+        let prev_pos = s.state.word_pos;
         let prev_bits = s.buffer_bits();
         let prev_buffer = s.buffer_value();
 
         let pad_count = s.flush();
 
-        assert_eq!(s.word_pos(), prev_pos);
+        assert_eq!(s.state.word_pos, prev_pos);
         assert_eq!(s.buffer_bits(), prev_bits);
         assert_eq!(s.buffer_value(), prev_buffer);
         assert_eq!(pad_count, 0);
@@ -678,14 +737,14 @@ mod tests {
         s.write_bits(WORD1, WSIZE);
         s.rewind();
         s.write_bits(WORD2, prev_buffer_bit_count);
-        let prev_pos = s.word_pos();
+        let prev_pos = s.state.word_pos;
 
         let pad_count = s.flush();
 
-        assert_eq!(s.word_pos(), prev_pos + 1);
+        assert_eq!(s.state.word_pos, prev_pos + 1);
         assert_eq!(s.buffer_bits(), 0);
         assert_eq!(s.buffer_value(), 0);
-        assert_eq!(pad_count, (WSIZE - prev_buffer_bit_count) as usize);
+        assert_eq!(pad_count, WSIZE - prev_buffer_bit_count);
     }
 
     #[test]
@@ -710,9 +769,9 @@ mod tests {
         let mut dst = ZfpBitStream::new(STREAM_WORD_CAPACITY * 8);
         dst.seek_write(dst_offset);
 
-        dst.copy_from(&mut src, copy_bits);
+        dst.copy_from(&mut src, copy_bits as u64);
 
-        assert_eq!(dst.word_pos(), 1);
+        assert_eq!(dst.state.word_pos, 1);
         assert_eq!(dst.buffer_bits(), expected_bits);
         assert_eq!(dst.word_at(0), expected_written_word);
         assert_eq!(dst.buffer_value(), expected_buffer);

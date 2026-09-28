@@ -64,10 +64,10 @@ fn encode_float_block<T: Transform32<N>, const N: usize>(
                 config.rounding(),
             )
     } else {
-        bs.write_bit(0);
+        bs.put_bit(0);
         let bits = 1u32;
         if bits < minbits {
-            bs.pad((minbits - bits) as usize);
+            bs.pad(u64::from(minbits - bits));
             minbits as usize
         } else {
             bits as usize
@@ -115,10 +115,10 @@ fn encode_double_block<T: Transform64<N>, const N: usize>(
                 config.rounding(),
             )
     } else {
-        bs.write_bit(0);
+        bs.put_bit(0);
         let bits = 1u32;
         if bits < minbits {
-            bs.pad((minbits - bits) as usize);
+            bs.pad(u64::from(minbits - bits));
             minbits as usize
         } else {
             bits as usize

@@ -205,7 +205,7 @@ macro_rules! encode_block_tests_int {
                 // minbits = maxbits for fixed-rate mode (matches C: zfp_stream_set_rate)
                 let bits_written = $enc_fn(&mut bs, block, &CONFIG);
                 // do not flush — extra zero padding would inflate wtell
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -295,7 +295,7 @@ macro_rules! encode_block_tests_float {
                 // minbits = maxbits for fixed-rate mode (matches C: zfp_stream_set_rate)
                 let bits_written =
                     $enc_fn(&mut bs, block, &CONFIG);
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]

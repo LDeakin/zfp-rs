@@ -108,7 +108,7 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
         bytes[..chunk.len()].copy_from_slice(chunk);
         *word = u64::from_ne_bytes(bytes);
     }
-    let mut bs = ZfpBitStream::from_buffer(words);
+    let mut bs = ZfpBitStream::from_words(words);
 
     // Exactly `n` elements, so ASan redzones abut the last element and any
     // overrun in the unsafe scatter path is caught.

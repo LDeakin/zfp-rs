@@ -142,7 +142,7 @@ pub(crate) fn encode_int_block_32<T: Transform32<N>, const N: usize>(
     fwd_order_i32(&mut ublock, &block, T::perm());
     let bits = encode_ints_u32(bs, maxbits, maxprec, &ublock);
     let bits = if bits < minbits {
-        bs.pad((minbits - bits) as usize);
+        bs.pad(u64::from(minbits - bits));
         minbits
     } else {
         bits
@@ -168,7 +168,7 @@ pub(crate) fn encode_int_block_64<T: Transform64<N>, const N: usize>(
     fwd_order_i64(&mut ublock, &block, T::perm());
     let bits = encode_ints_u64(bs, maxbits, maxprec, &ublock);
     let bits = if bits < minbits {
-        bs.pad((minbits - bits) as usize);
+        bs.pad(u64::from(minbits - bits));
         minbits
     } else {
         bits

@@ -40,14 +40,13 @@ pub fn run(data: &[u8]) {
         let value = u64::from(a) | (u64::from(b) << 8);
         let offset = (u64::from(a) | (u64::from(b) << 8)) % capacity_bits;
 
-        // Writing past the end of the stream is a caller error, not a defect:
-        // C's `stream_write_word` has no bounds check and simply overflows the
-        // buffer, so there is no behaviour here worth asserting. Rewind before
-        // the cursor reaches capacity so the sequence keeps exercising the
-        // cursor logic instead of stopping on a full stream.
+        // Writes past the end of the stream are dropped, so the round-trip
+        // check below cannot hold there. Rewind before the cursor reaches
+        // capacity so the sequence keeps exercising the cursor logic instead
+        // of stopping on a full stream.
         // 8 words of headroom: a single `pad` can advance the cursor by four
         // words, and `write_bits` by two, so a tighter margin still overruns.
-        if bs.word_pos() + 8 >= CAPACITY / 8 {
+        if bs.write_pos() / 64 + 8 >= (CAPACITY / 8) as u64 {
             bs.rewind();
         }
 
@@ -56,7 +55,7 @@ pub fn run(data: &[u8]) {
                 bs.write_bits(value, n);
             }
             1 => {
-                bs.write_bit(u32::from(b & 1));
+                bs.write_bit(b & 1 != 0);
             }
             2 => {
                 bs.write_word(value);
@@ -72,10 +71,10 @@ pub fn run(data: &[u8]) {
             }
             6 => bs.seek_write(offset),
             7 => bs.seek_read(offset),
-            8 => bs.skip(usize::from(a)),
+            8 => bs.skip(u64::from(a)),
             9 => {
                 // Bounded so one `pad` cannot outrun the headroom check above.
-                bs.pad(usize::from(a) % 65);
+                bs.pad(u64::from(a) % 65);
             }
             10 => {
                 bs.flush();
@@ -94,10 +93,9 @@ pub fn run(data: &[u8]) {
         // out of bounds, which the calls below and ASan cover between them.
         let _ = bs.read_pos();
         let _ = bs.write_pos();
-        let _ = bs.word_pos();
-        let _ = bs.bits_written();
-        let _ = bs.size();
+        let _ = bs.overflowed();
         let _ = bs.as_bytes();
+        let _ = bs.as_words();
 
         // Round-trip check, run immediately after a write so no other
         // operation can clobber the bits in between. A deferred shadow model

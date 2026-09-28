@@ -160,7 +160,7 @@ pub(crate) fn encode_few_ints_u32(
         let mut i = n;
         while bits != 0 && i < size {
             bits -= 1;
-            if bs.write_bit(u32::from(x != 0)) != 0 {
+            if bs.put_bit(u32::from(x != 0)) != 0 {
                 // positive group test: scan for 1-bit
                 // Mirrors C inner: `for (; bits && n < size-1; x >>= 1, n++)`
                 // Note: on break, C's for-loop increment does NOT run, so x and i
@@ -168,7 +168,7 @@ pub(crate) fn encode_few_ints_u32(
                 while bits != 0 && i < size - 1 {
                     bits -= 1;
                     let bit = (x & 1) as u32;
-                    if bs.write_bit(bit) != 0 {
+                    if bs.put_bit(bit) != 0 {
                         break;
                     }
                     x >>= 1;
@@ -218,12 +218,12 @@ pub(crate) fn encode_few_ints_u64(
         let mut i = n;
         while bits != 0 && i < size {
             bits -= 1;
-            if bs.write_bit(u32::from(x != 0)) != 0 {
+            if bs.put_bit(u32::from(x != 0)) != 0 {
                 // inner scan: `for (; bits && n < size-1; x >>= 1, n++)`
                 while bits != 0 && i < size - 1 {
                     bits -= 1;
                     let bit = (x & 1) as u32;
-                    if bs.write_bit(bit) != 0 {
+                    if bs.put_bit(bit) != 0 {
                         break;
                     }
                     x >>= 1;
@@ -266,7 +266,7 @@ pub(crate) fn encode_many_ints_u32(
         let m = n.min(bits);
         bits -= m;
         for &val in &data[..m as usize] {
-            bs.write_bit((val >> k) & 1);
+            bs.put_bit((val >> k) & 1);
         }
         // Step 2: count remaining 1-bits
         let mut c: u32 = 0;
@@ -281,7 +281,7 @@ pub(crate) fn encode_many_ints_u32(
                 break;
             }
             bits -= 1;
-            if bs.write_bit(u32::from(c > 0)) != 0 {
+            if bs.put_bit(u32::from(c > 0)) != 0 {
                 // positive group test; scan for one-bit
                 // C: `for (c--; bits && n < size - 1; n++)`
                 c -= 1;
@@ -291,7 +291,7 @@ pub(crate) fn encode_many_ints_u32(
                     }
                     bits -= 1;
                     let bit = (data[n as usize] >> k) & 1;
-                    if bs.write_bit(bit) != 0 {
+                    if bs.put_bit(bit) != 0 {
                         break; // inner break: outer n++ still runs
                     }
                     n += 1; // inner n++
@@ -326,7 +326,7 @@ pub(crate) fn encode_many_ints_u64(
         let m = n.min(bits);
         bits -= m;
         for &val in &data[..m as usize] {
-            bs.write_bit(((val >> k) & 1) as u32);
+            bs.put_bit(((val >> k) & 1) as u32);
         }
         let mut c: u32 = 0;
         for &val in &data[m as usize..] {
@@ -338,7 +338,7 @@ pub(crate) fn encode_many_ints_u64(
                 break;
             }
             bits -= 1;
-            if bs.write_bit(u32::from(c > 0)) != 0 {
+            if bs.put_bit(u32::from(c > 0)) != 0 {
                 c -= 1;
                 loop {
                     if bits == 0 || n >= size - 1 {
@@ -346,7 +346,7 @@ pub(crate) fn encode_many_ints_u64(
                     }
                     bits -= 1;
                     let bit = ((data[n as usize] >> k) & 1) as u32;
-                    if bs.write_bit(bit) != 0 {
+                    if bs.put_bit(bit) != 0 {
                         break;
                     }
                     n += 1;
@@ -388,9 +388,9 @@ pub(crate) fn encode_few_ints_prec_u32(
         // Write first n committed bits
         x = bs.write_bits(x, n);
         // Unary RLE for remainder: mirrors C `for (; n < size && write_bit(!!x); x>>=1, n++)`
-        while n < size && bs.write_bit(u32::from(x != 0)) != 0 {
+        while n < size && bs.put_bit(u32::from(x != 0)) != 0 {
             // inner scan: `for (; n < size-1 && !write_bit(x&1); x>>=1, n++)`
-            while n < size - 1 && bs.write_bit((x & 1) as u32) == 0 {
+            while n < size - 1 && bs.put_bit((x & 1) as u32) == 0 {
                 x >>= 1;
                 n += 1;
             }
@@ -424,9 +424,9 @@ pub(crate) fn encode_few_ints_prec_u64(
         }
         x = bs.write_bits(x, n);
         // Unary RLE for remainder: mirrors C `for (; n < size && write_bit(!!x); x>>=1, n++)`
-        while n < size && bs.write_bit(u32::from(x != 0)) != 0 {
+        while n < size && bs.put_bit(u32::from(x != 0)) != 0 {
             // inner scan: `for (; n < size-1 && !write_bit(x&1); x>>=1, n++)`
-            while n < size - 1 && bs.write_bit((x & 1) as u32) == 0 {
+            while n < size - 1 && bs.put_bit((x & 1) as u32) == 0 {
                 x >>= 1;
                 n += 1;
             }
@@ -456,7 +456,7 @@ pub(crate) fn encode_many_ints_prec_u32(
         k -= 1;
         // Step 1: write first n bits directly
         for &val in &data[..n as usize] {
-            bs.write_bit((val >> k) & 1);
+            bs.put_bit((val >> k) & 1);
         }
         // Step 2: count remaining 1-bits
         let mut c: u32 = 0;
@@ -465,10 +465,10 @@ pub(crate) fn encode_many_ints_prec_u32(
         }
         // Step 3: unary RLE
         // Mirrors C: `for (; n < size && write_bit(!!c); n++)`
-        while n < size && bs.write_bit(u32::from(c > 0)) != 0 {
+        while n < size && bs.put_bit(u32::from(c > 0)) != 0 {
             // inner: `for (c--; n < size-1 && !write_bit(data[n]>>k&1); n++)`
             c -= 1;
-            while n < size - 1 && bs.write_bit((data[n as usize] >> k) & 1) == 0 {
+            while n < size - 1 && bs.put_bit((data[n as usize] >> k) & 1) == 0 {
                 n += 1;
             }
             // outer post-increment
@@ -496,7 +496,7 @@ pub(crate) fn encode_many_ints_prec_u64(
         k -= 1;
         // Step 1: write first n bits directly
         for &val in &data[..n as usize] {
-            bs.write_bit(((val >> k) & 1) as u32);
+            bs.put_bit(((val >> k) & 1) as u32);
         }
         // Step 2: count remaining 1-bits
         let mut c: u32 = 0;
@@ -505,9 +505,9 @@ pub(crate) fn encode_many_ints_prec_u64(
         }
         // Step 3: unary RLE
         // Mirrors C: `for (; n < size && write_bit(!!c); n++)`
-        while n < size && bs.write_bit(u32::from(c > 0)) != 0 {
+        while n < size && bs.put_bit(u32::from(c > 0)) != 0 {
             c -= 1;
-            while n < size - 1 && bs.write_bit(((data[n as usize] >> k) & 1) as u32) == 0 {
+            while n < size - 1 && bs.put_bit(((data[n as usize] >> k) & 1) as u32) == 0 {
                 n += 1;
             }
             n += 1;

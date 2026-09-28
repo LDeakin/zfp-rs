@@ -117,12 +117,12 @@ pub(crate) fn decode_few_ints_u32(
         // Mirrors C: `for (; bits && n < size; n++, m=n)`
         while bits != 0 && n < size {
             bits -= 1;
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 // positive group test: scan for next 1-bit
                 // Mirrors C inner: `for (; bits && n < size-1; n++) { bits--; if (read_bit()) break; }`
                 while bits != 0 && n < size - 1 {
                     bits -= 1;
-                    if bs.read_bit() != 0 {
+                    if bs.get_bit() != 0 {
                         break;
                     }
                     n += 1;
@@ -186,11 +186,11 @@ pub(crate) fn decode_few_ints_u64(
         // Mirrors C: `for (; bits && n < size; n++, m=n)`
         while bits != 0 && n < size {
             bits -= 1;
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 // positive group test: scan for next 1-bit
                 while bits != 0 && n < size - 1 {
                     bits -= 1;
-                    if bs.read_bit() != 0 {
+                    if bs.get_bit() != 0 {
                         break;
                     }
                     n += 1;
@@ -253,7 +253,7 @@ pub(crate) fn decode_many_ints_u32(
         m = n.min(bits);
         bits -= m;
         for d in &mut data[..m as usize] {
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 *d += 1u32 << k;
             }
         }
@@ -266,14 +266,14 @@ pub(crate) fn decode_many_ints_u32(
                 break;
             }
             bits -= 1;
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 // positive group test; scan for one-bit
                 loop {
                     if bits == 0 || n >= size - 1 {
                         break;
                     }
                     bits -= 1;
-                    if bs.read_bit() != 0 {
+                    if bs.get_bit() != 0 {
                         break; // inner break: outer n++ still runs
                     }
                     n += 1; // inner n++ (only if no break)
@@ -324,7 +324,7 @@ pub(crate) fn decode_many_ints_u64(
         m = n.min(bits);
         bits -= m;
         for d in &mut data[..m as usize] {
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 *d += 1u64 << k;
             }
         }
@@ -333,13 +333,13 @@ pub(crate) fn decode_many_ints_u64(
                 break;
             }
             bits -= 1;
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 loop {
                     if bits == 0 || n >= size - 1 {
                         break;
                     }
                     bits -= 1;
-                    if bs.read_bit() != 0 {
+                    if bs.get_bit() != 0 {
                         break;
                     }
                     n += 1;
@@ -385,9 +385,9 @@ pub(crate) fn decode_few_ints_prec_u32(
         let mut x = bs.read_bits(n);
         // Step 2: unary RLE decode remainder
         // Mirrors C: `for (; n < size && read_bit(); x += 1<<n, n++)`
-        while n < size && bs.read_bit() != 0 {
+        while n < size && bs.get_bit() != 0 {
             // inner scan: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.read_bit() == 0 {
+            while n < size - 1 && bs.get_bit() == 0 {
                 n += 1;
             }
             // outer post-increment: set bit at found position, advance n
@@ -428,9 +428,9 @@ pub(crate) fn decode_few_ints_prec_u64(
         k -= 1;
         let mut x = bs.read_bits(n);
         // Mirrors C: `for (; n < size && read_bit(); x += 1<<n, n++)`
-        while n < size && bs.read_bit() != 0 {
+        while n < size && bs.get_bit() != 0 {
             // inner scan: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.read_bit() == 0 {
+            while n < size - 1 && bs.get_bit() == 0 {
                 n += 1;
             }
             // outer post-increment
@@ -470,15 +470,15 @@ pub(crate) fn decode_many_ints_prec_u32(
         k -= 1;
         // Step 1: decode first n bits directly
         for d in &mut data[..n as usize] {
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 *d += 1u32 << k;
             }
         }
         // Step 2: unary RLE decode
         // Mirrors C: `for (; n < size && read_bit(); data[n] += 1<<k, n++)`
-        while n < size && bs.read_bit() != 0 {
+        while n < size && bs.get_bit() != 0 {
             // inner: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.read_bit() == 0 {
+            while n < size - 1 && bs.get_bit() == 0 {
                 n += 1;
             }
             // outer post-increment
@@ -511,15 +511,15 @@ pub(crate) fn decode_many_ints_prec_u64(
         k -= 1;
         // Step 1: decode first n bits directly
         for d in &mut data[..n as usize] {
-            if bs.read_bit() != 0 {
+            if bs.get_bit() != 0 {
                 *d += 1u64 << k;
             }
         }
         // Step 2: unary RLE decode
         // Mirrors C: `for (; n < size && read_bit(); data[n] += 1<<k, n++)`
-        while n < size && bs.read_bit() != 0 {
+        while n < size && bs.get_bit() != 0 {
             // inner: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.read_bit() == 0 {
+            while n < size - 1 && bs.get_bit() == 0 {
                 n += 1;
             }
             // outer post-increment
@@ -610,7 +610,7 @@ pub(crate) fn decode_block_1d_i32_core(
     let mut ublock = [0u32; 4];
     let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i32; 4];
     inv_order_i32(&ublock, &mut iblock, &PERM_1);
@@ -628,7 +628,7 @@ pub(crate) fn decode_block_1d_i64_core(
     let mut ublock = [0u64; 4];
     let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i64; 4];
     inv_order_i64(&ublock, &mut iblock, &PERM_1);
@@ -646,7 +646,7 @@ pub(crate) fn decode_block_2d_i32_core(
     let mut ublock = [0u32; 16];
     let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i32; 16];
     inv_order_i32(&ublock, &mut iblock, &PERM_2);
@@ -664,7 +664,7 @@ pub(crate) fn decode_block_2d_i64_core(
     let mut ublock = [0u64; 16];
     let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i64; 16];
     inv_order_i64(&ublock, &mut iblock, &PERM_2);
@@ -682,7 +682,7 @@ pub(crate) fn decode_block_3d_i32_core(
     let mut ublock = [0u32; 64];
     let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i32; 64];
     inv_order_i32(&ublock, &mut iblock, &PERM_3);
@@ -700,7 +700,7 @@ pub(crate) fn decode_block_3d_i64_core(
     let mut ublock = [0u64; 64];
     let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i64; 64];
     inv_order_i64(&ublock, &mut iblock, &PERM_3);
@@ -718,7 +718,7 @@ pub(crate) fn decode_block_4d_i32_core(
     let mut ublock = [0u32; 256];
     let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i32; 256];
     inv_order_i32(&ublock, &mut iblock, &PERM_4);
@@ -736,7 +736,7 @@ pub(crate) fn decode_block_4d_i64_core(
     let mut ublock = [0u64; 256];
     let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
     if bits < minbits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
     }
     let mut iblock = [0i64; 256];
     inv_order_i64(&ublock, &mut iblock, &PERM_4);
@@ -777,7 +777,7 @@ pub(crate) fn decode_float_block<const N: usize>(
     let (minbits, maxbits, rounding) = (config.min_bits(), config.max_bits(), config.rounding());
     let mut fblock = [0f32; N];
     let mut bits: u32 = 1;
-    if bs.read_bit() != 0 {
+    if bs.get_bit() != 0 {
         // block has nonzero values
         bits += EBITS;
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
@@ -819,7 +819,7 @@ pub(crate) fn decode_float_block<const N: usize>(
         let _ = iblock_bits;
         bits = maxbits; // consumed up to maxbits
     } else if minbits > bits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
         bits = minbits;
     }
     (fblock, bits as usize)
@@ -836,7 +836,7 @@ pub(crate) fn decode_double_block<const N: usize>(
     let (minbits, maxbits, rounding) = (config.min_bits(), config.max_bits(), config.rounding());
     let mut fblock = [0f64; N];
     let mut bits: u32 = 1;
-    if bs.read_bit() != 0 {
+    if bs.get_bit() != 0 {
         bits += EBITS;
         let emax = bs.read_bits(EBITS) as i32 - EBIAS;
         let prec = precision_f(
@@ -872,7 +872,7 @@ pub(crate) fn decode_double_block<const N: usize>(
         }
         bits = maxbits;
     } else if minbits > bits {
-        bs.skip((minbits - bits) as usize);
+        bs.skip(u64::from(minbits - bits));
         bits = minbits;
     }
     (fblock, bits as usize)

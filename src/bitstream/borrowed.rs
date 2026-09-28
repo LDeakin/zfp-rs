@@ -68,7 +68,8 @@ pub struct ZfpBitStreamRefMut<'a> {
 
 impl<'a> ZfpBitStreamRefMut<'a> {
     /// Borrow an existing word buffer as a mutable bitstream.
-    pub fn from_words_mut(words: &'a mut [ZfpBitStreamWord]) -> Self {
+    #[must_use]
+    pub fn from_words(words: &'a mut [ZfpBitStreamWord]) -> Self {
         Self {
             words,
             state: BitStreamState::new(),
@@ -79,8 +80,9 @@ impl<'a> ZfpBitStreamRefMut<'a> {
     ///
     /// Returns `None` if `buf` is not aligned for `ZfpBitStreamWord`.
     /// Trailing partial words are ignored, matching C `stream_open`.
-    pub fn from_bytes_mut(buf: &'a mut [u8]) -> Option<Self> {
-        cast_bytes_to_words_mut(buf).map(Self::from_words_mut)
+    #[must_use]
+    pub fn from_bytes(buf: &'a mut [u8]) -> Option<Self> {
+        cast_bytes_to_words_mut(buf).map(Self::from_words)
     }
 }
 
@@ -140,7 +142,7 @@ mod tests {
         let config = ZfpConfig::reversible();
         let mut words = vec![0u64; 512];
 
-        let mut bs = ZfpBitStreamRefMut::from_words_mut(&mut words);
+        let mut bs = ZfpBitStreamRefMut::from_words(&mut words);
         bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL)
             .expect("write header");
         bs.compress(&config, &field).expect("compress");

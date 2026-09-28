@@ -181,7 +181,7 @@ fn rev_encode_float_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
             header_bits as usize + rev_encode_int(bs, &mut iblock, remaining)
         } else {
             // Genuinely all-zero block: write single "0" bit
-            bs.write_bit(0);
+            bs.put_bit(0);
             1
         }
     } else {
@@ -225,7 +225,7 @@ fn rev_encode_double_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
             let remaining = maxbits.saturating_sub(header_bits);
             header_bits as usize + rev_encode_int(bs, &mut iblock, remaining)
         } else {
-            bs.write_bit(0);
+            bs.put_bit(0);
             1
         }
     } else {
