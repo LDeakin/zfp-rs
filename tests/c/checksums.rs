@@ -257,10 +257,10 @@ pub fn compute_key_original_input(tt: TestType, n: [usize; 4]) -> (u64, u64) {
 
 #[derive(Clone, Copy)]
 pub enum ZfpScalarType {
-    Int32,
-    Int64,
-    Float,
-    Double,
+    I32,
+    I64,
+    F32,
+    F64,
 }
 
 // --- 1-D ---
@@ -759,22 +759,22 @@ static CHECKSUMS_4D_DOUBLE: &[(u64, u64, u64)] = &[
 /// Returns `None` if no matching entry is found.
 pub fn get_checksum(dims: u32, zfp_type: ZfpScalarType, key1: u64, key2: u64) -> Option<u64> {
     let table: &[(u64, u64, u64)] = match (dims, zfp_type) {
-        (1, ZfpScalarType::Int32) => CHECKSUMS_1D_INT32,
-        (1, ZfpScalarType::Int64) => CHECKSUMS_1D_INT64,
-        (1, ZfpScalarType::Float) => CHECKSUMS_1D_FLOAT,
-        (1, ZfpScalarType::Double) => CHECKSUMS_1D_DOUBLE,
-        (2, ZfpScalarType::Int32) => CHECKSUMS_2D_INT32,
-        (2, ZfpScalarType::Int64) => CHECKSUMS_2D_INT64,
-        (2, ZfpScalarType::Float) => CHECKSUMS_2D_FLOAT,
-        (2, ZfpScalarType::Double) => CHECKSUMS_2D_DOUBLE,
-        (3, ZfpScalarType::Int32) => CHECKSUMS_3D_INT32,
-        (3, ZfpScalarType::Int64) => CHECKSUMS_3D_INT64,
-        (3, ZfpScalarType::Float) => CHECKSUMS_3D_FLOAT,
-        (3, ZfpScalarType::Double) => CHECKSUMS_3D_DOUBLE,
-        (4, ZfpScalarType::Int32) => CHECKSUMS_4D_INT32,
-        (4, ZfpScalarType::Int64) => CHECKSUMS_4D_INT64,
-        (4, ZfpScalarType::Float) => CHECKSUMS_4D_FLOAT,
-        (4, ZfpScalarType::Double) => CHECKSUMS_4D_DOUBLE,
+        (1, ZfpScalarType::I32) => CHECKSUMS_1D_INT32,
+        (1, ZfpScalarType::I64) => CHECKSUMS_1D_INT64,
+        (1, ZfpScalarType::F32) => CHECKSUMS_1D_FLOAT,
+        (1, ZfpScalarType::F64) => CHECKSUMS_1D_DOUBLE,
+        (2, ZfpScalarType::I32) => CHECKSUMS_2D_INT32,
+        (2, ZfpScalarType::I64) => CHECKSUMS_2D_INT64,
+        (2, ZfpScalarType::F32) => CHECKSUMS_2D_FLOAT,
+        (2, ZfpScalarType::F64) => CHECKSUMS_2D_DOUBLE,
+        (3, ZfpScalarType::I32) => CHECKSUMS_3D_INT32,
+        (3, ZfpScalarType::I64) => CHECKSUMS_3D_INT64,
+        (3, ZfpScalarType::F32) => CHECKSUMS_3D_FLOAT,
+        (3, ZfpScalarType::F64) => CHECKSUMS_3D_DOUBLE,
+        (4, ZfpScalarType::I32) => CHECKSUMS_4D_INT32,
+        (4, ZfpScalarType::I64) => CHECKSUMS_4D_INT64,
+        (4, ZfpScalarType::F32) => CHECKSUMS_4D_FLOAT,
+        (4, ZfpScalarType::F64) => CHECKSUMS_4D_DOUBLE,
         _ => return None,
     };
     table

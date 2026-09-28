@@ -38,7 +38,7 @@ const MODE_SHORT_MAX: u64 = (1u64 << 12) - 2;
 pub enum ZfpStreamAlignment {
     /// Blocks use exactly the computed bit count (no padding).
     #[default]
-    None,
+    Unaligned,
     /// Each block is padded to the next 64-bit word boundary.
     WordAligned,
 }
@@ -326,7 +326,7 @@ impl ZfpConfig {
     /// the type needs; [`rate`][Self::rate] returns the resulting rate.
     ///
     /// Pass [`ZfpStreamAlignment::WordAligned`] to pad each block to the next
-    /// 64-bit word boundary; pass [`ZfpStreamAlignment::None`] for exact bit packing.
+    /// 64-bit word boundary; pass [`ZfpStreamAlignment::Unaligned`] for exact bit packing.
     #[must_use]
     #[allow(clippy::cast_possible_truncation)] // n≥1, rate>0, result fits in u32 for valid params
     #[allow(clippy::cast_sign_loss)] // f64→u32 for bit count
@@ -340,16 +340,13 @@ impl ZfpConfig {
         let mut bits = (f64::from(n) * rate + 0.5).floor() as u32;
 
         match ty {
-            ZfpScalarType::Float if bits < 1 + 8 => {
+            ZfpScalarType::F32 if bits < 1 + 8 => {
                 bits = 1 + 8;
             }
-            ZfpScalarType::Double if bits < 1 + 11 => {
+            ZfpScalarType::F64 if bits < 1 + 11 => {
                 bits = 1 + 11;
             }
-            ZfpScalarType::Float
-            | ZfpScalarType::Double
-            | ZfpScalarType::Int32
-            | ZfpScalarType::Int64 => {}
+            ZfpScalarType::F32 | ZfpScalarType::F64 | ZfpScalarType::I32 | ZfpScalarType::I64 => {}
         }
 
         if align == ZfpStreamAlignment::WordAligned {
@@ -462,10 +459,10 @@ impl ZfpConfig {
         };
         // max_bits exceeds every value at full precision, plus the float exponent.
         let (max_bits, max_prec, min_exp) = match ty {
-            ZfpScalarType::Int32 => (32 * values + 1, 32, ZFP_MIN_EXP),
-            ZfpScalarType::Int64 => (64 * values + 1, 64, ZFP_MIN_EXP),
-            ZfpScalarType::Float => ((8 + 1) + 32 * values, 32, -149),
-            ZfpScalarType::Double => ((11 + 1) + 64 * values, 64, -1074),
+            ZfpScalarType::I32 => (32 * values + 1, 32, ZFP_MIN_EXP),
+            ZfpScalarType::I64 => (64 * values + 1, 64, ZFP_MIN_EXP),
+            ZfpScalarType::F32 => ((8 + 1) + 32 * values, 32, -149),
+            ZfpScalarType::F64 => ((11 + 1) + 64 * values, 64, -1074),
         };
         Self::expert(0, max_bits, max_prec, min_exp)
     }
@@ -587,25 +584,25 @@ impl ZfpConfig {
         let reversible = self.min_exp < ZFP_MIN_EXP;
         let values = 1u32 << (2 * d);
         let type_prec = match ty {
-            ZfpScalarType::Int32 | ZfpScalarType::Float => 32u32,
-            ZfpScalarType::Int64 | ZfpScalarType::Double => 64u32,
+            ZfpScalarType::I32 | ZfpScalarType::F32 => 32u32,
+            ZfpScalarType::I64 | ZfpScalarType::F64 => 64u32,
         };
         // Extra bits for reversible mode: 1 sign + 1 exponent + M mantissa bits + E exponent bits,
         // where M and E depend on float/double precision (mirrors zfp_reversible_size in zfp.c).
         let mut extra_bits: u32 = if reversible {
             match ty {
-                ZfpScalarType::Int32 => 5, // 1 sign + 1 exponent + 5 mantissa + 1 exponent (min: 5 bits)
-                ZfpScalarType::Int64 => 6, // 1 sign + 1 exponent + 6 mantissa + 1 exponent (min: 6 bits)
-                ZfpScalarType::Float => 1 + 1 + 8 + 5, // sign + exp + 8 mantissa + 5 exponent
-                ZfpScalarType::Double => 1 + 1 + 11 + 6, // sign + exp + 11 mantissa + 6 exponent
+                ZfpScalarType::I32 => 5, // 1 sign + 1 exponent + 5 mantissa + 1 exponent (min: 5 bits)
+                ZfpScalarType::I64 => 6, // 1 sign + 1 exponent + 6 mantissa + 1 exponent (min: 6 bits)
+                ZfpScalarType::F32 => 1 + 1 + 8 + 5, // sign + exp + 8 mantissa + 5 exponent
+                ZfpScalarType::F64 => 1 + 1 + 11 + 6, // sign + exp + 11 mantissa + 6 exponent
             }
         } else {
             match ty {
                 // 1 sign bit + float exponent width (mirrors zfp_stream_maximum_size in zfp.c).
-                ZfpScalarType::Float => 1 + 8,
+                ZfpScalarType::F32 => 1 + 8,
                 // 1 sign bit + double exponent width.
-                ZfpScalarType::Double => 1 + 11,
-                ZfpScalarType::Int32 | ZfpScalarType::Int64 => 0,
+                ZfpScalarType::F64 => 1 + 11,
+                ZfpScalarType::I32 | ZfpScalarType::I64 => 0,
             }
         };
         extra_bits += values - 1 + values * self.max_prec.min(type_prec);
@@ -678,10 +675,10 @@ mod tests {
     #[test]
     fn fixed_rate_creates_fixed_rate_stream() {
         for zfp_type in [
-            ZfpScalarType::Int32,
-            ZfpScalarType::Int64,
-            ZfpScalarType::Float,
-            ZfpScalarType::Double,
+            ZfpScalarType::I32,
+            ZfpScalarType::I64,
+            ZfpScalarType::F32,
+            ZfpScalarType::F64,
         ] {
             for dims in [
                 ZfpDimensionality::D1,
@@ -689,7 +686,8 @@ mod tests {
                 ZfpDimensionality::D3,
                 ZfpDimensionality::D4,
             ] {
-                let config = ZfpConfig::fixed_rate(8.0, zfp_type, dims, ZfpStreamAlignment::None);
+                let config =
+                    ZfpConfig::fixed_rate(8.0, zfp_type, dims, ZfpStreamAlignment::Unaligned);
                 assert_eq!(
                     config.mode(),
                     ZfpMode::FixedRate,
@@ -703,7 +701,7 @@ mod tests {
     fn fixed_rate_with_align_rounds_to_word_boundary() {
         let config = ZfpConfig::fixed_rate(
             8.0,
-            ZfpScalarType::Double,
+            ZfpScalarType::F64,
             ZfpDimensionality::D3,
             ZfpStreamAlignment::WordAligned,
         );
@@ -711,7 +709,7 @@ mod tests {
 
         let config = ZfpConfig::fixed_rate(
             5.0,
-            ZfpScalarType::Double,
+            ZfpScalarType::F64,
             ZfpDimensionality::D3,
             ZfpStreamAlignment::WordAligned,
         );
@@ -722,18 +720,18 @@ mod tests {
     fn fixed_rate_min_bits_enforcement() {
         let config = ZfpConfig::fixed_rate(
             0.1,
-            ZfpScalarType::Float,
+            ZfpScalarType::F32,
             ZfpDimensionality::D1,
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         );
         assert_eq!(config.min_bits(), 9);
         assert_eq!(config.max_bits(), 9);
 
         let config = ZfpConfig::fixed_rate(
             0.1,
-            ZfpScalarType::Double,
+            ZfpScalarType::F64,
             ZfpDimensionality::D1,
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         );
         assert_eq!(config.min_bits(), 12);
         assert_eq!(config.max_bits(), 12);
@@ -774,9 +772,9 @@ mod tests {
     fn copy_clone() {
         let config = ZfpConfig::fixed_rate(
             8.0,
-            ZfpScalarType::Double,
+            ZfpScalarType::F64,
             ZfpDimensionality::D3,
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         );
         let cloned = config;
         assert_eq!(config, cloned);

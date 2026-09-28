@@ -46,10 +46,10 @@ impl ScalarKind {
     #[must_use]
     pub fn scalar_type(self) -> ZfpScalarType {
         match self {
-            Self::I32 => ZfpScalarType::Int32,
-            Self::I64 => ZfpScalarType::Int64,
-            Self::F32 => ZfpScalarType::Float,
-            Self::F64 => ZfpScalarType::Double,
+            Self::I32 => ZfpScalarType::I32,
+            Self::I64 => ZfpScalarType::I64,
+            Self::F32 => ZfpScalarType::F32,
+            Self::F64 => ZfpScalarType::F64,
         }
     }
 }
@@ -194,7 +194,7 @@ impl ModeSpec {
             0 => Self::FixedRate {
                 bits_per_block: 1 + raw % 2048,
                 align: if flags & 1 == 0 {
-                    ZfpStreamAlignment::None
+                    ZfpStreamAlignment::Unaligned
                 } else {
                     ZfpStreamAlignment::WordAligned
                 },

@@ -50,14 +50,14 @@ fn given_zfp_stream_set_with_invalid_params_when_zfp_stream_compression_mode_exp
 fn given_zfp_stream_set_with_fixed_rate_when_zfp_stream_compression_mode_expect_returns_fixed_rate_enum()
  {
     for zfp_type in [
-        ZfpScalarType::Int32,
-        ZfpScalarType::Int64,
-        ZfpScalarType::Float,
-        ZfpScalarType::Double,
+        ZfpScalarType::I32,
+        ZfpScalarType::I64,
+        ZfpScalarType::F32,
+        ZfpScalarType::F64,
     ] {
         let max_rate = match zfp_type {
-            ZfpScalarType::Int32 | ZfpScalarType::Float => 32,
-            ZfpScalarType::Int64 | ZfpScalarType::Double => 64,
+            ZfpScalarType::I32 | ZfpScalarType::F32 => 32,
+            ZfpScalarType::I64 | ZfpScalarType::F64 => 64,
         };
         for dims in [
             ZfpDimensionality::D1,
@@ -66,7 +66,10 @@ fn given_zfp_stream_set_with_fixed_rate_when_zfp_stream_compression_mode_expect_
             ZfpDimensionality::D4,
         ] {
             for rate in 1..=max_rate {
-                for align in [ZfpStreamAlignment::None, ZfpStreamAlignment::WordAligned] {
+                for align in [
+                    ZfpStreamAlignment::Unaligned,
+                    ZfpStreamAlignment::WordAligned,
+                ] {
                     let config = ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align);
                     let mode = config.mode();
                     assert_eq!(
@@ -139,14 +142,14 @@ fn given_zfp_stream_in_expert_mode_when_set_mode_with_expert_mode_bits_expect_pa
 #[test]
 fn given_zfp_stream_set_fixed_rate_when_set_mode_with_those_bits_expect_fixed_rate_mode_set() {
     for zfp_type in [
-        ZfpScalarType::Int32,
-        ZfpScalarType::Int64,
-        ZfpScalarType::Float,
-        ZfpScalarType::Double,
+        ZfpScalarType::I32,
+        ZfpScalarType::I64,
+        ZfpScalarType::F32,
+        ZfpScalarType::F64,
     ] {
         let max_rate = match zfp_type {
-            ZfpScalarType::Int32 | ZfpScalarType::Float => 32,
-            ZfpScalarType::Int64 | ZfpScalarType::Double => 64,
+            ZfpScalarType::I32 | ZfpScalarType::F32 => 32,
+            ZfpScalarType::I64 | ZfpScalarType::F64 => 64,
         };
         for dims in [
             ZfpDimensionality::D1,
@@ -155,7 +158,10 @@ fn given_zfp_stream_set_fixed_rate_when_set_mode_with_those_bits_expect_fixed_ra
             ZfpDimensionality::D4,
         ] {
             for rate in 1..=max_rate {
-                for align in [ZfpStreamAlignment::None, ZfpStreamAlignment::WordAligned] {
+                for align in [
+                    ZfpStreamAlignment::Unaligned,
+                    ZfpStreamAlignment::WordAligned,
+                ] {
                     let config = ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align);
                     assert_eq!(config.mode(), ZfpMode::FixedRate);
 
@@ -290,14 +296,14 @@ fn given_invalid_params_when_try_expert_expect_none() {
 #[test]
 fn given_zfp_stream_when_zfp_stream_rate_expect_rate_returned() {
     for zfp_type in [
-        ZfpScalarType::Int32,
-        ZfpScalarType::Int64,
-        ZfpScalarType::Float,
-        ZfpScalarType::Double,
+        ZfpScalarType::I32,
+        ZfpScalarType::I64,
+        ZfpScalarType::F32,
+        ZfpScalarType::F64,
     ] {
         let scalar_bits = match zfp_type {
-            ZfpScalarType::Int32 | ZfpScalarType::Float => 32usize,
-            ZfpScalarType::Int64 | ZfpScalarType::Double => 64,
+            ZfpScalarType::I32 | ZfpScalarType::F32 => 32usize,
+            ZfpScalarType::I64 | ZfpScalarType::F64 => 64,
         };
         for dims in [
             ZfpDimensionality::D1,
@@ -307,7 +313,10 @@ fn given_zfp_stream_when_zfp_stream_rate_expect_rate_returned() {
         ] {
             for i in 1usize..=4 {
                 let rate = scalar_bits as f64 * i as f64 / 4.0;
-                for align in [ZfpStreamAlignment::None, ZfpStreamAlignment::WordAligned] {
+                for align in [
+                    ZfpStreamAlignment::Unaligned,
+                    ZfpStreamAlignment::WordAligned,
+                ] {
                     let config = ZfpConfig::fixed_rate(rate, zfp_type, dims, align);
                     let actual = config.rate(dims).expect("fixed rate");
                     // When align=WordAligned, fixed_rate rounds up to the next word boundary (64 bits),
@@ -352,7 +361,7 @@ fn given_zfp_stream_when_zfp_stream_accuracy_expect_accuracy_returned() {
 #[test]
 fn given_zfp_stream_when_maximum_size_expect_nonzero_size_returned() {
     // use a non-trivial field shape to confirm a real calculation
-    let size = ZfpConfig::new().maximum_size(ZfpScalarType::Double, [33usize, 401]);
+    let size = ZfpConfig::new().maximum_size(ZfpScalarType::F64, [33usize, 401]);
     assert!(
         size.is_some_and(|size| size > 0),
         "maximum_size returned {size:?}"
@@ -362,16 +371,10 @@ fn given_zfp_stream_when_maximum_size_expect_nonzero_size_returned() {
 #[test]
 fn given_zfp_stream_when_maximum_size_with_invalid_dims_expect_none_returned() {
     let config = ZfpConfig::new();
+    assert_eq!(config.maximum_size(ZfpScalarType::F64, [0usize; 4]), None);
+    assert_eq!(config.maximum_size(ZfpScalarType::F64, [0usize, 1]), None);
     assert_eq!(
-        config.maximum_size(ZfpScalarType::Double, [0usize; 4]),
-        None
-    );
-    assert_eq!(
-        config.maximum_size(ZfpScalarType::Double, [0usize, 1]),
-        None
-    );
-    assert_eq!(
-        config.maximum_size(ZfpScalarType::Double, [usize::MAX, usize::MAX]),
+        config.maximum_size(ZfpScalarType::F64, [usize::MAX, usize::MAX]),
         None
     );
 }

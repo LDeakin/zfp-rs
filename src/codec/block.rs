@@ -54,74 +54,74 @@ pub fn encode_block<T: ZfpScalar>(
     use crate::codec::encode::{dim1, dim2, dim3, dim4};
     match (T::SCALAR_TYPE, dims) {
         // 1D
-        (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D1) => {
             // T == i32 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[i32; 4] = as_typed_block_1d::<T, i32>(data)?;
             Ok(dim1::encode_block_1d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D1) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D1) => {
             // T == i64 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[i64; 4] = as_typed_block_1d::<T, i64>(data)?;
             Ok(dim1::encode_block_1d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D1) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D1) => {
             // T == f32 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[f32; 4] = as_typed_block_1d::<T, f32>(data)?;
             Ok(dim1::encode_block_1d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D1) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D1) => {
             // T == f64 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[f64; 4] = as_typed_block_1d::<T, f64>(data)?;
             Ok(dim1::encode_block_1d_f64_default(bs, b))
         }
         // 2D
-        (ZfpScalarType::Int32, ZfpDimensionality::D2) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D2) => {
             let b: &[i32; 16] = as_typed_block_2d::<T, i32>(data)?;
             Ok(dim2::encode_block_2d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D2) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D2) => {
             let b: &[i64; 16] = as_typed_block_2d::<T, i64>(data)?;
             Ok(dim2::encode_block_2d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D2) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D2) => {
             let b: &[f32; 16] = as_typed_block_2d::<T, f32>(data)?;
             Ok(dim2::encode_block_2d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D2) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D2) => {
             let b: &[f64; 16] = as_typed_block_2d::<T, f64>(data)?;
             Ok(dim2::encode_block_2d_f64_default(bs, b))
         }
         // 3D
-        (ZfpScalarType::Int32, ZfpDimensionality::D3) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D3) => {
             let b: &[i32; 64] = as_typed_block_3d::<T, i32>(data)?;
             Ok(dim3::encode_block_3d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D3) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D3) => {
             let b: &[i64; 64] = as_typed_block_3d::<T, i64>(data)?;
             Ok(dim3::encode_block_3d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D3) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D3) => {
             let b: &[f32; 64] = as_typed_block_3d::<T, f32>(data)?;
             Ok(dim3::encode_block_3d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D3) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D3) => {
             let b: &[f64; 64] = as_typed_block_3d::<T, f64>(data)?;
             Ok(dim3::encode_block_3d_f64_default(bs, b))
         }
         // 4D
-        (ZfpScalarType::Int32, ZfpDimensionality::D4) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D4) => {
             let b: &[i32; 256] = as_typed_block_4d::<T, i32>(data)?;
             Ok(dim4::encode_block_4d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D4) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D4) => {
             let b: &[i64; 256] = as_typed_block_4d::<T, i64>(data)?;
             Ok(dim4::encode_block_4d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D4) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D4) => {
             let b: &[f32; 256] = as_typed_block_4d::<T, f32>(data)?;
             Ok(dim4::encode_block_4d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D4) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D4) => {
             let b: &[f64; 256] = as_typed_block_4d::<T, f64>(data)?;
             Ok(dim4::encode_block_4d_f64_default(bs, b))
         }
@@ -146,70 +146,70 @@ pub fn decode_block<T: ZfpScalar>(
     use crate::codec::decode::{dim1, dim2, dim3, dim4};
     match (T::SCALAR_TYPE, dims) {
         // 1D
-        (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D1) => {
             let b: &mut [i32; 4] = as_typed_block_1d_mut::<T, i32>(data)?;
             Ok(dim1::decode_block_1d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D1) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D1) => {
             let b: &mut [i64; 4] = as_typed_block_1d_mut::<T, i64>(data)?;
             Ok(dim1::decode_block_1d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D1) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D1) => {
             let b: &mut [f32; 4] = as_typed_block_1d_mut::<T, f32>(data)?;
             Ok(dim1::decode_block_1d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D1) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D1) => {
             let b: &mut [f64; 4] = as_typed_block_1d_mut::<T, f64>(data)?;
             Ok(dim1::decode_block_1d_f64_default(bs, b))
         }
         // 2D
-        (ZfpScalarType::Int32, ZfpDimensionality::D2) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D2) => {
             let b: &mut [i32; 16] = as_typed_block_2d_mut::<T, i32>(data)?;
             Ok(dim2::decode_block_2d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D2) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D2) => {
             let b: &mut [i64; 16] = as_typed_block_2d_mut::<T, i64>(data)?;
             Ok(dim2::decode_block_2d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D2) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D2) => {
             let b: &mut [f32; 16] = as_typed_block_2d_mut::<T, f32>(data)?;
             Ok(dim2::decode_block_2d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D2) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D2) => {
             let b: &mut [f64; 16] = as_typed_block_2d_mut::<T, f64>(data)?;
             Ok(dim2::decode_block_2d_f64_default(bs, b))
         }
         // 3D
-        (ZfpScalarType::Int32, ZfpDimensionality::D3) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D3) => {
             let b: &mut [i32; 64] = as_typed_block_3d_mut::<T, i32>(data)?;
             Ok(dim3::decode_block_3d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D3) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D3) => {
             let b: &mut [i64; 64] = as_typed_block_3d_mut::<T, i64>(data)?;
             Ok(dim3::decode_block_3d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D3) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D3) => {
             let b: &mut [f32; 64] = as_typed_block_3d_mut::<T, f32>(data)?;
             Ok(dim3::decode_block_3d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D3) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D3) => {
             let b: &mut [f64; 64] = as_typed_block_3d_mut::<T, f64>(data)?;
             Ok(dim3::decode_block_3d_f64_default(bs, b))
         }
         // 4D
-        (ZfpScalarType::Int32, ZfpDimensionality::D4) => {
+        (ZfpScalarType::I32, ZfpDimensionality::D4) => {
             let b: &mut [i32; 256] = as_typed_block_4d_mut::<T, i32>(data)?;
             Ok(dim4::decode_block_4d_i32_default(bs, b))
         }
-        (ZfpScalarType::Int64, ZfpDimensionality::D4) => {
+        (ZfpScalarType::I64, ZfpDimensionality::D4) => {
             let b: &mut [i64; 256] = as_typed_block_4d_mut::<T, i64>(data)?;
             Ok(dim4::decode_block_4d_i64_default(bs, b))
         }
-        (ZfpScalarType::Float, ZfpDimensionality::D4) => {
+        (ZfpScalarType::F32, ZfpDimensionality::D4) => {
             let b: &mut [f32; 256] = as_typed_block_4d_mut::<T, f32>(data)?;
             Ok(dim4::decode_block_4d_f32_default(bs, b))
         }
-        (ZfpScalarType::Double, ZfpDimensionality::D4) => {
+        (ZfpScalarType::F64, ZfpDimensionality::D4) => {
             let b: &mut [f64; 256] = as_typed_block_4d_mut::<T, f64>(data)?;
             Ok(dim4::decode_block_4d_f64_default(bs, b))
         }

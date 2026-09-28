@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpConfig::from_mode` is renamed `from_mode_bits`, and `ZfpConfig::compression_mode` is renamed `mode`.
 - **Breaking**: `ZfpDims::dimensionality` and `ZfpStrides::dimensionality` are removed.
 - **Breaking**: The `*_from_params` functions are no longer public without `ffi`.
+- **Breaking**: `ZfpScalarType` variants are renamed `I32`, `I64`, `F32` and `F64`, and its `size`, `align`, `precision` and `is_aligned` methods take `self` by value.
+- **Breaking**: `ZfpStreamAlignment::None` is renamed `Unaligned`, so it cannot be confused with `Option::None`.
+- **Breaking**: `ZfpHeaderMask::NONE` is removed; use `ZfpHeaderMask::empty()`.
 
 ### Fixed
 

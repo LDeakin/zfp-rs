@@ -81,7 +81,7 @@ fn apply_mode_rust(
                 f64::from(bits) / f64::from(1u32 << (2 * u32::from(dims))),
                 ty,
                 dims,
-                zfp_rs::ZfpStreamAlignment::None,
+                zfp_rs::ZfpStreamAlignment::Unaligned,
             );
         }
         Mode::FixedPrecision(p) => {
@@ -244,13 +244,13 @@ macro_rules! decompress_compat_1d_int {
 decompress_compat_1d_int!(
     decompress_1d_i32,
     i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32
 );
 decompress_compat_1d_int!(
     decompress_1d_i64,
     i64,
-    ZfpScalarType::Int64,
+    ZfpScalarType::I64,
     zfp_sys::zfp_type_zfp_type_int64
 );
 
@@ -317,7 +317,7 @@ macro_rules! decompress_compat_1d_float {
 decompress_compat_1d_float!(
     decompress_1d_f32,
     f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
     normal_f32()
@@ -325,7 +325,7 @@ decompress_compat_1d_float!(
 decompress_compat_1d_float!(
     decompress_1d_f64,
     f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
     normal_f64()
@@ -391,13 +391,13 @@ macro_rules! decompress_compat_2d_int {
 decompress_compat_2d_int!(
     decompress_2d_i32,
     i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32
 );
 decompress_compat_2d_int!(
     decompress_2d_i64,
     i64,
-    ZfpScalarType::Int64,
+    ZfpScalarType::I64,
     zfp_sys::zfp_type_zfp_type_int64
 );
 
@@ -463,7 +463,7 @@ macro_rules! decompress_compat_2d_float {
 decompress_compat_2d_float!(
     decompress_2d_f32,
     f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
     normal_f32()
@@ -471,7 +471,7 @@ decompress_compat_2d_float!(
 decompress_compat_2d_float!(
     decompress_2d_f64,
     f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
     normal_f64()
@@ -539,13 +539,13 @@ macro_rules! decompress_compat_3d_int {
 decompress_compat_3d_int!(
     decompress_3d_i32,
     i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32
 );
 decompress_compat_3d_int!(
     decompress_3d_i64,
     i64,
-    ZfpScalarType::Int64,
+    ZfpScalarType::I64,
     zfp_sys::zfp_type_zfp_type_int64
 );
 
@@ -613,7 +613,7 @@ macro_rules! decompress_compat_3d_float {
 decompress_compat_3d_float!(
     decompress_3d_f32,
     f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
     normal_f32()
@@ -621,7 +621,7 @@ decompress_compat_3d_float!(
 decompress_compat_3d_float!(
     decompress_3d_f64,
     f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
     normal_f64()
@@ -691,13 +691,13 @@ macro_rules! decompress_compat_4d_int {
 decompress_compat_4d_int!(
     decompress_4d_i32,
     i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32
 );
 decompress_compat_4d_int!(
     decompress_4d_i64,
     i64,
-    ZfpScalarType::Int64,
+    ZfpScalarType::I64,
     zfp_sys::zfp_type_zfp_type_int64
 );
 
@@ -767,7 +767,7 @@ macro_rules! decompress_compat_4d_float {
 decompress_compat_4d_float!(
     decompress_4d_f32,
     f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
     normal_f32()
@@ -775,7 +775,7 @@ decompress_compat_4d_float!(
 decompress_compat_4d_float!(
     decompress_4d_f64,
     f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
     normal_f64()

@@ -184,7 +184,7 @@ mod tests {
             strides,
             dims,
             dims_enum,
-            scalar_type: ZfpScalarType::Float,
+            scalar_type: ZfpScalarType::F32,
         }
         .strides_may_alias()
     }

@@ -143,10 +143,10 @@ unsafe fn compress_block(
         }};
     }
     encode_dispatch!(
-        ZfpScalarType::Int32 => i32,
-        ZfpScalarType::Int64 => i64,
-        ZfpScalarType::Float => f32,
-        ZfpScalarType::Double => f64,
+        ZfpScalarType::I32 => i32,
+        ZfpScalarType::I64 => i64,
+        ZfpScalarType::F32 => f32,
+        ZfpScalarType::F64 => f64,
     );
 }
 

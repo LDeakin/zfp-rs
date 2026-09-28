@@ -391,7 +391,7 @@ fn run_compress_decompress<T: ZfpScalar>(
                 fixed_rate_param(param_num) as f64,
                 T::SCALAR_TYPE,
                 ZfpDimensionality::try_from(dims).unwrap(),
-                ZfpStreamAlignment::None,
+                ZfpStreamAlignment::Unaligned,
             ),
             CompressionMode::FixedAccuracy => {
                 ZfpConfig::fixed_accuracy(fixed_accuracy_param(param_num))
@@ -610,8 +610,12 @@ fn test_set_rate_align<T: ZfpScalar>(dims: u32) {
     // C uses ZFP_RATE_PARAM_BITS = 19 for all types (from universalConsts.h)
     let rate = 19.0f64;
     let zfp_dims = ZfpDimensionality::try_from(dims).unwrap();
-    let params_no_align =
-        ZfpConfig::fixed_rate(rate, T::SCALAR_TYPE, zfp_dims, ZfpStreamAlignment::None);
+    let params_no_align = ZfpConfig::fixed_rate(
+        rate,
+        T::SCALAR_TYPE,
+        zfp_dims,
+        ZfpStreamAlignment::Unaligned,
+    );
     let params_align = ZfpConfig::fixed_rate(
         rate,
         T::SCALAR_TYPE,
@@ -643,7 +647,7 @@ fn test_bitrate<T: ZfpScalar>(dims: u32, n: [usize; 4], src: &[T]) {
             rate_param as f64,
             T::SCALAR_TYPE,
             ZfpDimensionality::try_from(dims).unwrap(),
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         );
         let buf_size = config
             .maximum_size(T::SCALAR_TYPE, n)
@@ -800,19 +804,19 @@ fn test_data_checksum<T: ZfpScalar>(dims: u32, checksum_type: CsumType, src: &[T
 
 fn generate_typed<T: ZfpScalar>(dims: u32) -> (Vec<T>, usize, usize) {
     match T::SCALAR_TYPE {
-        LibZfpScalarType::Int32 => {
+        LibZfpScalarType::I32 => {
             let (v, s, t) = gen_smooth_rand_ints32(dims);
             reinterpret_vec(v, s, t)
         }
-        LibZfpScalarType::Int64 => {
+        LibZfpScalarType::I64 => {
             let (v, s, t) = gen_smooth_rand_ints64(dims);
             reinterpret_vec(v, s, t)
         }
-        LibZfpScalarType::Float => {
+        LibZfpScalarType::F32 => {
             let (v, s, t) = gen_smooth_rand_floats(dims);
             reinterpret_vec(v, s, t)
         }
-        LibZfpScalarType::Double => {
+        LibZfpScalarType::F64 => {
             let (v, s, t) = gen_smooth_rand_doubles(dims);
             reinterpret_vec(v, s, t)
         }
@@ -1062,22 +1066,22 @@ macro_rules! endtoend_tests {
 // 16 test suite instantiations
 // ---------------------------------------------------------------------------
 
-endtoend_tests!(dim1_double, 1, Double, f64, true);
-endtoend_tests!(dim1_float, 1, Float, f32, true);
-endtoend_tests!(dim1_int32, 1, Int32, i32, false);
-endtoend_tests!(dim1_int64, 1, Int64, i64, false);
+endtoend_tests!(dim1_double, 1, F64, f64, true);
+endtoend_tests!(dim1_float, 1, F32, f32, true);
+endtoend_tests!(dim1_int32, 1, I32, i32, false);
+endtoend_tests!(dim1_int64, 1, I64, i64, false);
 
-endtoend_tests!(dim2_double, 2, Double, f64, true);
-endtoend_tests!(dim2_float, 2, Float, f32, true);
-endtoend_tests!(dim2_int32, 2, Int32, i32, false);
-endtoend_tests!(dim2_int64, 2, Int64, i64, false);
+endtoend_tests!(dim2_double, 2, F64, f64, true);
+endtoend_tests!(dim2_float, 2, F32, f32, true);
+endtoend_tests!(dim2_int32, 2, I32, i32, false);
+endtoend_tests!(dim2_int64, 2, I64, i64, false);
 
-endtoend_tests!(dim3_double, 3, Double, f64, true);
-endtoend_tests!(dim3_float, 3, Float, f32, true);
-endtoend_tests!(dim3_int32, 3, Int32, i32, false);
-endtoend_tests!(dim3_int64, 3, Int64, i64, false);
+endtoend_tests!(dim3_double, 3, F64, f64, true);
+endtoend_tests!(dim3_float, 3, F32, f32, true);
+endtoend_tests!(dim3_int32, 3, I32, i32, false);
+endtoend_tests!(dim3_int64, 3, I64, i64, false);
 
-endtoend_tests!(dim4_double, 4, Double, f64, true);
-endtoend_tests!(dim4_float, 4, Float, f32, true);
-endtoend_tests!(dim4_int32, 4, Int32, i32, false);
-endtoend_tests!(dim4_int64, 4, Int64, i64, false);
+endtoend_tests!(dim4_double, 4, F64, f64, true);
+endtoend_tests!(dim4_float, 4, F32, f32, true);
+endtoend_tests!(dim4_int32, 4, I32, i32, false);
+endtoend_tests!(dim4_int64, 4, I64, i64, false);

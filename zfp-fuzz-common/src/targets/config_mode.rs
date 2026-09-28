@@ -116,10 +116,10 @@ fn check_queries(config: ZfpConfig) {
         let _ = config.rate(dims);
     }
     for ty in [
-        ZfpScalarType::Int32,
-        ZfpScalarType::Int64,
-        ZfpScalarType::Float,
-        ZfpScalarType::Double,
+        ZfpScalarType::I32,
+        ZfpScalarType::I64,
+        ZfpScalarType::F32,
+        ZfpScalarType::F64,
     ] {
         let _ = config.maximum_size(ty, 1usize);
     }

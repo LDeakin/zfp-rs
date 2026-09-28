@@ -500,7 +500,7 @@ mod tests {
 
         let (begin, byte_count) = span_of(
             field.data.cast_const(),
-            zfp_rs::types::ZfpScalarType::Double,
+            zfp_rs::types::ZfpScalarType::F64,
             &active_dims(&field),
             &active_strides(&field),
         );

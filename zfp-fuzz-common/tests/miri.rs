@@ -250,11 +250,21 @@ fn strided_fixed_rate() {
         let dims = zfp_fuzz_common::input::dimensionality_of(rank);
         roundtrip::<f64>(
             case,
-            &ZfpConfig::fixed_rate(16.0, ZfpScalarType::Double, dims, ZfpStreamAlignment::None),
+            &ZfpConfig::fixed_rate(
+                16.0,
+                ZfpScalarType::F64,
+                dims,
+                ZfpStreamAlignment::Unaligned,
+            ),
         );
         roundtrip::<i32>(
             case,
-            &ZfpConfig::fixed_rate(16.0, ZfpScalarType::Int32, dims, ZfpStreamAlignment::None),
+            &ZfpConfig::fixed_rate(
+                16.0,
+                ZfpScalarType::I32,
+                dims,
+                ZfpStreamAlignment::Unaligned,
+            ),
         );
     }
 }
@@ -280,7 +290,7 @@ fn undersized_field_is_rejected() {
         ZfpField::from_raw_unchecked(
             src.as_ptr().cast(),
             32,
-            ZfpScalarType::Double,
+            ZfpScalarType::F64,
             [1000, 0, 0, 0],
             [0; 4],
         )
@@ -299,7 +309,7 @@ fn undersized_field_is_rejected() {
         ZfpFieldMut::from_raw_unchecked(
             dst.as_mut_ptr().cast(),
             32,
-            ZfpScalarType::Double,
+            ZfpScalarType::F64,
             [1000, 0, 0, 0],
             [0; 4],
         )

@@ -58,52 +58,52 @@ macro_rules! strided_dispatch {
         d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
     ) => {
         match (T::SCALAR_TYPE, $dims) {
-            (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D1) => {
                 $i1($bs, $cast::<T, i32>($data), $($len[0],)? $strides[0], $config)
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D1) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D1) => {
                 $q1($bs, $cast::<T, i64>($data), $($len[0],)? $strides[0], $config)
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D1) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D1) => {
                 $f1($bs, $cast::<T, f32>($data), $($len[0],)? $strides[0], $config)
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D1) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D1) => {
                 $g1($bs, $cast::<T, f64>($data), $($len[0],)? $strides[0], $config)
             }
-            (ZfpScalarType::Int32, ZfpDimensionality::D2) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D2) => {
                 $i2($bs, $cast::<T, i32>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D2) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D2) => {
                 $q2($bs, $cast::<T, i64>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D2) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D2) => {
                 $f2($bs, $cast::<T, f32>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D2) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D2) => {
                 $g2($bs, $cast::<T, f64>($data), $($len[0], $len[1],)? $strides[0], $strides[1], $config)
             }
-            (ZfpScalarType::Int32, ZfpDimensionality::D3) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D3) => {
                 $i3($bs, $cast::<T, i32>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D3) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D3) => {
                 $q3($bs, $cast::<T, i64>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D3) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D3) => {
                 $f3($bs, $cast::<T, f32>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D3) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D3) => {
                 $g3($bs, $cast::<T, f64>($data), $($len[0], $len[1], $len[2],)? $strides[0], $strides[1], $strides[2], $config)
             }
-            (ZfpScalarType::Int32, ZfpDimensionality::D4) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D4) => {
                 $i4($bs, $cast::<T, i32>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D4) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D4) => {
                 $q4($bs, $cast::<T, i64>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D4) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D4) => {
                 $f4($bs, $cast::<T, f32>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D4) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D4) => {
                 $g4($bs, $cast::<T, f64>($data), $($len[0], $len[1], $len[2], $len[3],)? $strides[0], $strides[1], $strides[2], $strides[3], $config)
             }
         }
@@ -128,52 +128,52 @@ macro_rules! reversible_dispatch {
         d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
     ) => {
         match (T::SCALAR_TYPE, $dims) {
-            (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D1) => {
                 $i1($bs, typed_block!(as_typed_block_1d::<T, i32>(&$block)))
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D1) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D1) => {
                 $q1($bs, typed_block!(as_typed_block_1d::<T, i64>(&$block)))
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D1) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D1) => {
                 $f1($bs, typed_block!(as_typed_block_1d::<T, f32>(&$block)))
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D1) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D1) => {
                 $g1($bs, typed_block!(as_typed_block_1d::<T, f64>(&$block)))
             }
-            (ZfpScalarType::Int32, ZfpDimensionality::D2) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D2) => {
                 $i2($bs, typed_block!(as_typed_block_2d::<T, i32>(&$block)))
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D2) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D2) => {
                 $q2($bs, typed_block!(as_typed_block_2d::<T, i64>(&$block)))
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D2) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D2) => {
                 $f2($bs, typed_block!(as_typed_block_2d::<T, f32>(&$block)))
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D2) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D2) => {
                 $g2($bs, typed_block!(as_typed_block_2d::<T, f64>(&$block)))
             }
-            (ZfpScalarType::Int32, ZfpDimensionality::D3) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D3) => {
                 $i3($bs, typed_block!(as_typed_block_3d::<T, i32>(&$block)))
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D3) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D3) => {
                 $q3($bs, typed_block!(as_typed_block_3d::<T, i64>(&$block)))
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D3) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D3) => {
                 $f3($bs, typed_block!(as_typed_block_3d::<T, f32>(&$block)))
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D3) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D3) => {
                 $g3($bs, typed_block!(as_typed_block_3d::<T, f64>(&$block)))
             }
-            (ZfpScalarType::Int32, ZfpDimensionality::D4) => {
+            (ZfpScalarType::I32, ZfpDimensionality::D4) => {
                 $i4($bs, typed_block!(as_typed_block_4d::<T, i32>(&$block)))
             }
-            (ZfpScalarType::Int64, ZfpDimensionality::D4) => {
+            (ZfpScalarType::I64, ZfpDimensionality::D4) => {
                 $q4($bs, typed_block!(as_typed_block_4d::<T, i64>(&$block)))
             }
-            (ZfpScalarType::Float, ZfpDimensionality::D4) => {
+            (ZfpScalarType::F32, ZfpDimensionality::D4) => {
                 $f4($bs, typed_block!(as_typed_block_4d::<T, f32>(&$block)))
             }
-            (ZfpScalarType::Double, ZfpDimensionality::D4) => {
+            (ZfpScalarType::F64, ZfpDimensionality::D4) => {
                 $g4($bs, typed_block!(as_typed_block_4d::<T, f64>(&$block)))
             }
         }
@@ -186,82 +186,82 @@ macro_rules! reversible_dispatch {
         d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
     ) => {
         match (T::SCALAR_TYPE, $dims) {
-            (ZfpScalarType::Int32, ZfpDimensionality::D1) => $i1(
+            (ZfpScalarType::I32, ZfpDimensionality::D1) => $i1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, i32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Int64, ZfpDimensionality::D1) => $q1(
+            (ZfpScalarType::I64, ZfpDimensionality::D1) => $q1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, i64>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Float, ZfpDimensionality::D1) => $f1(
+            (ZfpScalarType::F32, ZfpDimensionality::D1) => $f1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, f32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Double, ZfpDimensionality::D1) => $g1(
+            (ZfpScalarType::F64, ZfpDimensionality::D1) => $g1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, f64>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Int32, ZfpDimensionality::D2) => $i2(
+            (ZfpScalarType::I32, ZfpDimensionality::D2) => $i2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, i32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Int64, ZfpDimensionality::D2) => $q2(
+            (ZfpScalarType::I64, ZfpDimensionality::D2) => $q2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, i64>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Float, ZfpDimensionality::D2) => $f2(
+            (ZfpScalarType::F32, ZfpDimensionality::D2) => $f2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, f32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Double, ZfpDimensionality::D2) => $g2(
+            (ZfpScalarType::F64, ZfpDimensionality::D2) => $g2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, f64>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Int32, ZfpDimensionality::D3) => $i3(
+            (ZfpScalarType::I32, ZfpDimensionality::D3) => $i3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, i32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Int64, ZfpDimensionality::D3) => $q3(
+            (ZfpScalarType::I64, ZfpDimensionality::D3) => $q3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, i64>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Float, ZfpDimensionality::D3) => $f3(
+            (ZfpScalarType::F32, ZfpDimensionality::D3) => $f3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, f32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Double, ZfpDimensionality::D3) => $g3(
+            (ZfpScalarType::F64, ZfpDimensionality::D3) => $g3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, f64>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Int32, ZfpDimensionality::D4) => $i4(
+            (ZfpScalarType::I32, ZfpDimensionality::D4) => $i4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, i32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Int64, ZfpDimensionality::D4) => $q4(
+            (ZfpScalarType::I64, ZfpDimensionality::D4) => $q4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, i64>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Float, ZfpDimensionality::D4) => $f4(
+            (ZfpScalarType::F32, ZfpDimensionality::D4) => $f4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, f32>(&mut $block)),
                 $rounding,
             ),
-            (ZfpScalarType::Double, ZfpDimensionality::D4) => $g4(
+            (ZfpScalarType::F64, ZfpDimensionality::D4) => $g4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, f64>(&mut $block)),
                 $rounding,

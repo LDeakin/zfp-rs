@@ -346,19 +346,23 @@ impl std::error::Error for InvalidDimensionalityError {}
 /// Scalar element type tag: mirrors `zfp_type` in `zfp.h`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ZfpScalarType {
-    Int32,
-    Int64,
-    Float,
-    Double,
+    /// `i32` (`zfp_type_int32`).
+    I32,
+    /// `i64` (`zfp_type_int64`).
+    I64,
+    /// `f32` (`zfp_type_float`).
+    F32,
+    /// `f64` (`zfp_type_double`).
+    F64,
 }
 
 impl ZfpScalarType {
     /// Number of bytes per scalar value.
     #[must_use]
-    pub const fn size(&self) -> usize {
+    pub const fn size(self) -> usize {
         match self {
-            ZfpScalarType::Int32 | ZfpScalarType::Float => 4,
-            ZfpScalarType::Int64 | ZfpScalarType::Double => 8,
+            ZfpScalarType::I32 | ZfpScalarType::F32 => 4,
+            ZfpScalarType::I64 | ZfpScalarType::F64 => 8,
         }
     }
 
@@ -369,27 +373,27 @@ impl ZfpScalarType {
     /// on some 32-bit targets. Buffers passed to
     /// [`ZfpField::from_raw`][crate::ZfpField::from_raw] must satisfy this.
     #[must_use]
-    pub const fn align(&self) -> usize {
+    pub const fn align(self) -> usize {
         match self {
-            ZfpScalarType::Int32 => align_of::<i32>(),
-            ZfpScalarType::Int64 => align_of::<i64>(),
-            ZfpScalarType::Float => align_of::<f32>(),
-            ZfpScalarType::Double => align_of::<f64>(),
+            ZfpScalarType::I32 => align_of::<i32>(),
+            ZfpScalarType::I64 => align_of::<i64>(),
+            ZfpScalarType::F32 => align_of::<f32>(),
+            ZfpScalarType::F64 => align_of::<f64>(),
         }
     }
 
     /// Whether `ptr` satisfies this scalar type's alignment.
     #[must_use]
-    pub fn is_aligned(&self, ptr: *const u8) -> bool {
+    pub fn is_aligned(self, ptr: *const u8) -> bool {
         ptr.addr().is_multiple_of(self.align())
     }
 
     /// Number of bits per scalar value (32 or 64).
     #[must_use]
-    pub const fn precision(&self) -> u32 {
+    pub const fn precision(self) -> u32 {
         match self {
-            ZfpScalarType::Int32 | ZfpScalarType::Float => 32,
-            ZfpScalarType::Int64 | ZfpScalarType::Double => 64,
+            ZfpScalarType::I32 | ZfpScalarType::F32 => 32,
+            ZfpScalarType::I64 | ZfpScalarType::F64 => 64,
         }
     }
 }
@@ -397,10 +401,10 @@ impl ZfpScalarType {
 impl fmt::Display for ZfpScalarType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ZfpScalarType::Int32 => write!(f, "int32"),
-            ZfpScalarType::Int64 => write!(f, "int64"),
-            ZfpScalarType::Float => write!(f, "float"),
-            ZfpScalarType::Double => write!(f, "double"),
+            ZfpScalarType::I32 => write!(f, "int32"),
+            ZfpScalarType::I64 => write!(f, "int64"),
+            ZfpScalarType::F32 => write!(f, "float"),
+            ZfpScalarType::F64 => write!(f, "double"),
         }
     }
 }
@@ -447,7 +451,6 @@ bitflags! {
     /// Header section flags: mirrors `ZFP_HEADER_*` constants in `zfp.h`.
     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct ZfpHeaderMask: u32 {
-        const NONE  = 0x0;
         /// 32-bit magic word.
         const MAGIC = 0x1;
         /// 52-bit field metadata.
@@ -478,17 +481,17 @@ pub trait ZfpScalar: sealed::Sealed + Copy + Default + bytemuck::Pod + 'static {
 }
 
 impl ZfpScalar for i32 {
-    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Int32;
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::I32;
 }
 
 impl ZfpScalar for i64 {
-    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Int64;
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::I64;
 }
 
 impl ZfpScalar for f32 {
-    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Float;
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::F32;
 }
 
 impl ZfpScalar for f64 {
-    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Double;
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::F64;
 }

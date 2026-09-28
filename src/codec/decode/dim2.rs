@@ -49,7 +49,7 @@ pub fn decode_block_2d_i32_default(
     let before = bs.read_pos();
     *block = decode_block_2d_i32(
         bs,
-        &ZfpConfig::block_default(ZfpScalarType::Int32, ZfpDimensionality::D2),
+        &ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D2),
     );
     (bs.read_pos() - before) as usize
 }
@@ -60,7 +60,7 @@ pub fn decode_block_2d_i64_default(
     let before = bs.read_pos();
     *block = decode_block_2d_i64(
         bs,
-        &ZfpConfig::block_default(ZfpScalarType::Int64, ZfpDimensionality::D2),
+        &ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D2),
     );
     (bs.read_pos() - before) as usize
 }
@@ -71,7 +71,7 @@ pub fn decode_block_2d_f32_default(
     let before = bs.read_pos();
     *block = decode_block_2d_f32(
         bs,
-        &ZfpConfig::block_default(ZfpScalarType::Float, ZfpDimensionality::D2),
+        &ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D2),
     );
     (bs.read_pos() - before) as usize
 }
@@ -82,7 +82,7 @@ pub fn decode_block_2d_f64_default(
     let before = bs.read_pos();
     *block = decode_block_2d_f64(
         bs,
-        &ZfpConfig::block_default(ZfpScalarType::Double, ZfpDimensionality::D2),
+        &ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D2),
     );
     (bs.read_pos() - before) as usize
 }
@@ -102,7 +102,7 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_f64_rate,
     partial_rate: decode_partial_block_strided_2d_f64_rate,
     decode: decode_block_2d_f64,
-    default: ZfpConfig::block_default(ZfpScalarType::Double, ZfpDimensionality::D2),
+    default: ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D2),
 }
 
 strided_decode_wrappers! {
@@ -116,7 +116,7 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_f32_rate,
     partial_rate: decode_partial_block_strided_2d_f32_rate,
     decode: decode_block_2d_f32,
-    default: ZfpConfig::block_default(ZfpScalarType::Float, ZfpDimensionality::D2),
+    default: ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D2),
 }
 
 strided_decode_wrappers! {
@@ -130,7 +130,7 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_i32_rate,
     partial_rate: decode_partial_block_strided_2d_i32_rate,
     decode: decode_block_2d_i32,
-    default: ZfpConfig::block_default(ZfpScalarType::Int32, ZfpDimensionality::D2),
+    default: ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D2),
 }
 
 strided_decode_wrappers! {
@@ -144,5 +144,5 @@ strided_decode_wrappers! {
     full_rate: decode_block_strided_2d_i64_rate,
     partial_rate: decode_partial_block_strided_2d_i64_rate,
     decode: decode_block_2d_i64,
-    default: ZfpConfig::block_default(ZfpScalarType::Int64, ZfpDimensionality::D2),
+    default: ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D2),
 }
