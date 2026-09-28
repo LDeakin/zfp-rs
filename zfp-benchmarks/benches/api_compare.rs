@@ -379,7 +379,11 @@ impl Drop for FfiField {
 fn compressed_rust<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec<u8> {
     let config = rust_config::<T>(case);
     let field = rust_field(data, dims);
-    let mut bs = ZfpBitStream::new(config.maximum_size(T::RUST_TYPE, dims));
+    let mut bs = ZfpBitStream::new(
+        config
+            .maximum_size(T::RUST_TYPE, dims)
+            .expect("maximum size"),
+    );
     let bytes = bs
         .compress(&config, &field)
         .expect("rust compression failed");
@@ -387,7 +391,9 @@ fn compressed_rust<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Ve
 }
 
 fn compressed_c<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec<u8> {
-    let capacity = rust_config::<T>(case).maximum_size(T::RUST_TYPE, dims);
+    let capacity = rust_config::<T>(case)
+        .maximum_size(T::RUST_TYPE, dims)
+        .expect("maximum size");
     let stream = CStream::new(capacity);
     unsafe {
         apply_mode_c::<T>(stream.zfp, case);
@@ -402,7 +408,9 @@ fn compressed_c<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec<u
 }
 
 fn compressed_ffi<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec<u8> {
-    let capacity = rust_config::<T>(case).maximum_size(T::RUST_TYPE, dims);
+    let capacity = rust_config::<T>(case)
+        .maximum_size(T::RUST_TYPE, dims)
+        .expect("maximum size");
     let stream = FfiStream::new(capacity);
     unsafe {
         apply_mode_ffi::<T>(stream.zfp, case);
@@ -419,7 +427,9 @@ fn compressed_ffi<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec
 fn bench_case<T: BenchScalar>(criterion: &mut Criterion, case: Case) {
     let (data, dims) = T::generate(case.dims);
     let elements = data.len() as u64;
-    let capacity = rust_config::<T>(case).maximum_size(T::RUST_TYPE, &dims);
+    let capacity = rust_config::<T>(case)
+        .maximum_size(T::RUST_TYPE, &dims)
+        .expect("maximum size");
     let case_label = case.label();
 
     let mut group = criterion.benchmark_group("api_compare");

@@ -561,12 +561,14 @@ impl ZfpConfig {
     }
 
     /// Return the maximum compressed size in bytes for a field with the given type and dims.
+    ///
+    /// Returns [`None`] if `dims` is not 1-4 dimensional or the size overflows `usize`.
     #[must_use]
     #[allow(clippy::cast_possible_truncation)] // zfp only supports up to 4 dimensions
-    pub fn maximum_size(&self, ty: ZfpScalarType, dims: &[usize]) -> usize {
+    pub fn maximum_size(&self, ty: ZfpScalarType, dims: &[usize]) -> Option<usize> {
         let d = dims.len() as u32;
         if d == 0 || d > 4 {
-            return 0;
+            return None;
         }
         let reversible = self.min_exp < ZFP_MIN_EXP;
         let values = 1u32 << (2 * d);
@@ -595,26 +597,16 @@ impl ZfpConfig {
         extra_bits += values - 1 + values * self.max_prec.min(type_prec);
         let maxbits = extra_bits.min(self.max_bits).max(self.min_bits);
 
-        let Some(blocks) = dims
+        let blocks = dims
             .iter()
-            .try_fold(1usize, |acc, &n| acc.checked_mul(n.div_ceil(4)))
-        else {
-            return 0;
-        };
+            .try_fold(1usize, |acc, &n| acc.checked_mul(n.div_ceil(4)))?;
         // Maximum header size in bits (mirrors ZFP_HEADER_MAX_BITS / zfp_stream_maximum_size in zfp.c).
         let header_max: u64 = 148;
-        let Some(total_bits) = (blocks as u64)
+        let total_bits = (blocks as u64)
             .checked_mul(u64::from(maxbits))
             .and_then(|bits| bits.checked_add(header_max))
-            .and_then(|bits| bits.checked_next_multiple_of(u64::from(STREAM_WORD_BITS)))
-        else {
-            return 0;
-        };
-        let bytes = total_bits / 8;
-        if bytes as usize as u64 != bytes {
-            return 0;
-        }
-        bytes as usize
+            .and_then(|bits| bits.checked_next_multiple_of(u64::from(STREAM_WORD_BITS)))?;
+        usize::try_from(total_bits / 8).ok()
     }
 }
 

@@ -253,7 +253,7 @@ pub unsafe extern "C" fn zfp_stream_maximum_size(
         ([_, _, 0], ..) => &all_dims[..3],
         _ => &all_dims[..4],
     };
-    zfp.maximum_size(ty, dims)
+    zfp.maximum_size(ty, dims).unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]

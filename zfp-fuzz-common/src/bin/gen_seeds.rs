@@ -153,10 +153,9 @@ fn gen_decompress_stream(dir: &Path) -> usize {
             ] {
                 let dims = seed_dims(rank);
                 let n: usize = dims[..=usize::from(rank)].iter().product();
-                let cap = config.maximum_size(ty, &dims[..=usize::from(rank)]);
-                if cap == 0 {
+                let Some(cap) = config.maximum_size(ty, &dims[..=usize::from(rank)]) else {
                     continue;
-                }
+                };
 
                 // Compress a simple ramp so the stream is structurally valid.
                 let src: Vec<f64> = (0..n).map(|i| i as f64).collect();

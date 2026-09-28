@@ -358,5 +358,22 @@ fn given_zfp_stream_when_zfp_stream_accuracy_expect_accuracy_returned() {
 fn given_zfp_stream_when_maximum_size_expect_nonzero_size_returned() {
     // use a non-trivial field shape to confirm a real calculation
     let size = ZfpConfig::new().maximum_size(ZfpScalarType::Double, &[33, 401]);
-    assert!(size > 0, "maximum_size returned 0");
+    assert!(
+        size.is_some_and(|size| size > 0),
+        "maximum_size returned {size:?}"
+    );
+}
+
+#[test]
+fn given_zfp_stream_when_maximum_size_with_invalid_dims_expect_none_returned() {
+    let config = ZfpConfig::new();
+    assert_eq!(config.maximum_size(ZfpScalarType::Double, &[]), None);
+    assert_eq!(
+        config.maximum_size(ZfpScalarType::Double, &[1, 1, 1, 1, 1]),
+        None
+    );
+    assert_eq!(
+        config.maximum_size(ZfpScalarType::Double, &[usize::MAX, usize::MAX]),
+        None
+    );
 }

@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - **Breaking**: `ZfpBitStreamMutOps::write_header` (and so `write_header` on every stream type) returns `Result<usize, ZfpMetadataError>` instead of `0` on failure, and writes nothing on failure.
+- **Breaking**: `ZfpConfig::maximum_size` returns `Option<usize>` instead of `0` for unsupported dimensionality or overflow.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28
 
