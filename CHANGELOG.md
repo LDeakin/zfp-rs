@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Serial compression is 2–10x faster and decompression 1.4–22x faster across the `api_compare` benchmark cases, with byte-identical output. The embedded coder transposes each block into bit planes and codes a whole group test at a time, the transforms are lifted as vectors, and all-zero planes and blocks take shortcuts.
 - **Breaking**: `ZfpBitStreamMutOps::write_header` (and so `write_header` on every stream type) takes `&ZfpFieldMetadata` instead of `&ZfpField`, returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, and writes nothing on failure.
 - **Breaking**: `ZfpField::{new, new_strided, from_raw}` and `ZfpFieldMut::{new, new_strided, from_raw}` validate the dimensions and buffer and return `Result<Self, ZfpFieldError>`. A valid field no longer fails at compression time.
 - **Breaking**: `ZfpCompressionError` is now `Field(ZfpFieldError)`, `BufferTooSmall` or `Metadata(ZfpMetadataError)`; `ZfpDecompressionError` is now `Field(ZfpFieldError)`. Both implement `Error::source`.
