@@ -11,13 +11,18 @@ pub enum ZfpExecution {
     Serial,
     /// Parallel execution using Rayon.
     ///
-    /// `threads` = number of threads (0 means use Rayon default).
-    /// `chunk_size` = number of blocks per chunk (0 means one chunk per thread).
+    /// Without the `rayon` feature this runs serially, so code can select it
+    /// unconditionally. The output is identical either way.
     ///
     /// Decompression runs serially instead for streams that are not fixed-rate,
     /// and for fields whose strides may alias (where two blocks could write the
     /// same element).
-    Rayon { threads: u32, chunk_size: u32 },
+    Rayon {
+        /// Number of threads; 0 uses Rayon's global pool.
+        threads: u32,
+        /// Number of blocks per chunk; 0 means one chunk per thread.
+        chunk_size: u32,
+    },
 }
 
 /// Resolve the effective number of threads for a Rayon execution.
