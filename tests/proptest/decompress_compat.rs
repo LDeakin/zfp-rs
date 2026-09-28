@@ -220,7 +220,7 @@ macro_rules! decompress_compat_1d_int {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D1);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 
@@ -290,7 +290,7 @@ macro_rules! decompress_compat_1d_float {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D1);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 
@@ -368,7 +368,7 @@ macro_rules! decompress_compat_2d_int {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D2);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 
@@ -438,7 +438,7 @@ macro_rules! decompress_compat_2d_float {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D2);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 
@@ -516,7 +516,7 @@ macro_rules! decompress_compat_3d_int {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D3);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 
@@ -588,7 +588,7 @@ macro_rules! decompress_compat_3d_float {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D3);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 
@@ -668,7 +668,7 @@ macro_rules! decompress_compat_4d_int {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D4);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz, nw]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz, nw]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 
@@ -742,7 +742,7 @@ macro_rules! decompress_compat_4d_float {
                     let mut rs = ZfpConfig::new();
                     apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D4);
                     let mut bs = bs_for_decompress(&compressed);
-                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz, nw]);
+                    let mut field_mut = ZfpFieldMut::new(&mut rs_out, [nx, ny, nz, nw]).unwrap();
                     bs.decompress_with_execution(&rs, &mut field_mut, exec).unwrap();
                 }
 

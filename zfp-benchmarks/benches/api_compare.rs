@@ -212,20 +212,20 @@ unsafe fn apply_mode_ffi<T: BenchScalar>(zfp: *mut ffi::zfp_stream, case: Case) 
 
 fn rust_field<'a, T: BenchScalar>(data: &'a [T], dims: &[usize]) -> ZfpField<'a> {
     match dims {
-        [nx] => ZfpField::new(data, [*nx]),
-        [nx, ny] => ZfpField::new(data, [*nx, *ny]),
-        [nx, ny, nz] => ZfpField::new(data, [*nx, *ny, *nz]),
-        [nx, ny, nz, nw] => ZfpField::new(data, [*nx, *ny, *nz, *nw]),
+        [nx] => ZfpField::new(data, [*nx]).unwrap(),
+        [nx, ny] => ZfpField::new(data, [*nx, *ny]).unwrap(),
+        [nx, ny, nz] => ZfpField::new(data, [*nx, *ny, *nz]).unwrap(),
+        [nx, ny, nz, nw] => ZfpField::new(data, [*nx, *ny, *nz, *nw]).unwrap(),
         _ => panic!("unsupported dimensionality"),
     }
 }
 
 fn rust_field_mut<'a, T: BenchScalar>(data: &'a mut [T], dims: &[usize]) -> ZfpFieldMut<'a> {
     match dims {
-        [nx] => ZfpFieldMut::new(data, [*nx]),
-        [nx, ny] => ZfpFieldMut::new(data, [*nx, *ny]),
-        [nx, ny, nz] => ZfpFieldMut::new(data, [*nx, *ny, *nz]),
-        [nx, ny, nz, nw] => ZfpFieldMut::new(data, [*nx, *ny, *nz, *nw]),
+        [nx] => ZfpFieldMut::new(data, [*nx]).unwrap(),
+        [nx, ny] => ZfpFieldMut::new(data, [*nx, *ny]).unwrap(),
+        [nx, ny, nz] => ZfpFieldMut::new(data, [*nx, *ny, *nz]).unwrap(),
+        [nx, ny, nz, nw] => ZfpFieldMut::new(data, [*nx, *ny, *nz, *nw]).unwrap(),
         _ => panic!("unsupported dimensionality"),
     }
 }

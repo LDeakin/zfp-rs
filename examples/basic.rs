@@ -10,11 +10,11 @@
 
 use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut, ZfpStreamAlignment};
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let data: Vec<f64> = (0..5).map(f64::from).collect();
     println!("Original data: {data:?}");
 
-    let field = ZfpField::new(&data, [data.len()]);
+    let field = ZfpField::new(&data, [data.len()])?;
 
     // Configure compression parameters.
     let config = ZfpConfig::fixed_rate(
@@ -28,17 +28,15 @@ fn main() {
     let mut bs = ZfpBitStream::new(1024);
 
     // Compress.
-    let bytes = bs.compress(&config, &field).expect("compress failed");
+    let bytes = bs.compress(&config, &field)?;
     println!("Compressed: {bytes} bytes");
 
     // Decompress into a new field.
     let mut out_data = vec![0.0_f64; data.len()];
-    let mut output = ZfpFieldMut::new(&mut out_data, [data.len()]);
+    let mut output = ZfpFieldMut::new(&mut out_data, [data.len()])?;
 
     bs.rewind();
-    let decompressed = bs
-        .decompress(&config, &mut output)
-        .expect("decompress failed");
+    let decompressed = bs.decompress(&config, &mut output)?;
     println!("Decompressed: {decompressed} bytes");
 
     let decompressed_data: &[f64] = bytemuck::cast_slice(output.data());
@@ -50,4 +48,5 @@ fn main() {
         .zip(decompressed_data.iter())
         .all(|(a, b)| (*a - *b).abs() < 1e-6);
     println!("Match: {match_}");
+    Ok(())
 }

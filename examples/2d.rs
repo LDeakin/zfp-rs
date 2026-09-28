@@ -6,7 +6,7 @@
 
 use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut, ZfpStreamAlignment};
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a 10x10 grid.
     let width = 10;
     let height = 10;
@@ -18,7 +18,7 @@ fn main() {
     }
     println!("Original data: {} elements", data.len());
 
-    let field = ZfpField::new(&data, [width, height]);
+    let field = ZfpField::new(&data, [width, height])?;
 
     // Configure compression.
     let config = ZfpConfig::fixed_rate(
@@ -30,17 +30,15 @@ fn main() {
 
     let mut bs = ZfpBitStream::new(4096);
 
-    let bytes = bs.compress(&config, &field).expect("compress failed");
+    let bytes = bs.compress(&config, &field)?;
     println!("Compressed: {bytes} bytes");
 
     // Decompress.
     let mut out_data = vec![0.0_f64; width * height];
-    let mut output = ZfpFieldMut::new(&mut out_data, [width, height]);
+    let mut output = ZfpFieldMut::new(&mut out_data, [width, height])?;
 
     bs.rewind();
-    let decompressed = bs
-        .decompress(&config, &mut output)
-        .expect("decompress failed");
+    let decompressed = bs.decompress(&config, &mut output)?;
     println!("Decompressed: {decompressed} bytes");
 
     let result: &[f64] = bytemuck::cast_slice(output.data());
@@ -49,4 +47,5 @@ fn main() {
         .zip(result.iter())
         .all(|(a, b)| (*a - *b).abs() < 1e-3);
     println!("Match: {match_}");
+    Ok(())
 }

@@ -5,7 +5,7 @@ use crate::bitstream::core::{
 };
 use crate::bitstream::{ZfpBitStream, ZfpBitStreamRef, ZfpBitStreamRefMut};
 use crate::config::{STREAM_WORD_BYTES, ZfpConfig};
-use crate::field::{ZfpField, ZfpFieldMut};
+use crate::field::{ZfpField, ZfpFieldMetadata, ZfpFieldMut};
 use crate::types::{ZfpBitStreamWord, ZfpHeaderMask};
 
 /// Common read/cursor/inspection operations for ZFP bitstreams.
@@ -134,9 +134,11 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     /// Copy `n` bits from `src` into `self` (`stream_copy`).
     fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize);
 
-    /// Write the header section indicated by `mask` into this bitstream.
+    /// Write the header sections indicated by `mask` into this bitstream.
     ///
-    /// Returns the number of bits written.
+    /// `metadata` is written only when `mask` includes [`ZfpHeaderMask::META`];
+    /// obtain it from a field with [`ZfpField::metadata`]. Returns the number
+    /// of bits written.
     ///
     /// # Errors
     ///
@@ -147,11 +149,11 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     fn write_header(
         &mut self,
         config: &ZfpConfig,
-        field: &ZfpField,
+        metadata: &ZfpFieldMetadata,
         mask: ZfpHeaderMask,
     ) -> Result<usize, crate::types::ZfpCompressionError> {
         let mode = config.mode_bits();
-        crate::header::write_header_bs(self, field, mask, mode)
+        crate::header::write_header_bs(self, metadata, mask, mode)
     }
 
     /// Compress the field into this bitstream using the stream's parameters.
@@ -358,7 +360,7 @@ macro_rules! impl_bitstream_mut_ops {
         pub fn write_header(
             &mut self,
             config: &ZfpConfig,
-            field: &ZfpField,
+            metadata: &ZfpFieldMetadata,
             mask: ZfpHeaderMask,
         ) -> Result<usize, crate::types::ZfpCompressionError>;
 

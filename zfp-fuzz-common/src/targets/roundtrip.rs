@@ -44,7 +44,7 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     let dims = shape.dims();
     let rank = shape.rank();
     let n = shape.elements();
-    let ty = T::scalar_type();
+    let ty = T::SCALAR_TYPE;
 
     let Some(config) = input.mode.to_config(ty, shape.dimensionality()) else {
         return;
@@ -66,11 +66,11 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
 
     let mut bs = ZfpBitStream::new(cap);
     let written = {
-        let field = ZfpField::new(&src, dims);
+        let field = ZfpField::new(&src, dims).expect("an exactly-sized field is valid");
         match bs.compress_with_execution(&config, &field, exec) {
             Ok(written) => written,
-            // The field is exactly sized and non-empty, so neither `NoData`
-            // nor `InvalidField` is reachable here.
+            // The field is valid and the stream is sized by `maximum_size`,
+            // so no error is reachable here.
             Err(e) => panic!("compress failed for an exactly-sized field: {e} (dims={dims:?})"),
         }
     };
@@ -83,7 +83,7 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     // last element and any overrun in the unsafe scatter path is caught.
     let mut dst = vec![T::default(); n];
     {
-        let mut out = ZfpFieldMut::new(&mut dst, dims);
+        let mut out = ZfpFieldMut::new(&mut dst, dims).expect("an exactly-sized field is valid");
         bs.rewind();
         let read = bs
             .decompress_with_execution(&config, &mut out, exec)
@@ -97,7 +97,7 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     // Decoding must be deterministic and leave no residual stream state.
     let mut again = vec![T::default(); n];
     {
-        let mut out = ZfpFieldMut::new(&mut again, dims);
+        let mut out = ZfpFieldMut::new(&mut again, dims).expect("an exactly-sized field is valid");
         bs.rewind();
         let _ = bs.decompress_with_execution(&config, &mut out, exec);
     }

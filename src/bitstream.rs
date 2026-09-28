@@ -73,19 +73,17 @@ mod tests {
     }
 
     #[test]
-    fn given_compression_field_without_data_when_compress_expect_no_data_error() {
-        use crate::config::ZfpConfig;
+    fn given_empty_data_when_field_new_expect_insufficient_data_error() {
         use crate::field::ZfpField;
-        use crate::types::ZfpCompressionError;
+        use crate::types::ZfpFieldError;
 
-        let field = ZfpField::new(&[] as &[f32], [4]);
-
-        let mut bs = ZfpBitStream::new(1024);
-        let err = bs
-            .compress(&ZfpConfig::fixed_precision(8), &field)
-            .unwrap_err();
-
-        assert_eq!(err, ZfpCompressionError::NoData);
+        assert_eq!(
+            ZfpField::new(&[] as &[f32], [4]).unwrap_err(),
+            ZfpFieldError::InsufficientData {
+                required: 16,
+                actual: 0
+            }
+        );
     }
 
     #[test]
@@ -95,7 +93,7 @@ mod tests {
         use crate::types::ZfpCompressionError;
 
         let data: Vec<f64> = (0..256).map(|i| f64::from(i).sin()).collect();
-        let field = ZfpField::new(&data, [16usize, 16]);
+        let field = ZfpField::new(&data, [16usize, 16]).unwrap();
         let config = ZfpConfig::reversible();
 
         let mut big = ZfpBitStream::new(1 << 16);
@@ -134,13 +132,13 @@ mod tests {
         use crate::types::{ZfpCompressionError, ZfpHeaderMask};
 
         let data = [0.0f32; 16];
-        let field = ZfpField::new(&data, [4usize, 4]);
+        let field = ZfpField::new(&data, [4usize, 4]).unwrap();
         let config = ZfpConfig::fixed_precision(8);
 
         // 32 + 52 + 12 = 96 bits do not fit in one word.
         let mut bs = ZfpBitStream::new(8);
         assert_eq!(
-            bs.write_header(&config, &field, ZfpHeaderMask::FULL),
+            bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL),
             Err(ZfpCompressionError::BufferTooSmall {
                 required: 16,
                 capacity: 8,
@@ -148,20 +146,18 @@ mod tests {
         );
         assert_eq!(bs.write_pos(), 0);
         assert_eq!(
-            bs.write_header(&config, &field, ZfpHeaderMask::MAGIC),
+            bs.write_header(&config, &field.metadata(), ZfpHeaderMask::MAGIC),
             Ok(32)
         );
     }
 
     #[test]
-    fn given_decompression_field_without_data_when_decompress_expect_no_data_error() {
-        use crate::config::ZfpConfig;
+    fn given_null_pointer_when_field_from_raw_expect_insufficient_data_error() {
         use crate::field::ZfpFieldMut;
-        use crate::types::{ZfpDecompressionError, ZfpScalarType};
+        use crate::types::{ZfpFieldError, ZfpScalarType};
 
-        // SAFETY: a null pointer with a zero byte count is accepted by
-        // `from_raw` and produces a typed field with no output storage.
-        let mut field = unsafe {
+        // SAFETY: a null pointer is treated as an empty buffer.
+        let result = unsafe {
             ZfpFieldMut::from_raw(
                 std::ptr::null_mut(),
                 0,
@@ -170,13 +166,13 @@ mod tests {
                 [0; 4],
             )
         };
-
-        let mut bs = ZfpBitStream::new(1024);
-        let err = bs
-            .decompress(&ZfpConfig::fixed_precision(8), &mut field)
-            .unwrap_err();
-
-        assert_eq!(err, ZfpDecompressionError::NoData);
+        assert_eq!(
+            result.unwrap_err(),
+            ZfpFieldError::InsufficientData {
+                required: 16,
+                actual: 0
+            }
+        );
     }
 
     #[cfg(feature = "rayon")]
@@ -189,7 +185,7 @@ mod tests {
 
         #[allow(clippy::cast_precision_loss)]
         let data: Vec<f32> = (0..17).map(|i| i as f32 * 0.25).collect();
-        let field = ZfpField::new(&data, [data.len()]);
+        let field = ZfpField::new(&data, [data.len()]).unwrap();
         let config = ZfpConfig::fixed_rate(
             5.0,
             ZfpScalarType::Float,

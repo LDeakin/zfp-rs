@@ -5,7 +5,7 @@
 
 use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut, ZfpStreamAlignment};
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create some data.
     let data: Vec<f32> = (0..64).map(|i| i as f32 * 0.5).collect();
     println!("Original data: {} elements", data.len());
@@ -18,11 +18,9 @@ fn main() {
         ZfpStreamAlignment::None,
     );
 
-    let field = ZfpField::new(&data, [data.len()]);
+    let field = ZfpField::new(&data, [data.len()])?;
     let mut bs = ZfpBitStream::new(1024);
-    let _compressed_bytes = bs
-        .compress(&compress_stream, &field)
-        .expect("compress failed");
+    let _compressed_bytes = bs.compress(&compress_stream, &field)?;
     println!("Compressed: {} bytes", bs.size());
 
     // Now "read" the compressed data back.
@@ -30,12 +28,10 @@ fn main() {
 
     // Decompress into a new field.
     let mut out_data = vec![0.0_f32; data.len()];
-    let mut output = ZfpFieldMut::new(&mut out_data, [data.len()]);
+    let mut output = ZfpFieldMut::new(&mut out_data, [data.len()])?;
 
     bs.rewind();
-    let _decompressed = bs
-        .decompress(&config, &mut output)
-        .expect("decompress failed");
+    let _decompressed = bs.decompress(&config, &mut output)?;
 
     let result: &[f32] = bytemuck::cast_slice(output.data());
     println!("Decompressed: {} elements", result.len());
@@ -45,4 +41,5 @@ fn main() {
         .zip(result.iter())
         .all(|(a, b)| (*a - *b).abs() < 1e-5);
     println!("Match: {match_}");
+    Ok(())
 }

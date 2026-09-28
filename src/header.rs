@@ -3,7 +3,7 @@
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
 use crate::config::{STREAM_WORD_BITS, STREAM_WORD_BYTES};
-use crate::field::{ZfpField, ZfpFieldMetadata};
+use crate::field::ZfpFieldMetadata;
 use crate::types::{
     ZFP_MAGIC_BITS, ZFP_META_BITS, ZFP_MODE_LONG_BITS, ZFP_MODE_SHORT_BITS, ZfpCompressionError,
     ZfpHeaderMask,
@@ -27,6 +27,7 @@ pub struct ZfpHeader {
 
 /// Errors that can occur while reading a ZFP header.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ZfpHeaderError {
     /// The magic header section was requested but did not match this codec.
     InvalidMagic,
@@ -66,12 +67,12 @@ const MODE_SHORT_MAX: u64 = (1u64 << ZFP_MODE_SHORT_BITS) - 2;
 /// is written on failure.
 pub(crate) fn write_header_bs(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    field: &ZfpField,
+    metadata: &ZfpFieldMetadata,
     mask: ZfpHeaderMask,
     mode_bits_val: u64,
 ) -> Result<usize, ZfpCompressionError> {
     let meta = if mask.contains(ZfpHeaderMask::META) {
-        Some(field.metadata()?)
+        Some(metadata.to_bits()?)
     } else {
         None
     };

@@ -2,7 +2,8 @@
 //! `ZfpField` and `ZfpFieldMut`: uncompressed array descriptors.
 
 use crate::types::{
-    ZfpDimensionality, ZfpDims, ZfpMetadataError, ZfpScalar, ZfpScalarType, ZfpStrides,
+    ZfpDimensionality, ZfpDims, ZfpFieldError, ZfpMetadataError, ZfpScalar, ZfpScalarType,
+    ZfpStrides,
 };
 use bytemuck;
 use std::fmt;
@@ -37,7 +38,8 @@ impl ZfpFieldMetadata {
     ///
     /// # Errors
     ///
-    /// Returns [`ZfpMetadataError::Null`] if all dimensions are zero, or
+    /// Returns [`ZfpMetadataError::InvalidDims`] if the first dimension is zero
+    /// or a dimension follows a zero one, or
     /// [`ZfpMetadataError::DimensionTooLarge`] if a dimension exceeds the
     /// encodable range.
     pub fn to_bits(self) -> Result<u64, ZfpMetadataError> {
@@ -46,12 +48,210 @@ impl ZfpFieldMetadata {
 }
 
 // ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+/// Whether `dims` has a nonzero first dimension and no nonzero dimension after
+/// a zero one.
+fn valid_dims(dims: &[usize; 4]) -> bool {
+    let active = dims.iter().take_while(|&&n| n != 0).count();
+    active > 0 && dims[active..].iter().all(|&n| n == 0)
+}
+
+/// Check that a field's dimensions are well formed and that `data` covers its
+/// strided span with the scalar type's alignment.
+fn validate(
+    scalar_type: ZfpScalarType,
+    dims: &[usize; 4],
+    strides: &[isize; 4],
+    data: &[u8],
+) -> Result<(), ZfpFieldError> {
+    if !valid_dims(dims) {
+        return Err(ZfpFieldError::InvalidDims { dims: *dims });
+    }
+    let required = checked_size_bytes(dims, strides, scalar_type).unwrap_or(usize::MAX);
+    if data.len() < required {
+        return Err(ZfpFieldError::InsufficientData {
+            required,
+            actual: data.len(),
+        });
+    }
+    if !scalar_type.is_aligned(data.as_ptr()) {
+        return Err(ZfpFieldError::MisalignedData {
+            align: scalar_type.align(),
+        });
+    }
+    Ok(())
+}
+
+/// Borrow `byte_count` bytes at `ptr`, or nothing if `ptr` is null.
+///
+/// # Safety
+/// If `ptr` is non-null, it must be valid for reads of `byte_count` bytes for `'a`.
+unsafe fn raw_slice<'a>(ptr: *const u8, byte_count: usize) -> &'a [u8] {
+    if ptr.is_null() || byte_count == 0 {
+        &[]
+    } else {
+        // SAFETY: forwarded from the caller.
+        unsafe { std::slice::from_raw_parts(ptr, byte_count) }
+    }
+}
+
+/// Mutable [`raw_slice`].
+///
+/// # Safety
+/// If `ptr` is non-null, it must be valid for reads and writes of `byte_count`
+/// bytes, and not otherwise accessed, for `'a`.
+unsafe fn raw_slice_mut<'a>(ptr: *mut u8, byte_count: usize) -> &'a mut [u8] {
+    if ptr.is_null() || byte_count == 0 {
+        &mut []
+    } else {
+        // SAFETY: forwarded from the caller.
+        unsafe { std::slice::from_raw_parts_mut(ptr, byte_count) }
+    }
+}
+
+/// Accessors shared by [`ZfpField`] and [`ZfpFieldMut`].
+macro_rules! impl_field_common {
+    ($ty:ident) => {
+        impl $ty<'_> {
+            /// Return the scalar type.
+            #[must_use]
+            pub fn scalar_type(&self) -> ZfpScalarType {
+                self.scalar_type
+            }
+
+            /// Return the scalar type and dimensions, as stored in a ZFP header.
+            ///
+            /// Encode it with [`ZfpFieldMetadata::to_bits`].
+            #[must_use]
+            pub fn metadata(&self) -> ZfpFieldMetadata {
+                ZfpFieldMetadata {
+                    scalar_type: self.scalar_type,
+                    dims: self.dims,
+                }
+            }
+
+            /// Replace the scalar type and dimensions, and reset the strides to
+            /// a contiguous layout.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`ZfpFieldError`] if the data buffer does not suit the new
+            /// layout. The field is unchanged in that case.
+            pub fn set_metadata(
+                &mut self,
+                metadata: ZfpFieldMetadata,
+            ) -> Result<(), ZfpFieldError> {
+                validate(metadata.scalar_type, &metadata.dims, &[0; 4], self.data)?;
+                self.scalar_type = metadata.scalar_type;
+                self.dims = metadata.dims;
+                self.strides = [0; 4];
+                Ok(())
+            }
+
+            /// Replace the strides.
+            ///
+            /// # Errors
+            ///
+            /// Returns [`ZfpFieldError`] if the data buffer does not cover the new
+            /// strided span. The field is unchanged in that case.
+            pub fn set_strides<S: ZfpStrides>(&mut self, strides: S) -> Result<(), ZfpFieldError> {
+                let strides = strides.to_array();
+                validate(self.scalar_type, &self.dims, &strides, self.data)?;
+                self.strides = strides;
+                Ok(())
+            }
+
+            /// Return the number of active dimensions (1–4).
+            #[must_use]
+            pub fn dimensionality(&self) -> ZfpDimensionality {
+                dimensionality(&self.dims)
+            }
+
+            /// Return `[nx, ny, nz, nw]`; unused dimensions are zero.
+            #[must_use]
+            pub fn dims(&self) -> [usize; 4] {
+                self.dims
+            }
+
+            /// Return the total number of scalar elements.
+            #[must_use]
+            pub fn num_elements(&self) -> usize {
+                num_elements(&self.dims)
+            }
+
+            /// Return the number of 4^d compression blocks.
+            #[must_use]
+            pub fn num_blocks(&self) -> usize {
+                num_blocks(&self.dims)
+            }
+
+            /// Return `true` if the data layout is contiguous (all strides are 0 or
+            /// match the natural row-major layout).
+            #[must_use]
+            pub fn is_contiguous(&self) -> bool {
+                is_contiguous(&self.dims, &self.strides)
+            }
+
+            /// Return the effective strides (filling in defaults for zero entries).
+            #[must_use]
+            pub fn effective_strides(&self) -> [isize; 4] {
+                effective_strides(&self.dims, &self.strides)
+            }
+
+            /// Return the underlying raw data bytes.
+            ///
+            /// The buffer starts at the *lowest* address of the strided span: with
+            /// a negative stride, the element at index `[0, 0, 0, 0]` sits further
+            /// in. This is the opposite of the C `zfp_field`, whose `data` member
+            /// points at element `[0, 0, 0, 0]`.
+            #[must_use]
+            pub fn data(&self) -> &[u8] {
+                self.data
+            }
+
+            /// Number of bits per scalar value (32 or 64).
+            #[must_use]
+            pub fn precision(&self) -> u32 {
+                self.scalar_type.precision()
+            }
+
+            /// Compute the min and max scalar index offsets spanned by the field.
+            ///
+            /// Returns `(imin, imax)` where `imin <= 0 <= imax`.
+            /// The total number of scalars spanned (including any gaps) is `imax - imin + 1`.
+            #[must_use]
+            pub fn index_span(&self) -> (isize, isize) {
+                field_index_span(&self.dims, &self.strides)
+            }
+
+            /// Number of bytes spanned by the field, including gaps from non-unit strides.
+            #[must_use]
+            pub fn size_bytes(&self) -> usize {
+                let (imin, imax) = self.index_span();
+                let size = self.scalar_type.size();
+                (imax - imin + 1) as usize * size
+            }
+
+            /// [`size_bytes`][Self::size_bytes] with overflow checking; `None` if the
+            /// span does not fit in a `usize`.
+            pub(crate) fn checked_size_bytes(&self) -> Option<usize> {
+                checked_size_bytes(&self.dims, &self.strides, self.scalar_type)
+            }
+        }
+    };
+}
+
+// ---------------------------------------------------------------------------
 // ZfpField: immutable view (for compression and metadata queries)
 // ---------------------------------------------------------------------------
 
 /// Immutable view over uncompressed data.
 ///
-/// Equivalent to a read-only `zfp_field` in `zfp.h`.
+/// Equivalent to a read-only `zfp_field` in `zfp.h`. The constructors check
+/// that the data buffer covers the field, so a `ZfpField` is always valid to
+/// compress.
 pub struct ZfpField<'a> {
     data: &'a [u8],
     /// Scalar type of the data.
@@ -62,229 +262,103 @@ pub struct ZfpField<'a> {
     strides: [isize; 4],
 }
 
-/// Generic constructors: accept dimension/stride arrays via `ZfpDims`/`ZfpStrides`.
 impl<'a> ZfpField<'a> {
-    /// Compute the min and max scalar index offsets spanned by a field.
+    /// Create a contiguous field from a typed slice with the given dimensions.
     ///
-    /// Returns `(imin, imax)` where `imin <= 0 <= imax`.
-    /// The total number of scalars spanned (including any gaps) is `imax - imin + 1`.
+    /// # Errors
     ///
-    /// Only the axes below the field's dimensionality count: dimensions
-    /// declared past the first zero one are inert, and the codec never
-    /// addresses them.
-    #[must_use]
-    pub fn field_index_span_static(dims: &[usize; 4], strides: &[isize; 4]) -> (isize, isize) {
-        field_index_span(dims, strides)
-    }
-
-    /// Create a field from a typed slice with the given dimensions.
-    ///
-    /// Strides default to contiguous layout.
-    pub fn new<T: ZfpScalar, D: ZfpDims>(data: &'a [T], dims: D) -> Self {
-        Self {
-            scalar_type: T::scalar_type(),
-            data: bytemuck::cast_slice(data),
-            dims: dims.to_array(),
-            strides: [0; 4],
-        }
+    /// Returns [`ZfpFieldError`] if a dimension is zero or `data` is shorter
+    /// than the field.
+    pub fn new<T: ZfpScalar, D: ZfpDims>(data: &'a [T], dims: D) -> Result<Self, ZfpFieldError> {
+        Self::new_strided(data, dims, [0isize; 4])
     }
 
     /// Create a strided field from a typed slice.
     ///
     /// `data` must cover the whole strided span, starting at its *lowest*
     /// address: with a negative stride the element at index `[0, 0, 0, 0]`
-    /// sits inside the slice rather than at its start. See
-    /// [`begin`][Self::begin].
+    /// sits inside the slice rather than at its start. A stride of 0 means
+    /// contiguous for that axis.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpFieldError`] if a dimension is zero or `data` does not
+    /// cover the strided span.
     pub fn new_strided<T: ZfpScalar, D: ZfpDims, S: ZfpStrides>(
         data: &'a [T],
         dims: D,
         strides: S,
-    ) -> Self {
-        Self {
-            scalar_type: T::scalar_type(),
+    ) -> Result<Self, ZfpFieldError> {
+        let field = Self {
+            scalar_type: T::SCALAR_TYPE,
             data: bytemuck::cast_slice(data),
             dims: dims.to_array(),
             strides: strides.to_array(),
-        }
+        };
+        validate(field.scalar_type, &field.dims, &field.strides, field.data)?;
+        Ok(field)
     }
 
-    /// Create a field from a raw byte pointer in a single call.
-    ///
-    /// This constructor accepts the total byte count directly, avoiding the
-    /// intermediate staged descriptor mutation used by the C API and the
-    /// redundant `field_index_span` computation that would be required to
-    /// compute `size_bytes()`.
+    /// Create a field from a raw byte pointer.
     ///
     /// `ptr` addresses the *lowest* address of the strided span, not
     /// necessarily the element at index `[0, 0, 0, 0]`; see
-    /// [`begin`][Self::begin].
+    /// [`data`][Self::data].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpFieldError`] if a dimension is zero, `byte_count` does not
+    /// cover the strided span (a null `ptr` counts as zero bytes), or `ptr`
+    /// is misaligned for `scalar_type`.
     ///
     /// # Safety
-    /// `ptr` must point to at least `byte_count` bytes, be aligned for
-    /// `scalar_type` (see [`ZfpScalarType::align`]), and the pointed-to memory
-    /// must remain valid for the lifetime `'a`.
-    #[must_use]
+    /// If `ptr` is non-null, it must point to at least `byte_count` readable
+    /// bytes that remain valid and unmodified for the lifetime `'a`.
     pub unsafe fn from_raw(
         ptr: *const u8,
         byte_count: usize,
         scalar_type: ZfpScalarType,
         dims: [usize; 4],
         strides: [isize; 4],
+    ) -> Result<Self, ZfpFieldError> {
+        // SAFETY: forwarded from the caller.
+        let data = unsafe { raw_slice(ptr, byte_count) };
+        validate(scalar_type, &dims, &strides, data)?;
+        Ok(Self {
+            data,
+            scalar_type,
+            dims,
+            strides,
+        })
+    }
+
+    /// [`from_raw`][Self::from_raw] without validation, for the C ABI.
+    ///
+    /// C `zfp_field`s may describe a layout with no data at all. The codec
+    /// still validates the field, so compressing an invalid one fails cleanly.
+    ///
+    /// # Safety
+    /// As for [`from_raw`][Self::from_raw].
+    #[cfg(feature = "ffi")]
+    #[must_use]
+    pub unsafe fn from_raw_unchecked(
+        ptr: *const u8,
+        byte_count: usize,
+        scalar_type: ZfpScalarType,
+        dims: [usize; 4],
+        strides: [isize; 4],
     ) -> Self {
-        if !ptr.is_null() && byte_count > 0 {
-            // SAFETY: caller guarantees ptr is valid for byte_count bytes.
-            Self {
-                scalar_type,
-                data: unsafe { std::slice::from_raw_parts(ptr, byte_count) },
-                dims,
-                strides,
-            }
-        } else {
-            Self {
-                scalar_type,
-                data: &[],
-                dims,
-                strides,
-            }
+        Self {
+            // SAFETY: forwarded from the caller.
+            data: unsafe { raw_slice(ptr, byte_count) },
+            scalar_type,
+            dims,
+            strides,
         }
     }
 }
 
-/// Non-generic impl: all operations that don't depend on the specific type.
-impl ZfpField<'_> {
-    /// Return the scalar type.
-    #[must_use]
-    pub fn scalar_type(&self) -> ZfpScalarType {
-        self.scalar_type
-    }
-
-    /// Set strides from a stride array.
-    pub fn set_stride<S: ZfpStrides>(&mut self, strides: S) {
-        self.strides = strides.to_array();
-    }
-
-    /// Return the 52-bit compact encoding of type + dimensionality + sizes.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpMetadataError::Null`] if the field has no type set, or
-    /// [`ZfpMetadataError::DimensionTooLarge`] if any dimension exceeds the
-    /// encodable range for a 52-bit metadata word.
-    pub fn metadata(&self) -> Result<u64, ZfpMetadataError> {
-        field_metadata(self.scalar_type, &self.dims)
-    }
-
-    /// Decode a 52-bit metadata word and update this field's type and dimensions.
-    /// Returns `false` if the metadata is invalid.
-    pub fn set_metadata(&mut self, meta: u64) -> bool {
-        if let Some(metadata) = ZfpFieldMetadata::from_bits(meta) {
-            self.scalar_type = metadata.scalar_type;
-            self.dims = metadata.dims;
-            self.strides = [0; 4];
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Return the number of active dimensions (1–4).
-    ///
-    /// Returns `ZfpDimensionality::D1` for empty fields (0 active dimensions).
-    #[must_use]
-    pub fn dimensionality(&self) -> ZfpDimensionality {
-        dimensionality(&self.dims)
-    }
-
-    /// Return `[nx, ny, nz, nw]`.
-    #[must_use]
-    pub fn dims(&self) -> [usize; 4] {
-        self.dims
-    }
-
-    /// Return the total number of scalar elements.
-    #[must_use]
-    pub fn num_elements(&self) -> usize {
-        num_elements(&self.dims)
-    }
-
-    /// Return the number of 4^d compression blocks.
-    #[must_use]
-    pub fn num_blocks(&self) -> usize {
-        num_blocks(&self.dims)
-    }
-
-    /// Return `true` if the data layout is contiguous (all strides are 0 or
-    /// match the natural row-major layout).
-    #[must_use]
-    pub fn is_contiguous(&self) -> bool {
-        is_contiguous(&self.dims, &self.strides)
-    }
-
-    /// Return the effective strides (filling in defaults for zero entries).
-    #[must_use]
-    pub fn effective_strides(&self) -> [isize; 4] {
-        effective_strides(&self.dims, &self.strides)
-    }
-
-    /// Return the underlying raw data bytes.
-    ///
-    /// Returns an empty slice if the field was created with empty input data
-    /// or via [`from_raw`][Self::from_raw] with a null pointer or zero byte count.
-    #[must_use]
-    pub fn data(&self) -> &[u8] {
-        self.data
-    }
-
-    /// Raw pointer to the byte at the lowest memory address in the field.
-    ///
-    /// A field's buffer *starts* at the lowest address of its strided span, so
-    /// this is the start of [`data`][Self::data]; with negative strides the
-    /// element at index `[0, 0, 0, 0]` sits further in. Note that this is the
-    /// opposite of the C `zfp_field`, whose `data` member points at element
-    /// `[0, 0, 0, 0]` and whose span may extend *below* it.
-    ///
-    /// Returns `None` if the field has no data.
-    #[must_use]
-    pub fn begin(&self) -> Option<*const u8> {
-        if self.data.is_empty() {
-            return None;
-        }
-        Some(self.data.as_ptr())
-    }
-
-    /// Number of bits per scalar value (32 or 64).
-    #[must_use]
-    pub fn precision(&self) -> u32 {
-        self.scalar_type.precision()
-    }
-
-    /// Compute the min and max scalar index offsets spanned by the field.
-    ///
-    /// Returns `(imin, imax)` where `imin <= 0 <= imax`.
-    /// The total number of scalars spanned (including any gaps) is `imax - imin + 1`.
-    ///
-    /// Only the axes below the field's dimensionality count: dimensions
-    /// declared past the first zero one are inert, and the codec never
-    /// addresses them.
-    #[must_use]
-    pub fn field_index_span(&self) -> (isize, isize) {
-        field_index_span(&self.dims, &self.strides)
-    }
-
-    /// Number of bytes spanned by the field, including gaps from non-unit strides.
-    #[must_use]
-    pub fn size_bytes(&self) -> usize {
-        let (imin, imax) = self.field_index_span();
-        let size = self.scalar_type.size();
-        (imax - imin + 1) as usize * size
-    }
-
-    /// [`size_bytes`][Self::size_bytes] with overflow checking; `None` if the
-    /// span does not fit in a `usize`.
-    pub(crate) fn checked_size_bytes(&self) -> Option<usize> {
-        checked_size_bytes(&self.dims, &self.strides, self.scalar_type)
-    }
-}
+impl_field_common!(ZfpField);
 
 // ---------------------------------------------------------------------------
 // ZfpFieldMut: mutable view (for decompression output)
@@ -292,9 +366,9 @@ impl ZfpField<'_> {
 
 /// Mutable view over uncompressed data.
 ///
-/// Equivalent to a writable `zfp_field` in `zfp.h`.
-///
-/// Like `ZfpField`, this is non-generic and stores raw bytes with a `ZfpScalarType`.
+/// Equivalent to a writable `zfp_field` in `zfp.h`. The constructors check
+/// that the data buffer covers the field, so a `ZfpFieldMut` is always valid
+/// to decompress into.
 pub struct ZfpFieldMut<'a> {
     data: &'a mut [u8],
     scalar_type: ZfpScalarType,
@@ -304,37 +378,104 @@ pub struct ZfpFieldMut<'a> {
     strides: [isize; 4],
 }
 
-/// Generic constructors: accept dimension/stride arrays via `ZfpDims`/`ZfpStrides`.
 impl<'a> ZfpFieldMut<'a> {
-    /// Create a field from a typed mutable slice with the given dimensions.
+    /// Create a contiguous field from a typed mutable slice with the given dimensions.
     ///
-    /// Strides default to contiguous layout.
-    pub fn new<T: ZfpScalar, D: ZfpDims>(data: &'a mut [T], dims: D) -> Self {
-        Self {
-            scalar_type: T::scalar_type(),
-            data: bytemuck::cast_slice_mut(data),
-            dims: dims.to_array(),
-            strides: [0; 4],
-        }
+    /// # Errors
+    ///
+    /// Returns [`ZfpFieldError`] if a dimension is zero or `data` is shorter
+    /// than the field.
+    pub fn new<T: ZfpScalar, D: ZfpDims>(
+        data: &'a mut [T],
+        dims: D,
+    ) -> Result<Self, ZfpFieldError> {
+        Self::new_strided(data, dims, [0isize; 4])
     }
 
     /// Create a strided field from a typed mutable slice.
     ///
     /// `data` must cover the whole strided span, starting at its *lowest*
-    /// address; see [`ZfpField::begin`].
+    /// address; see [`ZfpField::new_strided`].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpFieldError`] if a dimension is zero or `data` does not
+    /// cover the strided span.
     pub fn new_strided<T: ZfpScalar, D: ZfpDims, S: ZfpStrides>(
         data: &'a mut [T],
         dims: D,
         strides: S,
-    ) -> Self {
-        Self {
-            scalar_type: T::scalar_type(),
+    ) -> Result<Self, ZfpFieldError> {
+        let field = Self {
+            scalar_type: T::SCALAR_TYPE,
             data: bytemuck::cast_slice_mut(data),
             dims: dims.to_array(),
             strides: strides.to_array(),
+        };
+        validate(field.scalar_type, &field.dims, &field.strides, field.data)?;
+        Ok(field)
+    }
+
+    /// Create a mutable field from a raw byte pointer.
+    ///
+    /// `ptr` addresses the *lowest* address of the strided span; see
+    /// [`ZfpField::from_raw`].
+    ///
+    /// # Errors
+    ///
+    /// As for [`ZfpField::from_raw`].
+    ///
+    /// # Safety
+    /// If `ptr` is non-null, it must point to at least `byte_count` bytes that
+    /// are valid for reads and writes, and not otherwise accessed, for the
+    /// lifetime `'a`.
+    pub unsafe fn from_raw(
+        ptr: *mut u8,
+        byte_count: usize,
+        scalar_type: ZfpScalarType,
+        dims: [usize; 4],
+        strides: [isize; 4],
+    ) -> Result<Self, ZfpFieldError> {
+        // SAFETY: forwarded from the caller.
+        let data = unsafe { raw_slice_mut(ptr, byte_count) };
+        validate(scalar_type, &dims, &strides, data)?;
+        Ok(Self {
+            data,
+            scalar_type,
+            dims,
+            strides,
+        })
+    }
+
+    /// [`from_raw`][Self::from_raw] without validation, for the C ABI.
+    ///
+    /// # Safety
+    /// As for [`from_raw`][Self::from_raw].
+    #[cfg(feature = "ffi")]
+    #[must_use]
+    pub unsafe fn from_raw_unchecked(
+        ptr: *mut u8,
+        byte_count: usize,
+        scalar_type: ZfpScalarType,
+        dims: [usize; 4],
+        strides: [isize; 4],
+    ) -> Self {
+        Self {
+            // SAFETY: forwarded from the caller.
+            data: unsafe { raw_slice_mut(ptr, byte_count) },
+            scalar_type,
+            dims,
+            strides,
         }
     }
+
+    /// Return the underlying raw data bytes (mutable view).
+    pub fn data_mut(&mut self) -> &mut [u8] {
+        self.data
+    }
 }
+
+impl_field_common!(ZfpFieldMut);
 
 impl fmt::Debug for ZfpField<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -358,172 +499,12 @@ impl fmt::Debug for ZfpFieldMut<'_> {
     }
 }
 
-// Non-generic impl for ZfpFieldMut.
-impl ZfpFieldMut<'_> {
-    /// Return the scalar type.
-    #[must_use]
-    pub fn scalar_type(&self) -> ZfpScalarType {
-        self.scalar_type
-    }
-
-    /// Return the 52-bit compact encoding of type + dimensionality + sizes.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpMetadataError::Null`] if the field has no type set, or
-    /// [`ZfpMetadataError::DimensionTooLarge`] if any dimension exceeds the
-    /// encodable range for a 52-bit metadata word.
-    pub fn metadata(&self) -> Result<u64, ZfpMetadataError> {
-        field_metadata(self.scalar_type, &self.dims)
-    }
-
-    /// Decode a 52-bit metadata word and update this field's type and dimensions.
-    /// Returns `false` if the metadata is invalid.
-    pub fn set_metadata(&mut self, meta: u64) -> bool {
-        if let Some(metadata) = ZfpFieldMetadata::from_bits(meta) {
-            self.scalar_type = metadata.scalar_type;
-            self.dims = metadata.dims;
-            self.strides = [0; 4];
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Return the number of active dimensions (1–4).
-    ///
-    /// Returns `ZfpDimensionality::D1` for empty fields (0 active dimensions).
-    #[must_use]
-    pub fn dimensionality(&self) -> ZfpDimensionality {
-        dimensionality(&self.dims)
-    }
-
-    /// Return `[nx, ny, nz, nw]`.
-    #[must_use]
-    pub fn dims(&self) -> [usize; 4] {
-        self.dims
-    }
-
-    /// Return the total number of scalar elements.
-    #[must_use]
-    pub fn num_elements(&self) -> usize {
-        num_elements(&self.dims)
-    }
-
-    /// Return the number of 4^d compression blocks.
-    #[must_use]
-    pub fn num_blocks(&self) -> usize {
-        num_blocks(&self.dims)
-    }
-
-    /// Return `true` if the data layout is contiguous.
-    #[must_use]
-    pub fn is_contiguous(&self) -> bool {
-        is_contiguous(&self.dims, &self.strides)
-    }
-
-    /// Return the effective strides (filling in defaults for zero entries).
-    #[must_use]
-    pub fn effective_strides(&self) -> [isize; 4] {
-        effective_strides(&self.dims, &self.strides)
-    }
-
-    /// Return the underlying raw data bytes (read-only view).
-    #[must_use]
-    pub fn data(&self) -> &[u8] {
-        self.data
-    }
-
-    /// Return the underlying raw data bytes (mutable view).
-    pub fn data_mut(&mut self) -> &mut [u8] {
-        self.data
-    }
-
-    /// Raw pointer to the byte at the lowest memory address in the field.
-    ///
-    /// See [`ZfpField::begin`] for the buffer-origin convention.
-    ///
-    /// Returns `None` if the field has no data.
-    #[must_use]
-    pub fn begin(&self) -> Option<*mut u8> {
-        if self.data.is_empty() {
-            return None;
-        }
-        Some(self.data.as_ptr().cast_mut())
-    }
-
-    /// Number of bits per scalar value (32 or 64).
-    #[must_use]
-    pub fn precision(&self) -> u32 {
-        self.scalar_type.precision()
-    }
-
-    /// Compute the min and max scalar index offsets spanned by the field.
-    ///
-    /// Returns `(imin, imax)` where `imin <= 0 <= imax`.
-    /// The total number of scalars spanned (including any gaps) is `imax - imin + 1`.
-    ///
-    /// Only the axes below the field's dimensionality count: dimensions
-    /// declared past the first zero one are inert, and the codec never
-    /// addresses them.
-    #[must_use]
-    pub fn field_index_span(&self) -> (isize, isize) {
-        field_index_span(&self.dims, &self.strides)
-    }
-
-    /// Number of bytes spanned by the field, including gaps from non-unit strides.
-    #[must_use]
-    pub fn size_bytes(&self) -> usize {
-        let (imin, imax) = self.field_index_span();
-        let size = self.scalar_type.size();
-        (imax - imin + 1) as usize * size
-    }
-
-    /// [`size_bytes`][Self::size_bytes] with overflow checking; `None` if the
-    /// span does not fit in a `usize`.
-    pub(crate) fn checked_size_bytes(&self) -> Option<usize> {
-        checked_size_bytes(&self.dims, &self.strides, self.scalar_type)
-    }
-
-    /// Create a mutable field from a raw byte pointer in a single call.
-    ///
-    /// This constructor accepts the total byte count directly, avoiding the
-    /// intermediate staged descriptor mutation used by the C API and the
-    /// redundant `field_index_span` computation that would be required to
-    /// compute `size_bytes()`.
-    ///
-    /// `ptr` addresses the *lowest* address of the strided span, not
-    /// necessarily the element at index `[0, 0, 0, 0]`; see
-    /// [`ZfpField::begin`].
-    ///
-    /// # Safety
-    /// `ptr` must point to at least `byte_count` bytes, be aligned for
-    /// `scalar_type` (see [`ZfpScalarType::align`]), and the pointed-to memory
-    /// must remain valid for the lifetime `'a`.
-    pub unsafe fn from_raw(
-        ptr: *mut u8,
-        byte_count: usize,
-        scalar_type: ZfpScalarType,
-        dims: [usize; 4],
-        strides: [isize; 4],
-    ) -> Self {
-        if !ptr.is_null() && byte_count > 0 {
-            // SAFETY: caller guarantees ptr is valid for byte_count bytes.
-            Self {
-                scalar_type,
-                data: unsafe { std::slice::from_raw_parts_mut(ptr, byte_count) },
-                dims,
-                strides,
-            }
-        } else {
-            Self {
-                scalar_type,
-                data: &mut [],
-                dims,
-                strides,
-            }
-        }
-    }
+/// Compute the min and max scalar index offsets spanned by a field with these
+/// dimensions and strides, as for [`ZfpField::index_span`].
+#[cfg(feature = "ffi")]
+#[must_use]
+pub fn index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isize, isize) {
+    field_index_span(dims, strides)
 }
 
 // ---------------------------------------------------------------------------
@@ -603,7 +584,7 @@ fn is_contiguous(dims: &[usize; 4], strides: &[isize; 4]) -> bool {
 /// Only the axes below [`dimensionality`] take part: a dimension declared past
 /// the first zero one is inert, so it must not widen the span or shift the
 /// origin away from what the block walk uses.
-fn field_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isize, isize) {
+pub(crate) fn field_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isize, isize) {
     let mut imin: isize = 0;
     let mut imax: isize = 0;
     for axis in 0..usize::from(dimensionality(dims)) {
@@ -666,7 +647,7 @@ pub(crate) fn checked_size_bytes(
 ///
 /// # Errors
 ///
-/// Returns [`ZfpMetadataError::Null`] if dimensionality is 0, or
+/// Returns [`ZfpMetadataError::InvalidDims`] if the dimensions are malformed, or
 /// [`ZfpMetadataError::DimensionTooLarge`] if any dimension exceeds the
 /// encodable range for a 52-bit metadata word.
 pub(crate) fn field_metadata(
@@ -679,8 +660,8 @@ pub(crate) fn field_metadata(
         ZfpScalarType::Float => 2u64,
         ZfpScalarType::Double => 3u64,
     };
-    if dims == &[0; 4] {
-        return Err(ZfpMetadataError::Null);
+    if !valid_dims(dims) {
+        return Err(ZfpMetadataError::InvalidDims);
     }
     let d = dimensionality(dims);
     let mut meta: u64;
@@ -775,56 +756,47 @@ pub(crate) fn decode_metadata(meta: u64) -> Option<[usize; 4]> {
 #[cfg(test)]
 mod tests {
     use super::checked_size_bytes;
-    use crate::types::ZfpScalarType;
-    use crate::{
-        ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut,
-        types::{ZfpCompressionError, ZfpDecompressionError},
-    };
+    #[cfg(feature = "ffi")]
+    use crate::types::{ZfpCompressionError, ZfpDecompressionError};
+    use crate::types::{ZfpFieldError, ZfpScalarType};
+    use crate::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut};
 
     #[test]
     fn checked_size_bytes_matches_size_bytes_for_ordinary_fields() {
         let data = [0f64; 64];
-        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
         assert_eq!(field.checked_size_bytes(), Some(field.size_bytes()));
 
         // Negative and permuted strides still span the same buffer.
-        let strided = ZfpField::new_strided(&data, [4usize, 4, 4], [1isize, -4, 16]);
+        let strided = ZfpField::new_strided(&data, [4usize, 4, 4], [1isize, -4, 16]).unwrap();
         assert_eq!(strided.checked_size_bytes(), Some(strided.size_bytes()));
     }
 
     #[test]
     fn inert_axes_do_not_widen_the_span() {
-        // `dimensionality` stops at the first zero dim, so this is a 1-D field
-        // of 5 elements: `nz` and `sz` are inert. Folding them into the span
-        // would demand a 3240-byte buffer and put the field's origin 400
-        // elements above its start, while the block walk reads `data[0..5]`.
-        let data = [1.5f64; 5];
-        let field = ZfpField::new_strided(&data, [5usize, 0, 5, 0], [1isize, 0, -100, 0]);
-
-        assert_eq!(field.field_index_span(), (0, 4));
-        assert_eq!(field.size_bytes(), 5 * size_of::<f64>());
-        assert_eq!(field.checked_size_bytes(), Some(field.size_bytes()));
-        assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+        // `dimensionality` stops at the first zero dim, so the C ABI treats
+        // this as a 1-D field of 5 elements: `nz` and `sz` are inert. Folding
+        // them into the span would demand a 3240-byte buffer and put the
+        // field's origin 400 elements above its start, while the block walk
+        // reads `data[0..5]`.
+        let dims = [5usize, 0, 5, 0];
+        let strides = [1isize, 0, -100, 0];
+        assert_eq!(super::field_index_span(&dims, &strides), (0, 4));
+        assert_eq!(
+            checked_size_bytes(&dims, &strides, ZfpScalarType::Double),
+            Some(5 * size_of::<f64>())
+        );
     }
 
     #[test]
-    fn a_field_with_inert_axes_round_trips_against_its_own_buffer() {
-        // Integer scalars: reversible mode is bit-exact, so the comparison is
-        // an exact one either way, and this dodges `clippy::float_cmp`.
-        let data: [i32; 5] = [1, 2, 3, 4, 5];
-        let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(4096);
-
-        let field = ZfpField::new_strided(&data, [5usize, 0, 5, 0], [1isize, 0, -100, 0]);
-        bs.compress(&config, &field)
-            .expect("the buffer covers every element the 1-D walk touches");
-
-        let mut out = [0i32; 5];
-        bs.rewind();
-        let mut dst = ZfpFieldMut::new_strided(&mut out, [5usize, 0, 5, 0], [1isize, 0, -100, 0]);
-        bs.decompress(&config, &mut dst)
-            .expect("decompress must accept the same buffer");
-        assert_eq!(out, data);
+    fn constructors_reject_malformed_dims() {
+        let data = [1.5f64; 5];
+        for dims in [[5usize, 0, 5, 0], [0, 5, 0, 0], [0; 4]] {
+            assert_eq!(
+                ZfpField::new(&data, dims).unwrap_err(),
+                ZfpFieldError::InvalidDims { dims }
+            );
+        }
     }
 
     #[test]
@@ -842,36 +814,18 @@ mod tests {
     }
 
     #[test]
-    fn compress_rejects_a_field_larger_than_its_buffer() {
+    fn constructors_reject_a_field_larger_than_its_buffer() {
         // 1000 declared elements over a 4-element slice: compressing this used
         // to read out of bounds from entirely safe code.
-        let data = [0f64; 4];
-        let field = ZfpField::new(&data, [1000usize]);
-        let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(4096);
-
-        assert_eq!(
-            bs.compress(&config, &field),
-            Err(ZfpCompressionError::InvalidField {
-                required: 8000,
-                actual: 32,
-            })
-        );
-    }
-
-    #[test]
-    fn decompress_rejects_a_field_larger_than_its_buffer() {
         let mut data = [0f64; 4];
-        let mut field = ZfpFieldMut::new(&mut data, [1000usize]);
-        let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(4096);
-
+        let expected = ZfpFieldError::InsufficientData {
+            required: 8000,
+            actual: 32,
+        };
+        assert_eq!(ZfpField::new(&data, [1000usize]).unwrap_err(), expected);
         assert_eq!(
-            bs.decompress(&config, &mut field),
-            Err(ZfpDecompressionError::InvalidField {
-                required: 8000,
-                actual: 32,
-            })
+            ZfpFieldMut::new(&mut data, [1000usize]).unwrap_err(),
+            expected
         );
     }
 
@@ -879,23 +833,63 @@ mod tests {
     fn strides_that_overrun_the_buffer_are_rejected() {
         let data = [0f64; 16];
         // A 4x4 field with sy = 100 spans 1 + 3*1 + 3*100 = 304 elements.
-        let field = ZfpField::new_strided(&data, [4usize, 4], [1isize, 100]);
+        let expected = ZfpFieldError::InsufficientData {
+            required: 304 * 8,
+            actual: 128,
+        };
+        assert_eq!(
+            ZfpField::new_strided(&data, [4usize, 4], [1isize, 100]).unwrap_err(),
+            expected
+        );
+        let mut field = ZfpField::new(&data, [4usize, 4]).unwrap();
+        assert_eq!(field.set_strides([1isize, 100]).unwrap_err(), expected);
+        assert_eq!(field.effective_strides(), [1, 4, 16, 0]);
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn codec_rejects_an_unchecked_field_larger_than_its_buffer() {
+        let mut data = [0f64; 4];
+        let expected = ZfpFieldError::InsufficientData {
+            required: 8000,
+            actual: 32,
+        };
         let config = ZfpConfig::reversible();
         let mut bs = ZfpBitStream::new(4096);
-
+        // SAFETY: the pointer and length describe `data`.
+        let field = unsafe {
+            ZfpField::from_raw_unchecked(
+                data.as_ptr().cast(),
+                32,
+                ZfpScalarType::Double,
+                [1000, 0, 0, 0],
+                [0; 4],
+            )
+        };
         assert_eq!(
             bs.compress(&config, &field),
-            Err(ZfpCompressionError::InvalidField {
-                required: 304 * 8,
-                actual: 128,
-            })
+            Err(ZfpCompressionError::Field(expected))
+        );
+        // SAFETY: as above.
+        let mut field = unsafe {
+            ZfpFieldMut::from_raw_unchecked(
+                data.as_mut_ptr().cast(),
+                32,
+                ZfpScalarType::Double,
+                [1000, 0, 0, 0],
+                [0; 4],
+            )
+        };
+        assert_eq!(
+            bs.decompress(&config, &mut field),
+            Err(ZfpDecompressionError::Field(expected))
         );
     }
 
     #[test]
     fn exactly_sized_fields_are_accepted() {
         let data = [1.5f64; 64];
-        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
         let config = ZfpConfig::reversible();
         let mut bs = ZfpBitStream::new(
             config

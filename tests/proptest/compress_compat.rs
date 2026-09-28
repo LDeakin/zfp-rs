@@ -189,7 +189,7 @@ macro_rules! compress_compat_1d_int {
                 let nx = nx.min(data.len());
                 let data = &data[..nx];
 
-                let field = ZfpField::new(data, [nx]);
+                let field = ZfpField::new(data, [nx]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D1);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);
@@ -245,7 +245,7 @@ macro_rules! compress_compat_1d_float {
                 let nx = nx.min(data.len());
                 let data = &data[..nx];
 
-                let field = ZfpField::new(data, [nx]);
+                let field = ZfpField::new(data, [nx]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D1);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);
@@ -306,7 +306,7 @@ macro_rules! compress_compat_2d_int {
                 let ny = if n / nx == 0 { 1 } else { n / nx };
                 let data = &data[..nx * ny];
 
-                let field = ZfpField::new(data, [nx, ny]);
+                let field = ZfpField::new(data, [nx, ny]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D2);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);
@@ -365,7 +365,7 @@ macro_rules! compress_compat_2d_float {
                 let ny = if n / nx == 0 { 1 } else { n / nx };
                 let data = &data[..nx * ny];
 
-                let field = ZfpField::new(data, [nx, ny]);
+                let field = ZfpField::new(data, [nx, ny]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D2);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);
@@ -428,7 +428,7 @@ macro_rules! compress_compat_3d_int {
                 let nz = if n / (nx * ny) == 0 { 1 } else { n / (nx * ny) };
                 let data = &data[..nx * ny * nz];
 
-                let field = ZfpField::new(data, [nx, ny, nz]);
+                let field = ZfpField::new(data, [nx, ny, nz]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D3);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);
@@ -489,7 +489,7 @@ macro_rules! compress_compat_3d_float {
                 let nz = if n / (nx * ny) == 0 { 1 } else { n / (nx * ny) };
                 let data = &data[..nx * ny * nz];
 
-                let field = ZfpField::new(data, [nx, ny, nz]);
+                let field = ZfpField::new(data, [nx, ny, nz]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D3);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);
@@ -554,7 +554,7 @@ macro_rules! compress_compat_4d_int {
                 let nw = if n / (nx * ny * nz) == 0 { 1 } else { n / (nx * ny * nz) };
                 let data = &data[..nx * ny * nz * nw];
 
-                let field = ZfpField::new(data, [nx, ny, nz, nw]);
+                let field = ZfpField::new(data, [nx, ny, nz, nw]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D4);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);
@@ -617,7 +617,7 @@ macro_rules! compress_compat_4d_float {
                 let nw = if n / (nx * ny * nz) == 0 { 1 } else { n / (nx * ny * nz) };
                 let data = &data[..nx * ny * nz * nw];
 
-                let field = ZfpField::new(data, [nx, ny, nz, nw]);
+                let field = ZfpField::new(data, [nx, ny, nz, nw]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D4);
                 let mut bs = ZfpBitStream::new(CStream::CAPACITY);

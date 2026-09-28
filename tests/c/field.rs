@@ -20,7 +20,7 @@ macro_rules! field_tests {
             #[test]
             fn given_contiguous_data_is_contiguous_returns_true() {
                 let data = vec![<$ty>::default(); $nx];
-                let field = ZfpField::new(&data, [$nx]);
+                let field = ZfpField::new(&data, [$nx]).unwrap();
                 assert!(field.is_contiguous());
             }
 
@@ -28,44 +28,44 @@ macro_rules! field_tests {
             fn given_noncontiguous_data_is_contiguous_returns_false() {
                 let n = ($sx) * ($nx - 1) + 1;
                 let data = vec![<$ty>::default(); n];
-                let field = ZfpField::new_strided(&data, [$nx], [$sx as isize]);
+                let field = ZfpField::new_strided(&data, [$nx], [$sx as isize]).unwrap();
                 assert!(!field.is_contiguous());
             }
 
             #[test]
-            fn when_no_field_data_field_begin_returns_null() {
-                let field = ZfpField::new(&[] as &[$ty], [$nx]);
-                assert!(field.begin().is_none());
+            fn when_no_field_data_field_new_fails() {
+                assert!(ZfpField::new(&[] as &[$ty], [$nx]).is_err());
             }
 
             #[test]
             fn when_contiguous_data_field_begins_at_data_pointer() {
                 let data = vec![<$ty>::default(); $nx];
-                let field = ZfpField::new(&data, [$nx]);
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                let field = ZfpField::new(&data, [$nx]).unwrap();
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
             fn when_noncontiguous_data_with_negative_stride_field_begins_at_correct_location() {
                 let n = ($sx) * ($nx - 1) + 1;
                 let data = vec![<$ty>::default(); n];
-                let field = ZfpField::new_strided(&data, [$nx], [-($sx as isize)]);
+                let field = ZfpField::new_strided(&data, [$nx], [-($sx as isize)]).unwrap();
                 // `data` covers the whole strided span starting at its lowest
-                // address, so `begin` is the slice start whatever the stride
+                // address, so `data` is the slice start whatever the stride
                 // signs; the element at index 0 is the *last* one here.
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
             fn given_field_precision_correct() {
-                let field = ZfpField::new(&[] as &[$ty], [0]);
+                let data = [<$ty>::default()];
+                let field = ZfpField::new(&data, [1]).unwrap();
                 assert_eq!(field.precision(), (size_of::<$ty>() * 8) as u32);
             }
 
             #[test]
             fn given_contiguous_data_field_size_bytes_correct() {
                 let data = vec![<$ty>::default(); $nx];
-                let field = ZfpField::new(&data, [$nx]);
+                let field = ZfpField::new(&data, [$nx]).unwrap();
                 assert_eq!(field.size_bytes(), $nx * size_of::<$ty>());
             }
 
@@ -73,7 +73,7 @@ macro_rules! field_tests {
             fn given_noncontiguous_data_field_size_bytes_correct() {
                 let n = ($sx) * ($nx - 1) + 1;
                 let data = vec![<$ty>::default(); n];
-                let field = ZfpField::new_strided(&data, [$nx], [$sx as isize]);
+                let field = ZfpField::new_strided(&data, [$nx], [$sx as isize]).unwrap();
                 assert_eq!(field.size_bytes(), n * size_of::<$ty>());
             }
         }
@@ -89,7 +89,7 @@ macro_rules! field_tests {
             #[test]
             fn given_contiguous_data_is_contiguous_returns_true() {
                 let data = vec![<$ty>::default(); $nx * $ny];
-                let field = ZfpField::new(&data, [$nx, $ny]);
+                let field = ZfpField::new(&data, [$nx, $ny]).unwrap();
                 assert!(field.is_contiguous());
             }
 
@@ -97,21 +97,21 @@ macro_rules! field_tests {
             fn given_noncontiguous_data_is_contiguous_returns_false() {
                 let n = ($sx) * ($nx - 1) + ($sy) * ($ny - 1) + 1;
                 let data = vec![<$ty>::default(); n];
-                let field = ZfpField::new_strided(&data, [$nx, $ny], [$sx as isize, $sy as isize]);
+                let field =
+                    ZfpField::new_strided(&data, [$nx, $ny], [$sx as isize, $sy as isize]).unwrap();
                 assert!(!field.is_contiguous());
             }
 
             #[test]
-            fn when_no_field_data_field_begin_returns_null() {
-                let field = ZfpField::new(&[] as &[$ty], [$nx, $ny]);
-                assert!(field.begin().is_none());
+            fn when_no_field_data_field_new_fails() {
+                assert!(ZfpField::new(&[] as &[$ty], [$nx, $ny]).is_err());
             }
 
             #[test]
             fn when_contiguous_data_field_begins_at_data_pointer() {
                 let data = vec![<$ty>::default(); $nx * $ny];
-                let field = ZfpField::new(&data, [$nx, $ny]);
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                let field = ZfpField::new(&data, [$nx, $ny]).unwrap();
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
@@ -119,22 +119,24 @@ macro_rules! field_tests {
                 let n = ($sx) * ($nx - 1) + ($sy) * ($ny - 1) + 1;
                 let data = vec![<$ty>::default(); n];
                 let field =
-                    ZfpField::new_strided(&data, [$nx, $ny], [-($sx as isize), -($sy as isize)]);
-                // `begin` is the slice start: `data` covers the whole strided
+                    ZfpField::new_strided(&data, [$nx, $ny], [-($sx as isize), -($sy as isize)])
+                        .unwrap();
+                // `data` is the slice start: `data` covers the whole strided
                 // span from its lowest address.
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
             fn given_field_precision_correct() {
-                let field = ZfpField::new(&[] as &[$ty], [0]);
+                let data = [<$ty>::default()];
+                let field = ZfpField::new(&data, [1]).unwrap();
                 assert_eq!(field.precision(), (size_of::<$ty>() * 8) as u32);
             }
 
             #[test]
             fn given_contiguous_data_field_size_bytes_correct() {
                 let data = vec![<$ty>::default(); $nx * $ny];
-                let field = ZfpField::new(&data, [$nx, $ny]);
+                let field = ZfpField::new(&data, [$nx, $ny]).unwrap();
                 assert_eq!(field.size_bytes(), $nx * $ny * size_of::<$ty>());
             }
 
@@ -142,7 +144,8 @@ macro_rules! field_tests {
             fn given_noncontiguous_data_field_size_bytes_correct() {
                 let n = ($sx) * ($nx - 1) + ($sy) * ($ny - 1) + 1;
                 let data = vec![<$ty>::default(); n];
-                let field = ZfpField::new_strided(&data, [$nx, $ny], [$sx as isize, $sy as isize]);
+                let field =
+                    ZfpField::new_strided(&data, [$nx, $ny], [$sx as isize, $sy as isize]).unwrap();
                 assert_eq!(field.size_bytes(), n * size_of::<$ty>());
             }
         }
@@ -159,7 +162,7 @@ macro_rules! field_tests {
             #[test]
             fn given_contiguous_data_is_contiguous_returns_true() {
                 let data = vec![<$ty>::default(); $nx * $ny * $nz];
-                let field = ZfpField::new(&data, [$nx, $ny, $nz]);
+                let field = ZfpField::new(&data, [$nx, $ny, $nz]).unwrap();
                 assert!(field.is_contiguous());
             }
 
@@ -171,21 +174,21 @@ macro_rules! field_tests {
                     &data,
                     [$nx, $ny, $nz],
                     [$sx as isize, $sy as isize, $sz as isize],
-                );
+                )
+                .unwrap();
                 assert!(!field.is_contiguous());
             }
 
             #[test]
-            fn when_no_field_data_field_begin_returns_null() {
-                let field = ZfpField::new(&[] as &[$ty], [$nx, $ny, $nz]);
-                assert!(field.begin().is_none());
+            fn when_no_field_data_field_new_fails() {
+                assert!(ZfpField::new(&[] as &[$ty], [$nx, $ny, $nz]).is_err());
             }
 
             #[test]
             fn when_contiguous_data_field_begins_at_data_pointer() {
                 let data = vec![<$ty>::default(); $nx * $ny * $nz];
-                let field = ZfpField::new(&data, [$nx, $ny, $nz]);
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                let field = ZfpField::new(&data, [$nx, $ny, $nz]).unwrap();
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
@@ -196,22 +199,24 @@ macro_rules! field_tests {
                     &data,
                     [$nx, $ny, $nz],
                     [-($sx as isize), -($sy as isize), -($sz as isize)],
-                );
-                // `begin` is the slice start: `data` covers the whole strided
+                )
+                .unwrap();
+                // `data` is the slice start: `data` covers the whole strided
                 // span from its lowest address.
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
             fn given_field_precision_correct() {
-                let field = ZfpField::new(&[] as &[$ty], [0]);
+                let data = [<$ty>::default()];
+                let field = ZfpField::new(&data, [1]).unwrap();
                 assert_eq!(field.precision(), (size_of::<$ty>() * 8) as u32);
             }
 
             #[test]
             fn given_contiguous_data_field_size_bytes_correct() {
                 let data = vec![<$ty>::default(); $nx * $ny * $nz];
-                let field = ZfpField::new(&data, [$nx, $ny, $nz]);
+                let field = ZfpField::new(&data, [$nx, $ny, $nz]).unwrap();
                 assert_eq!(field.size_bytes(), $nx * $ny * $nz * size_of::<$ty>());
             }
 
@@ -223,7 +228,8 @@ macro_rules! field_tests {
                     &data,
                     [$nx, $ny, $nz],
                     [$sx as isize, $sy as isize, $sz as isize],
-                );
+                )
+                .unwrap();
                 assert_eq!(field.size_bytes(), n * size_of::<$ty>());
             }
         }
@@ -240,7 +246,7 @@ macro_rules! field_tests {
             #[test]
             fn given_contiguous_data_is_contiguous_returns_true() {
                 let data = vec![<$ty>::default(); $nx * $ny * $nz * $nw];
-                let field = ZfpField::new(&data, [$nx, $ny, $nz, $nw]);
+                let field = ZfpField::new(&data, [$nx, $ny, $nz, $nw]).unwrap();
                 assert!(field.is_contiguous());
             }
 
@@ -256,21 +262,21 @@ macro_rules! field_tests {
                     &data,
                     [$nx, $ny, $nz, $nw],
                     [$sx as isize, $sy as isize, $sz as isize, $sw as isize],
-                );
+                )
+                .unwrap();
                 assert!(!field.is_contiguous());
             }
 
             #[test]
-            fn when_no_field_data_field_begin_returns_null() {
-                let field = ZfpField::new(&[] as &[$ty], [$nx, $ny, $nz, $nw]);
-                assert!(field.begin().is_none());
+            fn when_no_field_data_field_new_fails() {
+                assert!(ZfpField::new(&[] as &[$ty], [$nx, $ny, $nz, $nw]).is_err());
             }
 
             #[test]
             fn when_contiguous_data_field_begins_at_data_pointer() {
                 let data = vec![<$ty>::default(); $nx * $ny * $nz * $nw];
-                let field = ZfpField::new(&data, [$nx, $ny, $nz, $nw]);
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                let field = ZfpField::new(&data, [$nx, $ny, $nz, $nw]).unwrap();
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
@@ -290,22 +296,24 @@ macro_rules! field_tests {
                         -($sz as isize),
                         -($sw as isize),
                     ],
-                );
-                // `begin` is the slice start: `data` covers the whole strided
+                )
+                .unwrap();
+                // `data` is the slice start: `data` covers the whole strided
                 // span from its lowest address.
-                assert_eq!(field.begin().unwrap(), data.as_ptr().cast());
+                assert_eq!(field.data().as_ptr(), data.as_ptr().cast());
             }
 
             #[test]
             fn given_field_precision_correct() {
-                let field = ZfpField::new(&[] as &[$ty], [0]);
+                let data = [<$ty>::default()];
+                let field = ZfpField::new(&data, [1]).unwrap();
                 assert_eq!(field.precision(), (size_of::<$ty>() * 8) as u32);
             }
 
             #[test]
             fn given_contiguous_data_field_size_bytes_correct() {
                 let data = vec![<$ty>::default(); $nx * $ny * $nz * $nw];
-                let field = ZfpField::new(&data, [$nx, $ny, $nz, $nw]);
+                let field = ZfpField::new(&data, [$nx, $ny, $nz, $nw]).unwrap();
                 assert_eq!(field.size_bytes(), $nx * $ny * $nz * $nw * size_of::<$ty>());
             }
 
@@ -321,7 +329,8 @@ macro_rules! field_tests {
                     &data,
                     [$nx, $ny, $nz, $nw],
                     [$sx as isize, $sy as isize, $sz as isize, $sw as isize],
-                );
+                )
+                .unwrap();
                 assert_eq!(field.size_bytes(), n * size_of::<$ty>());
             }
         }

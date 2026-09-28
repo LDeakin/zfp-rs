@@ -47,7 +47,7 @@
 //! use zfp_rs::{ZfpScalarType, ZfpDimensionality, ZfpStreamAlignment};
 //!
 //! let data: Vec<f64> = (0..16).map(|i| i as f64 * 0.1).collect();
-//! let field = ZfpField::new(&data, [4usize, 4]);
+//! let field = ZfpField::new(&data, [4usize, 4])?;
 //!
 //! // Configure fixed-rate compression.
 //! let config = ZfpConfig::fixed_rate(
@@ -65,7 +65,7 @@
 //! // Decompress back.
 //! bs.rewind();
 //! let mut output = vec![0.0f64; 16];
-//! let mut out_field = ZfpFieldMut::new(&mut output, [4usize, 4]);
+//! let mut out_field = ZfpFieldMut::new(&mut output, [4usize, 4])?;
 //! bs.decompress(&config, &mut out_field)?;
 //! # Ok(())
 //! # }
