@@ -450,6 +450,7 @@ impl ZfpConfig {
 
     /// Block-codec defaults when the caller passes no stream config: no rate
     /// constraint and full precision, down to the type's smallest exponent.
+    #[cfg(feature = "internals")]
     pub(crate) const fn block_default(ty: ZfpScalarType, dims: ZfpDimensionality) -> Self {
         let values = match dims {
             ZfpDimensionality::D1 => 4,

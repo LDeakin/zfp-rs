@@ -15,7 +15,7 @@
 use zfp_rs::ZfpConfig;
 use zfp_rs::ZfpDimensionality;
 use zfp_rs::bitstream::ZfpBitStream;
-use zfp_rs::codec::block::{encode_block_reversible_f32, encode_block_reversible_f64};
+use zfp_rs::codec::block::encode_block;
 use zfp_rs::codec::encode::{float, integer};
 
 use super::checksums::{
@@ -251,8 +251,7 @@ macro_rules! encode_block_tests_float {
         $cast:ty,
         $enc_fn:path,
         $special_bits:expr,
-        $make_special:ident,
-        $encode_rev:ident
+        $make_special:ident
     ) => {
         mod $mod_name {
             use super::*;
@@ -327,7 +326,7 @@ macro_rules! encode_block_tests_float {
                 for (i, &special_bits) in $special_bits.iter().enumerate() {
                     let data = $make_special($block_size, special_bits);
                     let mut bs = ZfpBitStream::new(65536);
-                    $encode_rev(&mut bs, &data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
+                    encode_block(&mut bs, &ZfpConfig::reversible(), &data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                     bs.flush();
                     let computed = hash_bitstream(&bs.as_bytes());
                     let (key1, key2) = compute_key(
@@ -368,8 +367,7 @@ encode_block_tests_float!(
     u64,
     float::encode_block_1d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64
+    make_special_block_f64
 );
 encode_block_tests_float!(
     dim1_float,
@@ -384,8 +382,7 @@ encode_block_tests_float!(
     u32,
     float::encode_block_1d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32
+    make_special_block_f32
 );
 encode_block_tests_int!(
     dim1_int32,
@@ -428,8 +425,7 @@ encode_block_tests_float!(
     u64,
     float::encode_block_2d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64
+    make_special_block_f64
 );
 encode_block_tests_float!(
     dim2_float,
@@ -444,8 +440,7 @@ encode_block_tests_float!(
     u32,
     float::encode_block_2d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32
+    make_special_block_f32
 );
 encode_block_tests_int!(
     dim2_int32,
@@ -488,8 +483,7 @@ encode_block_tests_float!(
     u64,
     float::encode_block_3d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64
+    make_special_block_f64
 );
 encode_block_tests_float!(
     dim3_float,
@@ -504,8 +498,7 @@ encode_block_tests_float!(
     u32,
     float::encode_block_3d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32
+    make_special_block_f32
 );
 encode_block_tests_int!(
     dim3_int32,
@@ -548,8 +541,7 @@ encode_block_tests_float!(
     u64,
     float::encode_block_4d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64
+    make_special_block_f64
 );
 encode_block_tests_float!(
     dim4_float,
@@ -564,8 +556,7 @@ encode_block_tests_float!(
     u32,
     float::encode_block_4d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32
+    make_special_block_f32
 );
 encode_block_tests_int!(
     dim4_int32,

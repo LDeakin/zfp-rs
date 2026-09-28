@@ -189,7 +189,7 @@ macro_rules! decode_block_tests {
 
             fn encode_and_rewind(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(65536);
-                encode_block::<$scalar>(&mut bs, data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
+                encode_block::<$scalar>(&mut bs, &CONFIG, data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                 bs.flush();
                 bs.rewind();
                 bs
@@ -224,7 +224,7 @@ macro_rules! decode_block_tests {
                 let mut bs = encode_and_rewind(&data);
                 let mut out = vec![0 as $scalar; $block_size];
                 let bits_read =
-                    decode_block::<$scalar>(&mut bs, &mut out, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
+                    decode_block::<$scalar>(&mut bs, &CONFIG, &mut out, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                 assert_eq!(bits_read, bs.read_pos() as usize);
             }
 
@@ -273,13 +273,11 @@ macro_rules! decode_block_tests_float {
         $enc_fn:path,
         $dec_fn:path,
         $special_bits:expr,
-        $make_special:ident,
-        $encode_rev:ident,
-        $decode_rev:ident
+        $make_special:ident
     ) => {
         mod $mod_name {
             use super::*;
-            use zfp_rs::codec::block::{$decode_rev, $encode_rev};
+            use zfp_rs::codec::block::{decode_block, encode_block};
 
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
             const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
@@ -299,7 +297,7 @@ macro_rules! decode_block_tests_float {
 
             fn encode_and_rewind(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(65536);
-                encode_block::<$scalar>(&mut bs, data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
+                encode_block::<$scalar>(&mut bs, &CONFIG, data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                 bs.flush();
                 bs.rewind();
                 bs
@@ -316,7 +314,7 @@ macro_rules! decode_block_tests_float {
 
             fn encode_reversible_and_rewind(data: &[$scalar]) -> ZfpBitStream {
                 let mut bs = ZfpBitStream::new(65536);
-                $encode_rev(&mut bs, data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
+                encode_block(&mut bs, &ZfpConfig::reversible(), data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                 bs.flush();
                 bs.rewind();
                 bs
@@ -344,6 +342,7 @@ macro_rules! decode_block_tests_float {
                 let mut out = vec![0 as $scalar; $block_size];
                 let bits_read = decode_block::<$scalar>(
                     &mut bs,
+                    &CONFIG,
                     &mut out,
                     ZfpDimensionality::try_from($dims as u32).unwrap(),
                 ).unwrap();
@@ -381,7 +380,7 @@ macro_rules! decode_block_tests_float {
                     let data = $make_special($block_size, special_bits);
                     let mut bs = encode_reversible_and_rewind(&data);
                     let mut out = vec![0 as $scalar; $block_size];
-                    $decode_rev(&mut bs, &mut out, ZfpDimensionality::try_from($dims as u32).unwrap(), zfp_rs::ZfpRounding::Never).unwrap();
+                    decode_block(&mut bs, &ZfpConfig::reversible(), &mut out, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                     // bit-for-bit comparison via integer representation
                     for (i, (&orig, &decoded)) in data.iter().zip(out.iter()).enumerate() {
                         assert_eq!(
@@ -419,9 +418,7 @@ decode_block_tests_float!(
     efloat::encode_block_1d_f64,
     dfloat::decode_block_1d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64,
-    decode_block_reversible_f64
+    make_special_block_f64
 );
 decode_block_tests_float!(
     dim1_float,
@@ -437,9 +434,7 @@ decode_block_tests_float!(
     efloat::encode_block_1d_f32,
     dfloat::decode_block_1d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32,
-    decode_block_reversible_f32
+    make_special_block_f32
 );
 decode_block_tests!(
     dim1_int32,
@@ -485,9 +480,7 @@ decode_block_tests_float!(
     efloat::encode_block_2d_f64,
     dfloat::decode_block_2d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64,
-    decode_block_reversible_f64
+    make_special_block_f64
 );
 decode_block_tests_float!(
     dim2_float,
@@ -503,9 +496,7 @@ decode_block_tests_float!(
     efloat::encode_block_2d_f32,
     dfloat::decode_block_2d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32,
-    decode_block_reversible_f32
+    make_special_block_f32
 );
 decode_block_tests!(
     dim2_int32,
@@ -551,9 +542,7 @@ decode_block_tests_float!(
     efloat::encode_block_3d_f64,
     dfloat::decode_block_3d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64,
-    decode_block_reversible_f64
+    make_special_block_f64
 );
 decode_block_tests_float!(
     dim3_float,
@@ -569,9 +558,7 @@ decode_block_tests_float!(
     efloat::encode_block_3d_f32,
     dfloat::decode_block_3d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32,
-    decode_block_reversible_f32
+    make_special_block_f32
 );
 decode_block_tests!(
     dim3_int32,
@@ -617,9 +604,7 @@ decode_block_tests_float!(
     efloat::encode_block_4d_f64,
     dfloat::decode_block_4d_f64,
     &SPECIAL_DOUBLE_BITS,
-    make_special_block_f64,
-    encode_block_reversible_f64,
-    decode_block_reversible_f64
+    make_special_block_f64
 );
 decode_block_tests_float!(
     dim4_float,
@@ -635,9 +620,7 @@ decode_block_tests_float!(
     efloat::encode_block_4d_f32,
     dfloat::decode_block_4d_f32,
     &SPECIAL_FLOAT_BITS,
-    make_special_block_f32,
-    encode_block_reversible_f32,
-    decode_block_reversible_f32
+    make_special_block_f32
 );
 decode_block_tests!(
     dim4_int32,

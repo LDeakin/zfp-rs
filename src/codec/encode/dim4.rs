@@ -7,7 +7,9 @@ use crate::codec::encode::core::pad_strided;
 use crate::codec::encode::core::strided_encode_wrappers;
 use crate::codec::encode::float::{encode_block_4d_f32, encode_block_4d_f64};
 use crate::codec::encode::integer::{encode_block_4d_i32, encode_block_4d_i64};
+#[cfg(feature = "internals")]
 use crate::config::ZfpConfig;
+#[cfg(feature = "internals")]
 use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
@@ -100,6 +102,7 @@ unsafe fn gather_partial_4d<T: Copy + Default>(
 // Public API: contiguous
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "internals")]
 pub fn encode_block_4d_i32_default(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[i32; 256],
@@ -111,6 +114,7 @@ pub fn encode_block_4d_i32_default(
     )
 }
 
+#[cfg(feature = "internals")]
 pub fn encode_block_4d_i64_default(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[i64; 256],
@@ -122,6 +126,7 @@ pub fn encode_block_4d_i64_default(
     )
 }
 
+#[cfg(feature = "internals")]
 pub fn encode_block_4d_f32_default(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f32; 256],
@@ -133,6 +138,7 @@ pub fn encode_block_4d_f32_default(
     )
 }
 
+#[cfg(feature = "internals")]
 pub fn encode_block_4d_f64_default(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f64; 256],

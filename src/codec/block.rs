@@ -24,8 +24,8 @@
 //! the pointer accordingly.
 
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
-use crate::config::ZfpRounding;
-use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
+use crate::config::ZfpConfig;
+use crate::types::{ZFP_MIN_EXP, ZfpBlockError, ZfpDimensionality, ZfpScalar};
 mod strided;
 
 // Public only with `ffi`, which the C-ABI layer enables. Without it these stay
@@ -37,410 +37,81 @@ pub use strided::*;
 pub(crate) use strided::*;
 
 // ---------------------------------------------------------------------------
-// Contiguous block encode
+// Contiguous block encode / decode
 // ---------------------------------------------------------------------------
 
-/// Encode a contiguous 4^d block of scalars; return bits written.
+/// Strides and lengths that describe a contiguous 4^d block.
+fn contiguous_layout(dims: ZfpDimensionality) -> ([isize; 4], [usize; 4]) {
+    let d = usize::from(dims);
+    let lengths = std::array::from_fn(|axis| if axis < d { 4 } else { 0 });
+    ([1, 4, 16, 64], lengths)
+}
+
+/// Encode a contiguous 4^d block of scalars with the given config; return
+/// the number of bits written.
+///
+/// A reversible `config` selects lossless coding. The output matches what
+/// [`compress`][crate::ZfpBitStreamMutOps::compress] writes for the same block.
 ///
 /// # Errors
 ///
-/// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
-/// size for the given dimensionality.
+/// Returns [`ZfpBlockError`] if `data.len()` is not
+/// [`dims.block_size()`][ZfpDimensionality::block_size].
 pub fn encode_block<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    config: &ZfpConfig,
     data: &[T],
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
-    use crate::codec::encode::{dim1, dim2, dim3, dim4};
-    match (T::SCALAR_TYPE, dims) {
-        // 1D
-        (ZfpScalarType::I32, ZfpDimensionality::D1) => {
-            // T == i32 via exhaustive match on ZfpScalar::SCALAR_TYPE.
-            let b: &[i32; 4] = as_typed_block_1d::<T, i32>(data)?;
-            Ok(dim1::encode_block_1d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D1) => {
-            // T == i64 via exhaustive match on ZfpScalar::SCALAR_TYPE.
-            let b: &[i64; 4] = as_typed_block_1d::<T, i64>(data)?;
-            Ok(dim1::encode_block_1d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D1) => {
-            // T == f32 via exhaustive match on ZfpScalar::SCALAR_TYPE.
-            let b: &[f32; 4] = as_typed_block_1d::<T, f32>(data)?;
-            Ok(dim1::encode_block_1d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D1) => {
-            // T == f64 via exhaustive match on ZfpScalar::SCALAR_TYPE.
-            let b: &[f64; 4] = as_typed_block_1d::<T, f64>(data)?;
-            Ok(dim1::encode_block_1d_f64_default(bs, b))
-        }
-        // 2D
-        (ZfpScalarType::I32, ZfpDimensionality::D2) => {
-            let b: &[i32; 16] = as_typed_block_2d::<T, i32>(data)?;
-            Ok(dim2::encode_block_2d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D2) => {
-            let b: &[i64; 16] = as_typed_block_2d::<T, i64>(data)?;
-            Ok(dim2::encode_block_2d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D2) => {
-            let b: &[f32; 16] = as_typed_block_2d::<T, f32>(data)?;
-            Ok(dim2::encode_block_2d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D2) => {
-            let b: &[f64; 16] = as_typed_block_2d::<T, f64>(data)?;
-            Ok(dim2::encode_block_2d_f64_default(bs, b))
-        }
-        // 3D
-        (ZfpScalarType::I32, ZfpDimensionality::D3) => {
-            let b: &[i32; 64] = as_typed_block_3d::<T, i32>(data)?;
-            Ok(dim3::encode_block_3d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D3) => {
-            let b: &[i64; 64] = as_typed_block_3d::<T, i64>(data)?;
-            Ok(dim3::encode_block_3d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D3) => {
-            let b: &[f32; 64] = as_typed_block_3d::<T, f32>(data)?;
-            Ok(dim3::encode_block_3d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D3) => {
-            let b: &[f64; 64] = as_typed_block_3d::<T, f64>(data)?;
-            Ok(dim3::encode_block_3d_f64_default(bs, b))
-        }
-        // 4D
-        (ZfpScalarType::I32, ZfpDimensionality::D4) => {
-            let b: &[i32; 256] = as_typed_block_4d::<T, i32>(data)?;
-            Ok(dim4::encode_block_4d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D4) => {
-            let b: &[i64; 256] = as_typed_block_4d::<T, i64>(data)?;
-            Ok(dim4::encode_block_4d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D4) => {
-            let b: &[f32; 256] = as_typed_block_4d::<T, f32>(data)?;
-            Ok(dim4::encode_block_4d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D4) => {
-            let b: &[f64; 256] = as_typed_block_4d::<T, f64>(data)?;
-            Ok(dim4::encode_block_4d_f64_default(bs, b))
-        }
+    if data.len() != dims.block_size() {
+        return Err(ZfpBlockError);
     }
+    let (strides, lengths) = contiguous_layout(dims);
+    // SAFETY: `data` holds a whole block, and contiguous strides address
+    // exactly its elements.
+    Ok(unsafe {
+        if config.min_exp() < ZFP_MIN_EXP {
+            encode_block_strided_reversible(bs, data.as_ptr(), dims, &strides, lengths)
+        } else {
+            encode_block_strided(bs, data.as_ptr(), dims, &strides, config)
+        }
+    })
 }
 
-// ---------------------------------------------------------------------------
-// Contiguous block decode
-// ---------------------------------------------------------------------------
-
-/// Decode a contiguous 4^d block of scalars; return bits read.
+/// Decode a contiguous 4^d block of scalars with the given config; return
+/// the number of bits read.
+///
+/// `config` must match the one used to encode, rounding included. As
+/// upstream, [`ZfpRounding::Last`][crate::ZfpRounding::Last] biases reversible
+/// coefficients too, so reversible decoding is then lossy.
 ///
 /// # Errors
 ///
-/// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
-/// size for the given dimensionality.
+/// Returns [`ZfpBlockError`] if `data.len()` is not
+/// [`dims.block_size()`][ZfpDimensionality::block_size].
 pub fn decode_block<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
     data: &mut [T],
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
-    use crate::codec::decode::{dim1, dim2, dim3, dim4};
-    match (T::SCALAR_TYPE, dims) {
-        // 1D
-        (ZfpScalarType::I32, ZfpDimensionality::D1) => {
-            let b: &mut [i32; 4] = as_typed_block_1d_mut::<T, i32>(data)?;
-            Ok(dim1::decode_block_1d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D1) => {
-            let b: &mut [i64; 4] = as_typed_block_1d_mut::<T, i64>(data)?;
-            Ok(dim1::decode_block_1d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D1) => {
-            let b: &mut [f32; 4] = as_typed_block_1d_mut::<T, f32>(data)?;
-            Ok(dim1::decode_block_1d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D1) => {
-            let b: &mut [f64; 4] = as_typed_block_1d_mut::<T, f64>(data)?;
-            Ok(dim1::decode_block_1d_f64_default(bs, b))
-        }
-        // 2D
-        (ZfpScalarType::I32, ZfpDimensionality::D2) => {
-            let b: &mut [i32; 16] = as_typed_block_2d_mut::<T, i32>(data)?;
-            Ok(dim2::decode_block_2d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D2) => {
-            let b: &mut [i64; 16] = as_typed_block_2d_mut::<T, i64>(data)?;
-            Ok(dim2::decode_block_2d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D2) => {
-            let b: &mut [f32; 16] = as_typed_block_2d_mut::<T, f32>(data)?;
-            Ok(dim2::decode_block_2d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D2) => {
-            let b: &mut [f64; 16] = as_typed_block_2d_mut::<T, f64>(data)?;
-            Ok(dim2::decode_block_2d_f64_default(bs, b))
-        }
-        // 3D
-        (ZfpScalarType::I32, ZfpDimensionality::D3) => {
-            let b: &mut [i32; 64] = as_typed_block_3d_mut::<T, i32>(data)?;
-            Ok(dim3::decode_block_3d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D3) => {
-            let b: &mut [i64; 64] = as_typed_block_3d_mut::<T, i64>(data)?;
-            Ok(dim3::decode_block_3d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D3) => {
-            let b: &mut [f32; 64] = as_typed_block_3d_mut::<T, f32>(data)?;
-            Ok(dim3::decode_block_3d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D3) => {
-            let b: &mut [f64; 64] = as_typed_block_3d_mut::<T, f64>(data)?;
-            Ok(dim3::decode_block_3d_f64_default(bs, b))
-        }
-        // 4D
-        (ZfpScalarType::I32, ZfpDimensionality::D4) => {
-            let b: &mut [i32; 256] = as_typed_block_4d_mut::<T, i32>(data)?;
-            Ok(dim4::decode_block_4d_i32_default(bs, b))
-        }
-        (ZfpScalarType::I64, ZfpDimensionality::D4) => {
-            let b: &mut [i64; 256] = as_typed_block_4d_mut::<T, i64>(data)?;
-            Ok(dim4::decode_block_4d_i64_default(bs, b))
-        }
-        (ZfpScalarType::F32, ZfpDimensionality::D4) => {
-            let b: &mut [f32; 256] = as_typed_block_4d_mut::<T, f32>(data)?;
-            Ok(dim4::decode_block_4d_f32_default(bs, b))
-        }
-        (ZfpScalarType::F64, ZfpDimensionality::D4) => {
-            let b: &mut [f64; 256] = as_typed_block_4d_mut::<T, f64>(data)?;
-            Ok(dim4::decode_block_4d_f64_default(bs, b))
-        }
+    if data.len() != dims.block_size() {
+        return Err(ZfpBlockError);
     }
-}
-
-// ---------------------------------------------------------------------------
-// Reversible (lossless) block encode / decode: f32 and f64 only
-// ---------------------------------------------------------------------------
-
-/// Reversible (lossless) encode of a contiguous 4^d block of `f32`;
-/// return bits written.
-///
-/// # Errors
-///
-/// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
-/// size for the given dimensionality.
-pub fn encode_block_reversible_f32(
-    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    data: &[f32],
-    dims: ZfpDimensionality,
-) -> Result<usize, ZfpBlockError> {
-    use crate::codec::encode::reversible::{
-        encode_block_reversible_1d_f32, encode_block_reversible_2d_f32,
-        encode_block_reversible_3d_f32, encode_block_reversible_4d_f32,
-    };
-    match dims {
-        ZfpDimensionality::D1 => Ok(encode_block_reversible_1d_f32(
-            bs,
-            as_block_1d::<f32>(data)?,
-        )),
-        ZfpDimensionality::D2 => Ok(encode_block_reversible_2d_f32(
-            bs,
-            as_block_2d::<f32>(data)?,
-        )),
-        ZfpDimensionality::D3 => Ok(encode_block_reversible_3d_f32(
-            bs,
-            as_block_3d::<f32>(data)?,
-        )),
-        ZfpDimensionality::D4 => Ok(encode_block_reversible_4d_f32(
-            bs,
-            as_block_4d::<f32>(data)?,
-        )),
-    }
-}
-
-/// Reversible (lossless) encode of a contiguous 4^d block of `f64`;
-/// return bits written.
-///
-/// # Errors
-///
-/// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
-/// size for the given dimensionality.
-pub fn encode_block_reversible_f64(
-    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    data: &[f64],
-    dims: ZfpDimensionality,
-) -> Result<usize, ZfpBlockError> {
-    use crate::codec::encode::reversible::{
-        encode_block_reversible_1d_f64, encode_block_reversible_2d_f64,
-        encode_block_reversible_3d_f64, encode_block_reversible_4d_f64,
-    };
-    match dims {
-        ZfpDimensionality::D1 => Ok(encode_block_reversible_1d_f64(
-            bs,
-            as_block_1d::<f64>(data)?,
-        )),
-        ZfpDimensionality::D2 => Ok(encode_block_reversible_2d_f64(
-            bs,
-            as_block_2d::<f64>(data)?,
-        )),
-        ZfpDimensionality::D3 => Ok(encode_block_reversible_3d_f64(
-            bs,
-            as_block_3d::<f64>(data)?,
-        )),
-        ZfpDimensionality::D4 => Ok(encode_block_reversible_4d_f64(
-            bs,
-            as_block_4d::<f64>(data)?,
-        )),
-    }
-}
-
-/// Reversible (lossless) decode of a contiguous 4^d block of `f32`;
-/// return bits read.
-///
-/// As upstream, [`ZfpRounding::Last`] biases reversible coefficients too, so
-/// decoding is lossless only with [`ZfpRounding::Never`] or
-/// [`ZfpRounding::First`].
-///
-/// # Errors
-///
-/// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
-/// size for the given dimensionality.
-pub fn decode_block_reversible_f32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    data: &mut [f32],
-    dims: ZfpDimensionality,
-    rounding: ZfpRounding,
-) -> Result<usize, ZfpBlockError> {
-    use crate::codec::decode::reversible::{
-        decode_block_reversible_1d_f32, decode_block_reversible_2d_f32,
-        decode_block_reversible_3d_f32, decode_block_reversible_4d_f32,
-    };
-    match dims {
-        ZfpDimensionality::D1 => Ok(decode_block_reversible_1d_f32(
-            bs,
-            as_block_1d_mut::<f32>(data)?,
-            rounding,
-        )),
-        ZfpDimensionality::D2 => Ok(decode_block_reversible_2d_f32(
-            bs,
-            as_block_2d_mut::<f32>(data)?,
-            rounding,
-        )),
-        ZfpDimensionality::D3 => Ok(decode_block_reversible_3d_f32(
-            bs,
-            as_block_3d_mut::<f32>(data)?,
-            rounding,
-        )),
-        ZfpDimensionality::D4 => Ok(decode_block_reversible_4d_f32(
-            bs,
-            as_block_4d_mut::<f32>(data)?,
-            rounding,
-        )),
-    }
-}
-
-/// Reversible (lossless) decode of a contiguous 4^d block of `f64`;
-/// return bits read.
-///
-/// See [`decode_block_reversible_f32`] for how `rounding` affects losslessness.
-///
-/// # Errors
-///
-/// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
-/// size for the given dimensionality.
-pub fn decode_block_reversible_f64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    data: &mut [f64],
-    dims: ZfpDimensionality,
-    rounding: ZfpRounding,
-) -> Result<usize, ZfpBlockError> {
-    use crate::codec::decode::reversible::{
-        decode_block_reversible_1d_f64, decode_block_reversible_2d_f64,
-        decode_block_reversible_3d_f64, decode_block_reversible_4d_f64,
-    };
-    match dims {
-        ZfpDimensionality::D1 => Ok(decode_block_reversible_1d_f64(
-            bs,
-            as_block_1d_mut::<f64>(data)?,
-            rounding,
-        )),
-        ZfpDimensionality::D2 => Ok(decode_block_reversible_2d_f64(
-            bs,
-            as_block_2d_mut::<f64>(data)?,
-            rounding,
-        )),
-        ZfpDimensionality::D3 => Ok(decode_block_reversible_3d_f64(
-            bs,
-            as_block_3d_mut::<f64>(data)?,
-            rounding,
-        )),
-        ZfpDimensionality::D4 => Ok(decode_block_reversible_4d_f64(
-            bs,
-            as_block_4d_mut::<f64>(data)?,
-            rounding,
-        )),
-    }
+    let (strides, lengths) = contiguous_layout(dims);
+    // SAFETY: as in `encode_block`.
+    Ok(unsafe {
+        if config.min_exp() < ZFP_MIN_EXP {
+            decode_block_strided_reversible(bs, data.as_mut_ptr(), dims, &strides, lengths, config)
+        } else {
+            decode_block_strided(bs, data.as_mut_ptr(), dims, &strides, config)
+        }
+    })
 }
 
 // ---------------------------------------------------------------------------
 // Slice-to-array conversion helpers
 // ---------------------------------------------------------------------------
-
-/// Convert a slice to a fixed-size array reference for a 1-D block.
-///
-/// Convert a slice to a fixed-size array reference for a 1-D block.
-///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 4.
-#[inline]
-pub(crate) fn as_block_1d<T>(data: &[T]) -> Result<&'_ [T; 4], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_block_1d`].
-#[inline]
-pub(crate) fn as_block_1d_mut<T>(data: &mut [T]) -> Result<&'_ mut [T; 4], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Convert a slice to a fixed-size array reference for a 2-D block.
-///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 16.
-#[inline]
-pub(crate) fn as_block_2d<T>(data: &[T]) -> Result<&'_ [T; 16], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_block_2d`].
-#[inline]
-pub(crate) fn as_block_2d_mut<T>(data: &mut [T]) -> Result<&'_ mut [T; 16], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Convert a slice to a fixed-size array reference for a 3-D block.
-///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 64.
-#[inline]
-pub(crate) fn as_block_3d<T>(data: &[T]) -> Result<&'_ [T; 64], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_block_3d`].
-#[inline]
-pub(crate) fn as_block_3d_mut<T>(data: &mut [T]) -> Result<&'_ mut [T; 64], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Convert a slice to a fixed-size array reference for a 4-D block.
-///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 256.
-#[inline]
-pub(crate) fn as_block_4d<T>(data: &[T]) -> Result<&'_ [T; 256], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_block_4d`].
-#[inline]
-pub(crate) fn as_block_4d_mut<T>(data: &mut [T]) -> Result<&'_ mut [T; 256], ZfpBlockError> {
-    data.try_into().map_err(|_| ZfpBlockError)
-}
 
 /// Reinterpret a `&[T]` slice as a `[U; 4]` array via bytemuck casting for 1-D blocks.
 ///
@@ -448,7 +119,7 @@ pub(crate) fn as_block_4d_mut<T>(data: &mut [T]) -> Result<&'_ mut [T; 256], Zfp
 /// 1. `bytemuck::cast_slice` reinterprets `&[T]` → `&[U]`
 /// 2. `try_into()` converts `&[U]` → `&[U; 4]`
 ///
-/// # Panics
+/// # Errors
 ///
 /// Returns [`ZfpBlockError`] if `data.len()` is not 4.
 #[inline]
@@ -526,4 +197,91 @@ pub(crate) fn as_typed_block_4d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
 ) -> Result<&'_ mut [U; 256], ZfpBlockError> {
     let slice = bytemuck::cast_slice_mut::<T, U>(data);
     slice.try_into().map_err(|_| ZfpBlockError)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_block, encode_block};
+    use crate::{
+        ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMut, ZfpRounding, ZfpScalar,
+        ZfpStreamAlignment,
+    };
+
+    /// Block coding must match compressing a field that is exactly one block.
+    fn check_matches_field<T: ZfpScalar>(data: &[T], dims: ZfpDimensionality, config: &ZfpConfig) {
+        let n = dims.block_size();
+        let d = usize::from(dims);
+        let field_dims: [usize; 4] = std::array::from_fn(|axis| if axis < d { 4 } else { 0 });
+
+        let field = ZfpField::new(&data[..n], field_dims).unwrap();
+        let mut whole = ZfpBitStream::new(1 << 16);
+        whole.compress(config, &field).unwrap();
+
+        let mut block = ZfpBitStream::new(1 << 16);
+        let written = encode_block(&mut block, config, &data[..n], dims).unwrap();
+        assert_eq!(written as u64, block.write_pos());
+        block.flush();
+        assert_eq!(block.as_bytes(), whole.as_bytes(), "{config:?} {dims:?}");
+
+        let mut from_field = vec![T::default(); n];
+        whole.rewind();
+        whole
+            .decompress(
+                config,
+                &mut ZfpFieldMut::new(&mut from_field, field_dims).unwrap(),
+            )
+            .unwrap();
+        let mut from_block = vec![T::default(); n];
+        block.rewind();
+        let read = decode_block(&mut block, config, &mut from_block, dims).unwrap();
+        assert_eq!(read, written);
+        assert_eq!(
+            bytemuck::cast_slice::<T, u8>(&from_block),
+            bytemuck::cast_slice::<T, u8>(&from_field)
+        );
+    }
+
+    fn check_type<T: ZfpScalar>(data: &[T]) {
+        for dims in [
+            ZfpDimensionality::D1,
+            ZfpDimensionality::D2,
+            ZfpDimensionality::D3,
+            ZfpDimensionality::D4,
+        ] {
+            for config in [
+                ZfpConfig::fixed_rate(9.0, T::SCALAR_TYPE, dims, ZfpStreamAlignment::Unaligned),
+                ZfpConfig::fixed_precision(19),
+                ZfpConfig::fixed_accuracy(1e-3),
+                ZfpConfig::reversible(),
+                ZfpConfig::expert(100, 2000, 40, -30),
+                ZfpConfig::fixed_accuracy(1e-3)
+                    .with_rounding(ZfpRounding::First { tight_error: true }),
+            ] {
+                check_matches_field(data, dims, &config);
+            }
+        }
+    }
+
+    #[test]
+    fn block_coding_matches_single_block_field_coding() {
+        let f: Vec<f64> = (0..256)
+            .map(|i| (f64::from(i) * 0.37).sin() * 1e3)
+            .collect();
+        check_type(&f);
+        #[allow(clippy::cast_possible_truncation, reason = "test data")]
+        check_type(&f.iter().map(|&x| x as f32).collect::<Vec<_>>());
+        #[allow(clippy::cast_possible_truncation, reason = "test data")]
+        check_type(&f.iter().map(|&x| x as i32).collect::<Vec<_>>());
+        #[allow(clippy::cast_possible_truncation, reason = "test data")]
+        check_type(&f.iter().map(|&x| (x * 1e6) as i64).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn block_coding_rejects_wrong_lengths() {
+        let config = ZfpConfig::reversible();
+        let mut bs = ZfpBitStream::new(1024);
+        assert!(encode_block(&mut bs, &config, &[0f32; 15], ZfpDimensionality::D2).is_err());
+        assert!(decode_block(&mut bs, &config, &mut [0f32; 17], ZfpDimensionality::D2).is_err());
+        assert_eq!(bs.write_pos(), 0);
+    }
 }

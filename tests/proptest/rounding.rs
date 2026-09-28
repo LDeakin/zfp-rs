@@ -8,7 +8,7 @@
 //! cross-check.
 
 use proptest::prelude::*;
-use zfp_rs::codec::block::decode_block_reversible_f64;
+use zfp_rs::codec::block::decode_block;
 use zfp_rs::{
     ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMut, ZfpHeaderMask, ZfpRounding,
 };
@@ -135,11 +135,11 @@ proptest! {
         prop_assert_eq!(&bytes, &want_bytes);
 
         let mut block = vec![0f64; data.len()];
-        decode_block_reversible_f64(
+        decode_block(
             &mut ZfpBitStream::from_bytes(&bytes),
+            &config,
             &mut block,
             ZfpDimensionality::D3,
-            rounding,
         )
         .expect("decode block");
         prop_assert_eq!(
