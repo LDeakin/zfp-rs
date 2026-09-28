@@ -192,7 +192,8 @@ fn gen_header_decode(dir: &Path) -> usize {
         let config = ZfpConfig::reversible();
 
         let mut bs = ZfpBitStream::new(64);
-        bs.write_header(&config, &field, mask);
+        bs.write_header(&config, &field, mask)
+            .expect("write header");
         bs.flush();
 
         let mut buf = vec![selector];

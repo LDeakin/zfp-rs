@@ -129,7 +129,20 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize);
 
     /// Write the header section indicated by `mask` into this bitstream.
-    fn write_header(&mut self, config: &ZfpConfig, field: &ZfpField, mask: ZfpHeaderMask) -> usize {
+    ///
+    /// Returns the number of bits written.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpMetadataError`][crate::types::ZfpMetadataError] if `mask` includes
+    /// [`ZfpHeaderMask::META`] and the field metadata cannot be encoded.
+    /// Nothing is written in that case.
+    fn write_header(
+        &mut self,
+        config: &ZfpConfig,
+        field: &ZfpField,
+        mask: ZfpHeaderMask,
+    ) -> Result<usize, crate::types::ZfpMetadataError> {
         let mode = config.mode_bits();
         crate::header::write_header_bs(self, field, mask, mode)
     }
@@ -326,12 +339,13 @@ macro_rules! impl_bitstream_mut_ops {
                 }
             }
 
+        #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
         pub fn write_header(
             &mut self,
             config: &ZfpConfig,
             field: &ZfpField,
             mask: ZfpHeaderMask,
-        ) -> usize;
+        ) -> Result<usize, crate::types::ZfpMetadataError>;
 
         #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
         pub fn compress(

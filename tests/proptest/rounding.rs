@@ -162,7 +162,8 @@ fn header_config_needs_the_encoders_rounding() {
     let field = ZfpField::new(&data, [4usize, 4, 4]);
 
     let mut bs = ZfpBitStream::new(4096);
-    bs.write_header(&config, &field, ZfpHeaderMask::FULL);
+    bs.write_header(&config, &field, ZfpHeaderMask::FULL)
+        .expect("write header");
     bs.compress(&config, &field).expect("compress");
     bs.flush();
     let (_, want) = round_trip(&config, &data);
