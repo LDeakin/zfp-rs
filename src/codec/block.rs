@@ -47,7 +47,7 @@ pub(crate) use strided::*;
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
 /// size for the given dimensionality.
 pub fn encode_block<T: ZfpScalar>(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: &[T],
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
@@ -139,7 +139,7 @@ pub fn encode_block<T: ZfpScalar>(
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
 /// size for the given dimensionality.
 pub fn decode_block<T: ZfpScalar>(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: &mut [T],
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
@@ -228,7 +228,7 @@ pub fn decode_block<T: ZfpScalar>(
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
 /// size for the given dimensionality.
 pub fn encode_block_reversible_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: &[f32],
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
@@ -264,7 +264,7 @@ pub fn encode_block_reversible_f32(
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
 /// size for the given dimensionality.
 pub fn encode_block_reversible_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: &[f64],
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
@@ -304,7 +304,7 @@ pub fn encode_block_reversible_f64(
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
 /// size for the given dimensionality.
 pub fn decode_block_reversible_f32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: &mut [f32],
     dims: ZfpDimensionality,
     rounding: ZfpRounding,
@@ -347,7 +347,7 @@ pub fn decode_block_reversible_f32(
 /// Returns [`ZfpBlockError`] if `data.len()` does not match the expected block
 /// size for the given dimensionality.
 pub fn decode_block_reversible_f64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: &mut [f64],
     dims: ZfpDimensionality,
     rounding: ZfpRounding,

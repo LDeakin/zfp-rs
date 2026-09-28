@@ -40,7 +40,7 @@ const TCMASK_F64: u64 = 0x7fff_ffff_ffff_ffff;
 /// Decode a reversibly-encoded integer block into `iblock`.
 /// Returns bits read.
 fn rev_decode_int_block_u32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     iblock: &mut [i32],
     perm: &[u8],
@@ -61,7 +61,7 @@ fn rev_decode_int_block_u32(
 }
 
 fn rev_decode_int_block_u64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     iblock: &mut [i64],
     perm: &[u8],
@@ -117,11 +117,11 @@ fn rev_inv_reinterpret_f64(iblock: &[i64], fblock: &mut [f64]) {
 //   - applying the inverse transform
 // ---------------------------------------------------------------------------
 
-fn rev_decode_float_block<const N: usize>(
-    bs: &mut dyn ZfpBitStreamOps,
+fn rev_decode_float_block<B: ZfpBitStreamOps + ?Sized, const N: usize>(
+    bs: &mut B,
     fblock: &mut [f32; N],
     maxbits: u32,
-    rev_decode_int: impl FnOnce(&mut dyn ZfpBitStreamOps, &mut [i32; N], u32) -> usize,
+    rev_decode_int: impl FnOnce(&mut B, &mut [i32; N], u32) -> usize,
 ) -> usize {
     // Read 1 bit: is block non-zero?
     let nonzero = bs.read_bits(1);
@@ -159,11 +159,11 @@ fn rev_decode_float_block<const N: usize>(
     bits
 }
 
-fn rev_decode_double_block<const N: usize>(
-    bs: &mut dyn ZfpBitStreamOps,
+fn rev_decode_double_block<B: ZfpBitStreamOps + ?Sized, const N: usize>(
+    bs: &mut B,
     fblock: &mut [f64; N],
     maxbits: u32,
-    rev_decode_int: impl FnOnce(&mut dyn ZfpBitStreamOps, &mut [i64; N], u32) -> usize,
+    rev_decode_int: impl FnOnce(&mut B, &mut [i64; N], u32) -> usize,
 ) -> usize {
     let nonzero = bs.read_bits(1);
     let mut bits = 1usize;
@@ -202,7 +202,7 @@ fn rev_decode_double_block<const N: usize>(
 
 /// Reversible decode of a 1-D block of `f32` values; return bits read.
 pub fn decode_block_reversible_1d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f32; 4],
     rounding: ZfpRounding,
 ) -> usize {
@@ -215,7 +215,7 @@ pub fn decode_block_reversible_1d_f32(
 
 /// Reversible decode of a 1-D block of `f64` values; return bits read.
 pub fn decode_block_reversible_1d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f64; 4],
     rounding: ZfpRounding,
 ) -> usize {
@@ -228,7 +228,7 @@ pub fn decode_block_reversible_1d_f64(
 
 /// Reversible decode of a 2-D block of `f32` values; return bits read.
 pub fn decode_block_reversible_2d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f32; 16],
     rounding: ZfpRounding,
 ) -> usize {
@@ -241,7 +241,7 @@ pub fn decode_block_reversible_2d_f32(
 
 /// Reversible decode of a 2-D block of `f64` values; return bits read.
 pub fn decode_block_reversible_2d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f64; 16],
     rounding: ZfpRounding,
 ) -> usize {
@@ -254,7 +254,7 @@ pub fn decode_block_reversible_2d_f64(
 
 /// Reversible decode of a 3-D block of `f32` values; return bits read.
 pub fn decode_block_reversible_3d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f32; 64],
     rounding: ZfpRounding,
 ) -> usize {
@@ -267,7 +267,7 @@ pub fn decode_block_reversible_3d_f32(
 
 /// Reversible decode of a 3-D block of `f64` values; return bits read.
 pub fn decode_block_reversible_3d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f64; 64],
     rounding: ZfpRounding,
 ) -> usize {
@@ -280,7 +280,7 @@ pub fn decode_block_reversible_3d_f64(
 
 /// Reversible decode of a 4-D block of `f32` values; return bits read.
 pub fn decode_block_reversible_4d_f32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f32; 256],
     rounding: ZfpRounding,
 ) -> usize {
@@ -293,7 +293,7 @@ pub fn decode_block_reversible_4d_f32(
 
 /// Reversible decode of a 4-D block of `f64` values; return bits read.
 pub fn decode_block_reversible_4d_f64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f64; 256],
     rounding: ZfpRounding,
 ) -> usize {
@@ -310,7 +310,7 @@ pub fn decode_block_reversible_4d_f64(
 
 /// Reversible decode of a 1-D block of `i32` values; return bits read.
 pub fn decode_block_reversible_1d_i32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i32; 4],
     rounding: ZfpRounding,
 ) -> usize {
@@ -323,7 +323,7 @@ pub fn decode_block_reversible_1d_i32(
 
 /// Reversible decode of a 1-D block of `i64` values; return bits read.
 pub fn decode_block_reversible_1d_i64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i64; 4],
     rounding: ZfpRounding,
 ) -> usize {
@@ -336,7 +336,7 @@ pub fn decode_block_reversible_1d_i64(
 
 /// Reversible decode of a 2-D block of `i32` values; return bits read.
 pub fn decode_block_reversible_2d_i32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i32; 16],
     rounding: ZfpRounding,
 ) -> usize {
@@ -349,7 +349,7 @@ pub fn decode_block_reversible_2d_i32(
 
 /// Reversible decode of a 2-D block of `i64` values; return bits read.
 pub fn decode_block_reversible_2d_i64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i64; 16],
     rounding: ZfpRounding,
 ) -> usize {
@@ -362,7 +362,7 @@ pub fn decode_block_reversible_2d_i64(
 
 /// Reversible decode of a 3-D block of `i32` values; return bits read.
 pub fn decode_block_reversible_3d_i32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i32; 64],
     rounding: ZfpRounding,
 ) -> usize {
@@ -375,7 +375,7 @@ pub fn decode_block_reversible_3d_i32(
 
 /// Reversible decode of a 3-D block of `i64` values; return bits read.
 pub fn decode_block_reversible_3d_i64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i64; 64],
     rounding: ZfpRounding,
 ) -> usize {
@@ -388,7 +388,7 @@ pub fn decode_block_reversible_3d_i64(
 
 /// Reversible decode of a 4-D block of `i32` values; return bits read.
 pub fn decode_block_reversible_4d_i32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i32; 256],
     rounding: ZfpRounding,
 ) -> usize {
@@ -401,7 +401,7 @@ pub fn decode_block_reversible_4d_i32(
 
 /// Reversible decode of a 4-D block of `i64` values; return bits read.
 pub fn decode_block_reversible_4d_i64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i64; 256],
     rounding: ZfpRounding,
 ) -> usize {

@@ -11,7 +11,10 @@ use crate::codec::decode::core::{
 use crate::config::ZfpConfig;
 
 /// Decode a 1-D block of 4 `i32` values; return bits read.
-pub fn decode_block_1d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i32; 4] {
+pub fn decode_block_1d_i32(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i32; 4] {
     decode_block_1d_i32_core(
         bs,
         config.min_bits(),
@@ -22,7 +25,10 @@ pub fn decode_block_1d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> 
 }
 
 /// Decode a 1-D block of 4 `i64` values; return bits read.
-pub fn decode_block_1d_i64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i64; 4] {
+pub fn decode_block_1d_i64(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i64; 4] {
     decode_block_1d_i64_core(
         bs,
         config.min_bits(),
@@ -33,7 +39,10 @@ pub fn decode_block_1d_i64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> 
 }
 
 /// Decode a 2-D block of 16 `i32` values; return bits read.
-pub fn decode_block_2d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i32; 16] {
+pub fn decode_block_2d_i32(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i32; 16] {
     decode_block_2d_i32_core(
         bs,
         config.min_bits(),
@@ -44,7 +53,10 @@ pub fn decode_block_2d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> 
 }
 
 /// Decode a 2-D block of 16 `i64` values; return bits read.
-pub fn decode_block_2d_i64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i64; 16] {
+pub fn decode_block_2d_i64(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i64; 16] {
     decode_block_2d_i64_core(
         bs,
         config.min_bits(),
@@ -55,7 +67,10 @@ pub fn decode_block_2d_i64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> 
 }
 
 /// Decode a 3-D block of 64 `i32` values; return bits read.
-pub fn decode_block_3d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i32; 64] {
+pub fn decode_block_3d_i32(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i32; 64] {
     decode_block_3d_i32_core(
         bs,
         config.min_bits(),
@@ -66,7 +81,10 @@ pub fn decode_block_3d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> 
 }
 
 /// Decode a 3-D block of 64 `i64` values; return bits read.
-pub fn decode_block_3d_i64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i64; 64] {
+pub fn decode_block_3d_i64(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i64; 64] {
     decode_block_3d_i64_core(
         bs,
         config.min_bits(),
@@ -77,7 +95,10 @@ pub fn decode_block_3d_i64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> 
 }
 
 /// Decode a 4-D block of 256 `i32` values; return bits read.
-pub fn decode_block_4d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i32; 256] {
+pub fn decode_block_4d_i32(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i32; 256] {
     decode_block_4d_i32_core(
         bs,
         config.min_bits(),
@@ -88,7 +109,10 @@ pub fn decode_block_4d_i32(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> 
 }
 
 /// Decode a 4-D block of 256 `i64` values; return bits read.
-pub fn decode_block_4d_i64(bs: &mut dyn ZfpBitStreamOps, config: &ZfpConfig) -> [i64; 256] {
+pub fn decode_block_4d_i64(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    config: &ZfpConfig,
+) -> [i64; 256] {
     decode_block_4d_i64_core(
         bs,
         config.min_bits(),

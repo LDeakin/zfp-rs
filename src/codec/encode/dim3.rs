@@ -76,7 +76,10 @@ unsafe fn gather_partial_3d<T: Copy + Default>(
 // Public API: contiguous
 // ---------------------------------------------------------------------------
 
-pub fn encode_block_3d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 64]) -> usize {
+pub fn encode_block_3d_i32_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i32; 64],
+) -> usize {
     encode_block_3d_i32(
         bs,
         block,
@@ -84,7 +87,10 @@ pub fn encode_block_3d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32
     )
 }
 
-pub fn encode_block_3d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 64]) -> usize {
+pub fn encode_block_3d_i64_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i64; 64],
+) -> usize {
     encode_block_3d_i64(
         bs,
         block,
@@ -92,7 +98,10 @@ pub fn encode_block_3d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64
     )
 }
 
-pub fn encode_block_3d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32; 64]) -> usize {
+pub fn encode_block_3d_f32_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f32; 64],
+) -> usize {
     encode_block_3d_f32(
         bs,
         block,
@@ -100,7 +109,10 @@ pub fn encode_block_3d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32
     )
 }
 
-pub fn encode_block_3d_f64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64; 64]) -> usize {
+pub fn encode_block_3d_f64_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f64; 64],
+) -> usize {
     encode_block_3d_f64(
         bs,
         block,

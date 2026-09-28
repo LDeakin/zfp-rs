@@ -71,7 +71,10 @@ unsafe fn gather_partial_1d<T: Copy>(data: *const T, nx: usize, sx: isize) -> [T
 // ---------------------------------------------------------------------------
 
 /// Encode a contiguous 1-D block of 4 `i32` values; return bits written.
-pub fn encode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 4]) -> usize {
+pub fn encode_block_1d_i32_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i32; 4],
+) -> usize {
     encode_block_1d_i32(
         bs,
         block,
@@ -80,7 +83,10 @@ pub fn encode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32
 }
 
 /// Encode a contiguous 1-D block of 4 `i64` values; return bits written.
-pub fn encode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 4]) -> usize {
+pub fn encode_block_1d_i64_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i64; 4],
+) -> usize {
     encode_block_1d_i64(
         bs,
         block,
@@ -89,7 +95,10 @@ pub fn encode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64
 }
 
 /// Encode a contiguous 1-D block of 4 `f32` values; return bits written.
-pub fn encode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32; 4]) -> usize {
+pub fn encode_block_1d_f32_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f32; 4],
+) -> usize {
     encode_block_1d_f32(
         bs,
         block,
@@ -98,7 +107,10 @@ pub fn encode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32
 }
 
 /// Encode a contiguous 1-D block of 4 `f64` values; return bits written.
-pub fn encode_block_1d_f64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64; 4]) -> usize {
+pub fn encode_block_1d_f64_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f64; 4],
+) -> usize {
     encode_block_1d_f64(
         bs,
         block,

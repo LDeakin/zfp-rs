@@ -17,7 +17,7 @@ use crate::types::{ZFP_MIN_EXP, ZfpCompressionError, ZfpScalarType};
 
 /// Compress a field into the bitstream with the given expert parameters.
 pub(crate) fn compress(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     field: &ZfpField,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpCompressionError> {
@@ -67,7 +67,7 @@ impl From<PlanError> for ZfpCompressionError {
 #[allow(clippy::cast_ptr_alignment)]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 unsafe fn compress_block(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     base: *const u8,
     info: &FieldPlan,
     config: &ZfpConfig,
@@ -160,7 +160,7 @@ unsafe fn compress_block(
 /// Compress a contiguous range of blocks into a bitstream.
 #[allow(dead_code)] // used only when rayon feature is enabled
 unsafe fn compress_blocks_range(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     base: *const u8,
     info: &FieldPlan,
     config: &ZfpConfig,
@@ -180,7 +180,7 @@ unsafe fn compress_blocks_range(
 /// to match the C OMP implementation's `stream_copy` behavior.
 #[cfg(feature = "rayon")]
 pub(crate) fn compress_rayon(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     field: &ZfpField,
     config: &ZfpConfig,
     threads: u32,

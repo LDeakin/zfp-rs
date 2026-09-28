@@ -125,7 +125,7 @@ impl Transform64<256> for Dim4i64 {
 /// Applies the forward transform (via `T`), reorders via the permutation
 /// table, converts to negabinary, then encodes bit-planes.
 pub(crate) fn encode_int_block_32<T: Transform32<N>, const N: usize>(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i32; N],
     minbits: u32,
     maxbits: u32,
@@ -152,7 +152,7 @@ pub(crate) fn encode_int_block_32<T: Transform32<N>, const N: usize>(
 
 /// Generic integer encode for 64-bit values.
 pub(crate) fn encode_int_block_64<T: Transform64<N>, const N: usize>(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i64; N],
     minbits: u32,
     maxbits: u32,
@@ -184,7 +184,7 @@ pub(crate) fn encode_int_block_64<T: Transform64<N>, const N: usize>(
 ///
 /// Applies the forward transform, reorders via `PERM_1`, then encodes bit-planes.
 pub fn encode_block_1d_i32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i32; 4],
     config: &ZfpConfig,
 ) -> usize {
@@ -200,7 +200,7 @@ pub fn encode_block_1d_i32(
 
 /// Encode a decorrelated 1-D block of 4 `i64` values; returns bits written.
 pub fn encode_block_1d_i64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i64; 4],
     config: &ZfpConfig,
 ) -> usize {
@@ -216,7 +216,7 @@ pub fn encode_block_1d_i64(
 
 /// Encode a decorrelated 2-D block of 16 `i32` values; returns bits written.
 pub fn encode_block_2d_i32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i32; 16],
     config: &ZfpConfig,
 ) -> usize {
@@ -232,7 +232,7 @@ pub fn encode_block_2d_i32(
 
 /// Encode a decorrelated 2-D block of 16 `i64` values; returns bits written.
 pub fn encode_block_2d_i64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i64; 16],
     config: &ZfpConfig,
 ) -> usize {
@@ -248,7 +248,7 @@ pub fn encode_block_2d_i64(
 
 /// Encode a decorrelated 3-D block of 64 `i32` values; returns bits written.
 pub fn encode_block_3d_i32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i32; 64],
     config: &ZfpConfig,
 ) -> usize {
@@ -264,7 +264,7 @@ pub fn encode_block_3d_i32(
 
 /// Encode a decorrelated 3-D block of 64 `i64` values; returns bits written.
 pub fn encode_block_3d_i64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i64; 64],
     config: &ZfpConfig,
 ) -> usize {
@@ -280,7 +280,7 @@ pub fn encode_block_3d_i64(
 
 /// Encode a decorrelated 4-D block of 256 `i32` values; returns bits written.
 pub fn encode_block_4d_i32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i32; 256],
     config: &ZfpConfig,
 ) -> usize {
@@ -296,7 +296,7 @@ pub fn encode_block_4d_i32(
 
 /// Encode a decorrelated 4-D block of 256 `i64` values; returns bits written.
 pub fn encode_block_4d_i64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i64; 256],
     config: &ZfpConfig,
 ) -> usize {
