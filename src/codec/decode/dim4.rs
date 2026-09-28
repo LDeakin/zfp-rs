@@ -5,7 +5,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::bitstream::ZfpBitStreamOps;
-use crate::codec::decode::core::strided_decode_wrappers;
+use crate::codec::decode::core::{strided_decode_wrappers, write_row};
 use crate::codec::decode::float::{decode_block_4d_f32, decode_block_4d_f64};
 use crate::codec::decode::integer::{decode_block_4d_i32, decode_block_4d_i64};
 #[cfg(feature = "internals")]
@@ -23,15 +23,13 @@ unsafe fn scatter_4d<T: Copy>(
     sz: isize,
     sw: isize,
 ) {
-    let mut q = 0usize;
+    let mut rows = block.as_chunks::<4>().0.iter();
     for w in 0isize..4 {
         for z in 0isize..4 {
             for y in 0isize..4 {
-                for x in 0isize..4 {
-                    // SAFETY: caller guarantees data spans 4^4 elements with strides
-                    unsafe { *data.offset(w * sw + z * sz + y * sy + x * sx) = block[q] };
-                    q += 1;
-                }
+                let row = rows.next().unwrap_or_else(|| unreachable!());
+                // SAFETY: caller guarantees data spans 4^4 elements with strides
+                unsafe { write_row(data.offset(w * sw + z * sz + y * sy), sx, row) };
             }
         }
     }

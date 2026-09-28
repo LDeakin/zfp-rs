@@ -5,7 +5,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::bitstream::ZfpBitStreamOps;
-use crate::codec::decode::core::strided_decode_wrappers;
+use crate::codec::decode::core::{strided_decode_wrappers, write_row};
 use crate::codec::decode::float::{decode_block_2d_f32, decode_block_2d_f64};
 use crate::codec::decode::integer::{decode_block_2d_i32, decode_block_2d_i64};
 #[cfg(feature = "internals")]
@@ -16,12 +16,9 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: *mut T, sx: isize, sy: isize) {
-    let mut q = 0usize;
-    for y in 0isize..4 {
-        for x in 0isize..4 {
-            unsafe { *data.offset(y * sy + x * sx) = block[q] };
-            q += 1;
-        }
+    for (y, row) in (0isize..).zip(block.as_chunks::<4>().0) {
+        // SAFETY: caller guarantees valid strides
+        unsafe { write_row(data.offset(y * sy), sx, row) };
     }
 }
 
