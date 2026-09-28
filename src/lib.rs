@@ -57,8 +57,9 @@
 //!     ZfpStreamAlignment::None,
 //! );
 //!
-//! // Compress.
-//! let mut bs = ZfpBitStream::new(1024);
+//! // Compress into a stream sized for the worst case.
+//! let capacity = config.maximum_size(ZfpScalarType::Double, &[4, 4]).unwrap();
+//! let mut bs = ZfpBitStream::new(capacity);
 //! let compressed_bytes = bs.compress(&config, &field)?;
 //!
 //! // Decompress back.

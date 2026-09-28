@@ -11,12 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ZfpConfig::try_expert`, which rejects invalid expert-mode parameters.
 - `ZfpBitStreamOps` and `ZfpBitStreamMutOps` methods are inherent on `ZfpBitStream`, `ZfpBitStreamRef` and `ZfpBitStreamRefMut`, so the traits no longer need to be in scope. This adds a dependency on `inherent`.
+- `ZfpBitStreamOps::overflowed`, which reports writes dropped past the end of the buffer.
 - `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}` provided methods. `ZfpBitStreamRef` and `ZfpBitStreamRefMut` now have the same codec methods as `ZfpBitStream`, so borrowed buffers can be encoded and decoded without copying.
 
 ### Changed
 
-- **Breaking**: `ZfpBitStreamMutOps::write_header` (and so `write_header` on every stream type) returns `Result<usize, ZfpMetadataError>` instead of `0` on failure, and writes nothing on failure.
+- **Breaking**: `ZfpBitStreamMutOps::write_header` (and so `write_header` on every stream type) returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, and writes nothing on failure.
+- **Breaking**: `ZfpCompressionError` gains `BufferTooSmall` and `Metadata`.
 - **Breaking**: `ZfpConfig::maximum_size` returns `Option<usize>` instead of `0` for unsupported dimensionality or overflow.
+
+### Fixed
+
+- Writing past the end of a bitstream no longer panics. The write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28
 

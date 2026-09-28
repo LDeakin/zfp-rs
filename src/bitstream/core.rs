@@ -8,6 +8,8 @@ pub(crate) struct BitStreamState {
     pub(crate) word_pos: usize,
     pub(crate) buffer: u64,
     pub(crate) bits: u32,
+    /// Set when a write fell past the end of the buffer and was dropped.
+    pub(crate) overflowed: bool,
 }
 
 impl BitStreamState {
@@ -16,6 +18,7 @@ impl BitStreamState {
             word_pos: 0,
             buffer: 0,
             bits: 0,
+            overflowed: false,
         }
     }
 }
@@ -61,7 +64,14 @@ fn read_word_raw<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u64 {
 
 fn write_word_raw<S: BitStreamStorageMut + ?Sized>(stream: &mut S, value: u64) {
     let pos = stream.state().word_pos;
-    stream.words_mut()[pos] = value;
+    // Past the end, drop the word and flag the overflow rather than panicking;
+    // C writes out of bounds here. The cursor still advances, so the position
+    // reports how much space the stream needed.
+    if let Some(word) = stream.words_mut().get_mut(pos) {
+        *word = value;
+    } else {
+        stream.state_mut().overflowed = true;
+    }
     stream.state_mut().word_pos += 1;
 }
 
@@ -150,7 +160,7 @@ pub(super) fn seek_read_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offse
 
 pub(super) fn write_word_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, word: u64) -> u64 {
     let pos = stream.state().word_pos;
-    let prev = stream.words()[pos];
+    let prev = stream.words().get(pos).copied().unwrap_or(0);
     write_word_raw(stream, word);
     prev
 }
@@ -208,6 +218,7 @@ pub(super) fn seek_write_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offs
     // Clamped, as in `seek_read_impl`.
     let limit = stream.words().len();
     stream.state_mut().word_pos = ((offset / u64::from(WSIZE)) as usize).min(limit);
+    stream.state_mut().overflowed = false;
     if n != 0 {
         let pos = stream.state().word_pos;
         let Some(&buf) = stream.words().get(pos) else {

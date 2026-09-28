@@ -26,7 +26,18 @@ pub(crate) fn compress(
         unsafe { compress_block(bs, base, &info, config, block_idx) };
     }
 
+    finish(bs)
+}
+
+/// Flush the stream and return its size, or the overflow error.
+fn finish(bs: &mut (impl ZfpBitStreamMutOps + ?Sized)) -> Result<usize, ZfpCompressionError> {
     bs.flush();
+    if bs.overflowed() {
+        return Err(ZfpCompressionError::BufferTooSmall {
+            required: bs.size(),
+            capacity: bs.capacity(),
+        });
+    }
     Ok(bs.size())
 }
 
@@ -190,7 +201,7 @@ pub(crate) fn compress_rayon(
     let buf = field.data();
     let blocks = info.num_blocks;
     if blocks == 0 {
-        return Ok(0);
+        return finish(bs);
     }
 
     let (chunks, chunk_starts) = compute_chunk_ranges(blocks, threads, chunk_size);
@@ -235,8 +246,7 @@ pub(crate) fn compress_rayon(
         }
     }
 
-    bs.flush();
-    Ok(bs.size())
+    finish(bs)
 }
 
 /// Compress one chunk of blocks, returning (`bits_written`, `compressed_words`).
