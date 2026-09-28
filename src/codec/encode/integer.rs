@@ -3,9 +3,8 @@
 //! Reference: `zfp/src/template/encodei.c`, `encode.c`
 
 use crate::bitstream::ZfpBitStreamMutOps;
-use crate::codec::encode::core::{
-    encode_ints_u32, encode_ints_u64, fwd_order_i32, fwd_order_i64, fwd_round_i32, fwd_round_i64,
-};
+use crate::codec::bitplane::{PlaneBlock, encode_ints};
+use crate::codec::encode::core::{fwd_order_i32, fwd_order_i64, fwd_round_i32, fwd_round_i64};
 use crate::codec::transform::fwd_xform;
 use crate::config::{ZfpConfig, ZfpRounding};
 
@@ -128,7 +127,10 @@ pub(crate) fn encode_int_block_32<T: Transform32<N>, const N: usize>(
     maxbits: u32,
     maxprec: u32,
     rounding: ZfpRounding,
-) -> usize {
+) -> usize
+where
+    [u32; N]: PlaneBlock,
+{
     let mut block = *iblock;
     T::transform(&mut block);
     if matches!(rounding, ZfpRounding::First { .. }) {
@@ -137,7 +139,7 @@ pub(crate) fn encode_int_block_32<T: Transform32<N>, const N: usize>(
     let mut ublock = [0u32; N];
     #[allow(clippy::cast_sign_loss)] // i32→u32 for negabinary encoding
     fwd_order_i32(&mut ublock, &block, T::perm());
-    let bits = encode_ints_u32(bs, maxbits, maxprec, &ublock);
+    let bits = encode_ints(bs, maxbits, maxprec, &ublock);
     let bits = if bits < minbits {
         bs.pad(u64::from(minbits - bits));
         minbits
@@ -155,7 +157,10 @@ pub(crate) fn encode_int_block_64<T: Transform64<N>, const N: usize>(
     maxbits: u32,
     maxprec: u32,
     rounding: ZfpRounding,
-) -> usize {
+) -> usize
+where
+    [u64; N]: PlaneBlock,
+{
     let mut block = *iblock;
     T::transform(&mut block);
     if matches!(rounding, ZfpRounding::First { .. }) {
@@ -163,7 +168,7 @@ pub(crate) fn encode_int_block_64<T: Transform64<N>, const N: usize>(
     }
     let mut ublock = [0u64; N];
     fwd_order_i64(&mut ublock, &block, T::perm());
-    let bits = encode_ints_u64(bs, maxbits, maxprec, &ublock);
+    let bits = encode_ints(bs, maxbits, maxprec, &ublock);
     let bits = if bits < minbits {
         bs.pad(u64::from(minbits - bits));
         minbits

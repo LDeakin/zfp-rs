@@ -16,6 +16,8 @@ pub use borrowed::{ZfpBitStreamRef, ZfpBitStreamRefMut};
 pub use ops::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 pub use owned::ZfpBitStream;
 
+pub(crate) use core::{BitReader, BitWriter};
+
 #[cfg(test)]
 pub(crate) use core::WSIZE;
 

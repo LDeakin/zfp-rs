@@ -5,6 +5,7 @@
 //! Reference: `zfp/src/template/encodef.c`, `codecf.c`
 
 use crate::bitstream::ZfpBitStreamMutOps;
+use crate::codec::bitplane::PlaneBlock;
 use crate::codec::encode::core::{
     exponent_block_f32, exponent_block_f64, fwd_cast_f32, fwd_cast_f64, precision_f,
 };
@@ -29,7 +30,10 @@ fn encode_float_block<T: Transform32<N>, const N: usize>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     fblock: &[f32; N],
     config: &ZfpConfig,
-) -> usize {
+) -> usize
+where
+    [u32; N]: PlaneBlock,
+{
     let minbits = config.min_bits();
     // Compute the number of dimensions from the block size N (4=1D, 16=2D, 64=3D, 256=4D).
     // SAFETY: N is always 4, 16, 64, or 256 (powers of 4), so trailing_zeros is even and ≥ 2.
@@ -80,7 +84,10 @@ fn encode_double_block<T: Transform64<N>, const N: usize>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     fblock: &[f64; N],
     config: &ZfpConfig,
-) -> usize {
+) -> usize
+where
+    [u64; N]: PlaneBlock,
+{
     let minbits = config.min_bits();
     // Compute the number of dimensions from the block size N (4=1D, 16=2D, 64=3D, 256=4D).
     // SAFETY: N is always 4, 16, 64, or 256 (powers of 4), so trailing_zeros is even and ≥ 2.

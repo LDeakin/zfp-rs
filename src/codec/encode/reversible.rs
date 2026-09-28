@@ -4,9 +4,10 @@
 //!            `zfp/src/template/revencodef.c`
 
 use crate::bitstream::ZfpBitStreamMutOps;
+use crate::codec::bitplane::{PlaneBlock, encode_ints};
 use crate::codec::encode::core::{
-    PERM_1, PERM_2, PERM_3, PERM_4, encode_ints_u32, encode_ints_u64, exponent_block_f32,
-    exponent_block_f64, fwd_cast_f32, fwd_cast_f64, fwd_order_i32, fwd_order_i64,
+    PERM_1, PERM_2, PERM_3, PERM_4, exponent_block_f32, exponent_block_f64, fwd_cast_f32,
+    fwd_cast_f64, fwd_order_i32, fwd_order_i64,
 };
 use crate::codec::transform::rev_fwd_xform;
 
@@ -91,14 +92,16 @@ fn rev_inv_cast_f64(iblock: &[i64], fblock: &[f64], emax: i32) -> bool {
 // Returns bits written (excluding any bits written before this call).
 // ---------------------------------------------------------------------------
 
-fn rev_encode_int_block_u32(
+fn rev_encode_int_block_u32<const N: usize>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    iblock: &[i32],
+    iblock: &[i32; N],
     maxbits: u32,
-    perm: &[u8],
-) -> usize {
-    let n = iblock.len();
-    let mut ublock = vec![0u32; n];
+    perm: &[u8; N],
+) -> usize
+where
+    [u32; N]: PlaneBlock,
+{
+    let mut ublock = [0u32; N];
     fwd_order_i32(&mut ublock, iblock, perm);
 
     // Match C: prec = MAX(rev_precision(ublock), 1): always encode at least 1 bit plane.
@@ -108,17 +111,19 @@ fn rev_encode_int_block_u32(
 
     // Encode integers with maxbits = remaining budget, maxprec = prec
     let remaining = maxbits.saturating_sub(PBITS_32);
-    PBITS_32 as usize + encode_ints_u32(bs, remaining, prec, &ublock) as usize
+    PBITS_32 as usize + encode_ints(bs, remaining, prec, &ublock) as usize
 }
 
-fn rev_encode_int_block_u64(
+fn rev_encode_int_block_u64<const N: usize>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    iblock: &[i64],
+    iblock: &[i64; N],
     maxbits: u32,
-    perm: &[u8],
-) -> usize {
-    let n = iblock.len();
-    let mut ublock = vec![0u64; n];
+    perm: &[u8; N],
+) -> usize
+where
+    [u64; N]: PlaneBlock,
+{
+    let mut ublock = [0u64; N];
     fwd_order_i64(&mut ublock, iblock, perm);
 
     // Match C: prec = MAX(rev_precision(ublock), 1): always encode at least 1 bit plane.
@@ -127,7 +132,7 @@ fn rev_encode_int_block_u64(
     bs.write_bits(u64::from(prec - 1), PBITS_64);
 
     let remaining = maxbits.saturating_sub(PBITS_64);
-    PBITS_64 as usize + encode_ints_u64(bs, remaining, prec, &ublock) as usize
+    PBITS_64 as usize + encode_ints(bs, remaining, prec, &ublock) as usize
 }
 
 // ---------------------------------------------------------------------------
