@@ -36,9 +36,10 @@ pub type ZfpBitStreamWord = u64;
 
 /// Errors that can occur when encoding field metadata to a 52-bit word.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ZfpMetadataError {
-    /// The field has no dimensions (dimensionality is 0).
-    Null,
+    /// The first dimension is zero, or a dimension follows a zero one.
+    InvalidDims,
     /// One or more dimensions exceed the maximum encodable range.
     ///
     /// The 52-bit metadata word can represent:
@@ -52,7 +53,10 @@ pub enum ZfpMetadataError {
 impl fmt::Display for ZfpMetadataError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ZfpMetadataError::Null => write!(f, "field metadata is null (no dimensions)"),
+            ZfpMetadataError::InvalidDims => write!(
+                f,
+                "invalid field dimensions: dimensions must be nonzero and precede any zero ones"
+            ),
             ZfpMetadataError::DimensionTooLarge => {
                 write!(
                     f,
@@ -88,39 +92,70 @@ impl std::error::Error for ZfpBlockError {}
 // Compression/decompression errors
 // ---------------------------------------------------------------------------
 
-/// Errors that can occur during compression.
+/// Errors describing a field whose layout does not suit its data buffer.
 ///
-/// Returned by [`ZfpBitStream::compress`][crate::ZfpBitStream::compress],
-/// [`ZfpBitStream::compress_with_execution`][crate::ZfpBitStream::compress_with_execution],
-/// and `compress_bitstream` when the `ffi` feature is enabled.
+/// Returned by the [`ZfpField`][crate::ZfpField] and
+/// [`ZfpFieldMut`][crate::ZfpFieldMut] constructors and setters.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-pub enum ZfpCompressionError {
-    /// The input field has no data buffer.
-    ///
-    /// This occurs when a `ZfpField` was created with empty data
-    /// or from a null pointer or zero byte count.
-    NoData,
-    /// The input field's data buffer is smaller than its dimensions and
-    /// strides require.
-    ///
-    /// Compressing such a field would read out of bounds, so it is rejected.
-    InvalidField {
+pub enum ZfpFieldError {
+    /// The first dimension is zero, or a dimension follows a zero one.
+    InvalidDims {
+        /// The dimensions supplied, as `[nx, ny, nz, nw]`.
+        dims: [usize; 4],
+    },
+    /// The data buffer is smaller than the field's dimensions and strides
+    /// require.
+    InsufficientData {
         /// Bytes spanned by the field's dimensions and strides. `usize::MAX`
         /// if the span itself overflows `usize`.
         required: usize,
-        /// Bytes actually available in the field's data buffer.
+        /// Bytes actually available in the data buffer.
         actual: usize,
     },
-    /// The input field's data buffer is not aligned for its scalar type.
+    /// The data buffer is not aligned for its scalar type.
     ///
-    /// The codec reinterprets the buffer as the scalar type and indexes it
-    /// through raw pointers, so a misaligned buffer is rejected. Only
-    /// reachable via `from_raw`, i.e. from the C ABI.
+    /// Only reachable via `from_raw`: typed slices are always aligned.
     MisalignedData {
         /// Alignment the scalar type requires, in bytes.
         align: usize,
     },
+}
+
+impl fmt::Display for ZfpFieldError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidDims { dims } => write!(
+                f,
+                "invalid field dimensions {dims:?}: dimensions must be nonzero and precede any zero ones"
+            ),
+            Self::InsufficientData { required, actual } => write!(
+                f,
+                "field spans {required} bytes but its data buffer holds only {actual}"
+            ),
+            Self::MisalignedData { align } => write!(
+                f,
+                "field data buffer is not {align}-byte aligned for its scalar type"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ZfpFieldError {}
+
+/// Errors that can occur during compression.
+///
+/// Returned by [`ZfpBitStream::compress`][crate::ZfpBitStream::compress],
+/// [`ZfpBitStream::compress_with_execution`][crate::ZfpBitStream::compress_with_execution]
+/// and [`ZfpBitStream::write_header`][crate::ZfpBitStream::write_header].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ZfpCompressionError {
+    /// The input field is invalid.
+    ///
+    /// Fields built with the safe constructors are always valid; this is
+    /// reachable only from the C ABI.
+    Field(ZfpFieldError),
     /// The bitstream is too small to hold the compressed output.
     ///
     /// Writes past the end of the buffer are dropped, so the stream contents
@@ -136,6 +171,12 @@ pub enum ZfpCompressionError {
     Metadata(ZfpMetadataError),
 }
 
+impl From<ZfpFieldError> for ZfpCompressionError {
+    fn from(e: ZfpFieldError) -> Self {
+        Self::Field(e)
+    }
+}
+
 impl From<ZfpMetadataError> for ZfpCompressionError {
     fn from(e: ZfpMetadataError) -> Self {
         Self::Metadata(e)
@@ -145,20 +186,12 @@ impl From<ZfpMetadataError> for ZfpCompressionError {
 impl fmt::Display for ZfpCompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ZfpCompressionError::NoData => write!(f, "input field has no data buffer"),
-            ZfpCompressionError::InvalidField { required, actual } => write!(
-                f,
-                "input field spans {required} bytes but its data buffer holds only {actual}"
-            ),
-            ZfpCompressionError::MisalignedData { align } => write!(
-                f,
-                "input field data buffer is not {align}-byte aligned for its scalar type"
-            ),
-            ZfpCompressionError::BufferTooSmall { required, capacity } => write!(
+            Self::Field(e) => write!(f, "invalid input field: {e}"),
+            Self::BufferTooSmall { required, capacity } => write!(
                 f,
                 "bitstream needs {required} bytes but holds only {capacity}"
             ),
-            ZfpCompressionError::Metadata(e) => write!(f, "cannot write header: {e}"),
+            Self::Metadata(e) => write!(f, "cannot write header: {e}"),
         }
     }
 }
@@ -166,65 +199,48 @@ impl fmt::Display for ZfpCompressionError {
 impl std::error::Error for ZfpCompressionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
+            Self::Field(e) => Some(e),
             Self::Metadata(e) => Some(e),
-            _ => None,
+            Self::BufferTooSmall { .. } => None,
         }
     }
 }
 
 /// Errors that can occur during decompression.
 ///
-/// Returned by [`ZfpBitStream::decompress`][crate::ZfpBitStream::decompress],
-/// [`ZfpBitStream::decompress_with_execution`][crate::ZfpBitStream::decompress_with_execution],
-/// and `decompress_bitstream` when the `ffi` feature is enabled.
+/// Returned by [`ZfpBitStream::decompress`][crate::ZfpBitStream::decompress] and
+/// [`ZfpBitStream::decompress_with_execution`][crate::ZfpBitStream::decompress_with_execution].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ZfpDecompressionError {
-    /// The output field has no data buffer.
+    /// The output field is invalid.
     ///
-    /// This occurs when a `ZfpFieldMut` was created from a null pointer or
-    /// zero byte count.
-    NoData,
-    /// The output field's data buffer is smaller than its dimensions and
-    /// strides require.
-    ///
-    /// Decompressing into such a field would write out of bounds, so it is
-    /// rejected.
-    InvalidField {
-        /// Bytes spanned by the field's dimensions and strides. `usize::MAX`
-        /// if the span itself overflows `usize`.
-        required: usize,
-        /// Bytes actually available in the field's data buffer.
-        actual: usize,
-    },
-    /// The output field's data buffer is not aligned for its scalar type.
-    ///
-    /// The codec reinterprets the buffer as the scalar type and indexes it
-    /// through raw pointers, so a misaligned buffer is rejected. Only
-    /// reachable via `from_raw`, i.e. from the C ABI.
-    MisalignedData {
-        /// Alignment the scalar type requires, in bytes.
-        align: usize,
-    },
+    /// Fields built with the safe constructors are always valid; this is
+    /// reachable only from the C ABI.
+    Field(ZfpFieldError),
+}
+
+impl From<ZfpFieldError> for ZfpDecompressionError {
+    fn from(e: ZfpFieldError) -> Self {
+        Self::Field(e)
+    }
 }
 
 impl fmt::Display for ZfpDecompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ZfpDecompressionError::NoData => write!(f, "output field has no data buffer"),
-            ZfpDecompressionError::InvalidField { required, actual } => write!(
-                f,
-                "output field spans {required} bytes but its data buffer holds only {actual}"
-            ),
-            ZfpDecompressionError::MisalignedData { align } => write!(
-                f,
-                "output field data buffer is not {align}-byte aligned for its scalar type"
-            ),
+            Self::Field(e) => write!(f, "invalid output field: {e}"),
         }
     }
 }
 
-impl std::error::Error for ZfpDecompressionError {}
+impl std::error::Error for ZfpDecompressionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Field(e) => Some(e),
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Numeric constants (mirror zfp.h macros)
@@ -447,30 +463,22 @@ mod sealed {
 
 /// Sealed trait for types ZFP can compress: `i32`, `i64`, `f32`, `f64`.
 pub trait ZfpScalar: sealed::Sealed + Copy + Default + bytemuck::Pod + 'static {
-    /// Return the [`ZfpScalarType`] tag for this primitive type.
-    fn scalar_type() -> ZfpScalarType;
+    /// The [`ZfpScalarType`] tag for this primitive type.
+    const SCALAR_TYPE: ZfpScalarType;
 }
 
 impl ZfpScalar for i32 {
-    fn scalar_type() -> ZfpScalarType {
-        ZfpScalarType::Int32
-    }
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Int32;
 }
 
 impl ZfpScalar for i64 {
-    fn scalar_type() -> ZfpScalarType {
-        ZfpScalarType::Int64
-    }
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Int64;
 }
 
 impl ZfpScalar for f32 {
-    fn scalar_type() -> ZfpScalarType {
-        ZfpScalarType::Float
-    }
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Float;
 }
 
 impl ZfpScalar for f64 {
-    fn scalar_type() -> ZfpScalarType {
-        ZfpScalarType::Double
-    }
+    const SCALAR_TYPE: ZfpScalarType = ZfpScalarType::Double;
 }

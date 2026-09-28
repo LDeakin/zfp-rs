@@ -23,7 +23,7 @@ use crate::types::{ZfpDimensionality, ZfpScalar, ZfpScalarType};
 /// signatures became raw pointers. That checked size and alignment at runtime
 /// and panicked on a mismatch; the asserts keep the check in debug builds. A
 /// mismatch is unreachable: every caller sits inside a
-/// `match (T::scalar_type(), dims)` arm that pins `T == U`, and `ZfpScalar` is
+/// `match (T::SCALAR_TYPE, dims)` arm that pins `T == U`, and `ZfpScalar` is
 /// sealed to `{i32, i64, f32, f64}`.
 #[inline]
 fn cast_ptr<T: ZfpScalar, U: ZfpScalar>(p: *const T) -> *const U {
@@ -57,7 +57,7 @@ macro_rules! strided_dispatch {
         d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
         d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
     ) => {
-        match (T::scalar_type(), $dims) {
+        match (T::SCALAR_TYPE, $dims) {
             (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
                 $i1($bs, $cast::<T, i32>($data), $($len[0],)? $strides[0], $config)
             }
@@ -127,7 +127,7 @@ macro_rules! reversible_dispatch {
         d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
         d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
     ) => {
-        match (T::scalar_type(), $dims) {
+        match (T::SCALAR_TYPE, $dims) {
             (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
                 $i1($bs, typed_block!(as_typed_block_1d::<T, i32>(&$block)))
             }
@@ -185,7 +185,7 @@ macro_rules! reversible_dispatch {
         d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
         d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
     ) => {
-        match (T::scalar_type(), $dims) {
+        match (T::SCALAR_TYPE, $dims) {
             (ZfpScalarType::Int32, ZfpDimensionality::D1) => $i1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, i32>(&mut $block)),

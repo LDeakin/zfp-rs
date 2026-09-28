@@ -201,38 +201,40 @@ fn make_field<T: ZfpScalar>(
     match dims {
         1 => {
             if strides == zero {
-                ZfpField::new(data, [n[0]])
+                ZfpField::new(data, [n[0]]).unwrap()
             } else {
-                ZfpField::new_strided(data, [n[0]], [strides[0]])
+                ZfpField::new_strided(data, [n[0]], [strides[0]]).unwrap()
             }
         }
         2 => {
             if strides == zero {
-                ZfpField::new(data, [n[0], n[1]])
+                ZfpField::new(data, [n[0], n[1]]).unwrap()
             } else {
-                ZfpField::new_strided(data, [n[0], n[1]], [strides[0], strides[1]])
+                ZfpField::new_strided(data, [n[0], n[1]], [strides[0], strides[1]]).unwrap()
             }
         }
         3 => {
             if strides == zero {
-                ZfpField::new(data, [n[0], n[1], n[2]])
+                ZfpField::new(data, [n[0], n[1], n[2]]).unwrap()
             } else {
                 ZfpField::new_strided(
                     data,
                     [n[0], n[1], n[2]],
                     [strides[0], strides[1], strides[2]],
                 )
+                .unwrap()
             }
         }
         4 => {
             if strides == zero {
-                ZfpField::new(data, [n[0], n[1], n[2], n[3]])
+                ZfpField::new(data, [n[0], n[1], n[2], n[3]]).unwrap()
             } else {
                 ZfpField::new_strided(
                     data,
                     [n[0], n[1], n[2], n[3]],
                     [strides[0], strides[1], strides[2], strides[3]],
                 )
+                .unwrap()
             }
         }
         _ => panic!("make_field: invalid dims {dims}"),
@@ -249,38 +251,40 @@ fn make_field_mut<T: ZfpScalar>(
     match dims {
         1 => {
             if strides == zero {
-                ZfpFieldMut::new(data, [n[0]])
+                ZfpFieldMut::new(data, [n[0]]).unwrap()
             } else {
-                ZfpFieldMut::new_strided(data, [n[0]], [strides[0]])
+                ZfpFieldMut::new_strided(data, [n[0]], [strides[0]]).unwrap()
             }
         }
         2 => {
             if strides == zero {
-                ZfpFieldMut::new(data, [n[0], n[1]])
+                ZfpFieldMut::new(data, [n[0], n[1]]).unwrap()
             } else {
-                ZfpFieldMut::new_strided(data, [n[0], n[1]], [strides[0], strides[1]])
+                ZfpFieldMut::new_strided(data, [n[0], n[1]], [strides[0], strides[1]]).unwrap()
             }
         }
         3 => {
             if strides == zero {
-                ZfpFieldMut::new(data, [n[0], n[1], n[2]])
+                ZfpFieldMut::new(data, [n[0], n[1], n[2]]).unwrap()
             } else {
                 ZfpFieldMut::new_strided(
                     data,
                     [n[0], n[1], n[2]],
                     [strides[0], strides[1], strides[2]],
                 )
+                .unwrap()
             }
         }
         4 => {
             if strides == zero {
-                ZfpFieldMut::new(data, [n[0], n[1], n[2], n[3]])
+                ZfpFieldMut::new(data, [n[0], n[1], n[2], n[3]]).unwrap()
             } else {
                 ZfpFieldMut::new_strided(
                     data,
                     [n[0], n[1], n[2], n[3]],
                     [strides[0], strides[1], strides[2], strides[3]],
                 )
+                .unwrap()
             }
         }
         _ => panic!("make_field_mut: invalid dims {dims}"),
@@ -385,7 +389,7 @@ fn run_compress_decompress<T: ZfpScalar>(
             }
             CompressionMode::FixedRate => ZfpConfig::fixed_rate(
                 fixed_rate_param(param_num) as f64,
-                T::scalar_type(),
+                T::SCALAR_TYPE,
                 ZfpDimensionality::try_from(dims).unwrap(),
                 ZfpStreamAlignment::None,
             ),
@@ -396,7 +400,7 @@ fn run_compress_decompress<T: ZfpScalar>(
         };
 
         let buf_size = config
-            .maximum_size(T::scalar_type(), &n[..dims as usize])
+            .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
             .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
 
@@ -500,7 +504,7 @@ fn run_reversible<T: ZfpScalar + PartialEq + std::fmt::Debug>(
 
     let config = ZfpConfig::reversible();
     let buf_size = config
-        .maximum_size(T::scalar_type(), &n[..dims as usize])
+        .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
         .expect("maximum size");
     let mut bs = ZfpBitStream::new(buf_size);
 
@@ -607,10 +611,10 @@ fn test_set_rate_align<T: ZfpScalar>(dims: u32) {
     let rate = 19.0f64;
     let zfp_dims = ZfpDimensionality::try_from(dims).unwrap();
     let params_no_align =
-        ZfpConfig::fixed_rate(rate, T::scalar_type(), zfp_dims, ZfpStreamAlignment::None);
+        ZfpConfig::fixed_rate(rate, T::SCALAR_TYPE, zfp_dims, ZfpStreamAlignment::None);
     let params_align = ZfpConfig::fixed_rate(
         rate,
-        T::scalar_type(),
+        T::SCALAR_TYPE,
         zfp_dims,
         ZfpStreamAlignment::WordAligned,
     );
@@ -637,12 +641,12 @@ fn test_bitrate<T: ZfpScalar>(dims: u32, n: [usize; 4], src: &[T]) {
         let rate_param = fixed_rate_param(param_num);
         let config = ZfpConfig::fixed_rate(
             rate_param as f64,
-            T::scalar_type(),
+            T::SCALAR_TYPE,
             ZfpDimensionality::try_from(dims).unwrap(),
             ZfpStreamAlignment::None,
         );
         let buf_size = config
-            .maximum_size(T::scalar_type(), &n[..dims as usize])
+            .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
             .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
         let field = make_field(src, dims, n, [0; 4]);
@@ -686,7 +690,7 @@ fn test_accuracy<T: ZfpScalar>(dims: u32, n: [usize; 4], strided: &StridedData<T
         let tolerance = fixed_accuracy_param(param_num);
         let config = ZfpConfig::fixed_accuracy(tolerance);
         let buf_size = config
-            .maximum_size(T::scalar_type(), &n[..dims as usize])
+            .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
             .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
 
@@ -795,7 +799,7 @@ fn test_data_checksum<T: ZfpScalar>(dims: u32, checksum_type: CsumType, src: &[T
 // ---------------------------------------------------------------------------
 
 fn generate_typed<T: ZfpScalar>(dims: u32) -> (Vec<T>, usize, usize) {
-    match T::scalar_type() {
+    match T::SCALAR_TYPE {
         LibZfpScalarType::Int32 => {
             let (v, s, t) = gen_smooth_rand_ints32(dims);
             reinterpret_vec(v, s, t)
@@ -819,7 +823,7 @@ fn generate_typed<T: ZfpScalar>(dims: u32) -> (Vec<T>, usize, usize) {
 ///
 /// # Safety
 /// Called only with (U, T) pairs that are the same ZFP scalar type (i32/i32, f32/f32, etc.)
-/// because `generate_typed` matches on `T::scalar_type()` before dispatching here.
+/// because `generate_typed` matches on `T::SCALAR_TYPE` before dispatching here.
 fn reinterpret_vec<U, T>(v: Vec<U>, side: usize, total: usize) -> (Vec<T>, usize, usize) {
     assert_eq!(std::mem::size_of::<U>(), std::mem::size_of::<T>());
     assert_eq!(std::mem::align_of::<U>(), std::mem::align_of::<T>());

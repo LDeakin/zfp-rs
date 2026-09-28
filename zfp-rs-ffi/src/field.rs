@@ -47,13 +47,13 @@ pub(crate) fn field_to_rust(field: &zfp_field) -> Option<ZfpField<'static>> {
     if field.data.is_null() {
         // SAFETY: a null pointer with a zero byte count yields an empty field.
         return Some(unsafe {
-            ZfpField::from_raw(std::ptr::null(), 0, scalar_type, dims, strides)
+            ZfpField::from_raw_unchecked(std::ptr::null(), 0, scalar_type, dims, strides)
         });
     }
     let (begin, byte_count) = span_of(field.data.cast_const(), scalar_type, &dims, &strides);
     // SAFETY: the C caller guarantees that the field data pointer spans
     // the descriptor's memory footprint.
-    Some(unsafe { ZfpField::from_raw(begin, byte_count, scalar_type, dims, strides) })
+    Some(unsafe { ZfpField::from_raw_unchecked(begin, byte_count, scalar_type, dims, strides) })
 }
 
 /// Translate a C `zfp_field.data` pointer into the `(begin, byte_count)` pair
@@ -71,7 +71,7 @@ fn span_of(
     dims: &[usize; 4],
     strides: &[isize; 4],
 ) -> (*const u8, usize) {
-    let (imin, imax) = ZfpField::field_index_span_static(dims, strides);
+    let (imin, imax) = zfp_rs::field::index_span(dims, strides);
     let elem_size = scalar_type.size();
     let byte_count = (imax - imin + 1).cast_unsigned() * elem_size;
     // SAFETY: `imin <= 0` is the lowest element index the strides reach from
@@ -95,7 +95,7 @@ pub(crate) unsafe fn field_mut_to_rust(
     }
     // SAFETY: the C caller guarantees that the field data pointer spans
     // the descriptor's memory footprint.
-    Some(zfp_rs::ZfpFieldMut::from_raw(
+    Some(zfp_rs::ZfpFieldMut::from_raw_unchecked(
         begin.cast_mut(),
         byte_count,
         scalar_type,
@@ -193,8 +193,11 @@ pub unsafe extern "C" fn zfp_field_begin(field: *const zfp_field) -> *mut std::f
     let Some(rust) = rust else {
         return std::ptr::null_mut();
     };
-    rust.begin()
-        .map_or(std::ptr::null_mut(), |ptr| ptr as *mut std::ffi::c_void)
+    if rust.data().is_empty() {
+        std::ptr::null_mut()
+    } else {
+        rust.data().as_ptr().cast_mut().cast()
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -300,8 +303,9 @@ pub unsafe extern "C" fn zfp_field_metadata(field: *const zfp_field) -> uint64 {
     if field.is_null() {
         0
     } else {
-        field_to_rust(unsafe { &*field })
-            .map_or(u64::MAX, |field| field.metadata().unwrap_or(u64::MAX))
+        field_to_rust(unsafe { &*field }).map_or(u64::MAX, |field| {
+            field.metadata().to_bits().unwrap_or(u64::MAX)
+        })
     }
 }
 
@@ -504,7 +508,7 @@ mod tests {
         assert_eq!(byte_count, std::mem::size_of_val(&buf));
 
         let rust = field_to_rust(&field).expect("a double field converts");
-        assert_eq!(rust.begin().unwrap(), buf.as_ptr().cast::<u8>());
+        assert_eq!(rust.data().as_ptr(), buf.as_ptr().cast::<u8>());
         assert_eq!(rust.size_bytes(), byte_count);
     }
 }

@@ -116,10 +116,10 @@ mod tests {
     #[test]
     fn borrowed_stream_reads_header_and_decompresses() {
         let data = ramp();
-        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
         let config = ZfpConfig::reversible();
         let mut bs = ZfpBitStream::new(4096);
-        bs.write_header(&config, &field, ZfpHeaderMask::FULL)
+        bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL)
             .expect("write header");
         bs.compress(&config, &field).expect("compress");
         let words = bs.into_words();
@@ -128,7 +128,7 @@ mod tests {
         let header = bs.read_header(ZfpHeaderMask::FULL).expect("read header");
         assert_eq!(header.config, Some(config));
         let mut out = vec![0f64; 64];
-        let mut field = ZfpFieldMut::new(&mut out, [4usize, 4, 4]);
+        let mut field = ZfpFieldMut::new(&mut out, [4usize, 4, 4]).unwrap();
         bs.decompress(&config, &mut field).expect("decompress");
         assert_eq!(out, data);
     }
@@ -136,12 +136,12 @@ mod tests {
     #[test]
     fn borrowed_mut_stream_round_trips_with_header() {
         let data = ramp();
-        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
         let config = ZfpConfig::reversible();
         let mut words = vec![0u64; 512];
 
         let mut bs = ZfpBitStreamRefMut::from_words_mut(&mut words);
-        bs.write_header(&config, &field, ZfpHeaderMask::FULL)
+        bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL)
             .expect("write header");
         bs.compress(&config, &field).expect("compress");
         bs.flush();
@@ -149,7 +149,7 @@ mod tests {
         let header = bs.read_header(ZfpHeaderMask::FULL).expect("read header");
         assert_eq!(header.config, Some(config));
         let mut out = vec![0f64; 64];
-        let mut field = ZfpFieldMut::new(&mut out, [4usize, 4, 4]);
+        let mut field = ZfpFieldMut::new(&mut out, [4usize, 4, 4]).unwrap();
         bs.decompress(&config, &mut field).expect("decompress");
         assert_eq!(out, data);
     }

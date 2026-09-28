@@ -1,16 +1,7 @@
 //! Per-field block iteration plan, shared by compression and decompression.
 
-use crate::field::{ZfpField, dimensionality};
-use crate::types::{ZfpDimensionality, ZfpScalarType};
-
-/// Why a field cannot be walked block by block.
-///
-/// `compress`/`decompress` map this onto their own error enums.
-pub(crate) enum PlanError {
-    NoData,
-    InvalidField { required: usize, actual: usize },
-    MisalignedData { align: usize },
-}
+use crate::field::{dimensionality, field_index_span};
+use crate::types::{ZfpDimensionality, ZfpFieldError, ZfpScalarType};
 
 /// Block grid and memory layout, derived once per field.
 pub(crate) struct FieldPlan {
@@ -47,28 +38,23 @@ impl FieldPlan {
         strides: [isize; 4],
         data: &[u8],
         required: usize,
-    ) -> Result<Self, PlanError> {
+    ) -> Result<Self, ZfpFieldError> {
         debug_assert_eq!(
             dims_enum,
             dimensionality(&dims),
             "the block grid and the field's span must agree on which axes are active"
         );
 
-        if data.is_empty() {
-            return Err(PlanError::NoData);
-        }
-
         let actual = data.len();
         if actual < required {
-            return Err(PlanError::InvalidField { required, actual });
+            return Err(ZfpFieldError::InsufficientData { required, actual });
         }
 
         // The codec reinterprets this buffer as the scalar type and walks it
-        // with raw pointer offsets, so it must be correctly aligned. Only
-        // reachable via `from_raw`: `ZfpField::new` goes through
-        // `bytemuck::cast_slice`, which is always aligned.
+        // with raw pointer offsets, so it must be correctly aligned. The
+        // field constructors check this too, but the C ABI bypasses them.
         if !scalar_type.is_aligned(data.as_ptr()) {
-            return Err(PlanError::MisalignedData {
+            return Err(ZfpFieldError::MisalignedData {
                 align: scalar_type.align(),
             });
         }
@@ -85,7 +71,7 @@ impl FieldPlan {
             bx,
             by,
             bz,
-            imin: ZfpField::field_index_span_static(&dims, &strides).0,
+            imin: field_index_span(&dims, &strides).0,
             strides,
             dims,
             dims_enum,
@@ -181,7 +167,7 @@ mod tests {
         ];
         for (dims, strides, dim_count) in cases {
             assert_eq!(
-                ZfpField::field_index_span_static(&dims, &strides).0,
+                crate::field::field_index_span(&dims, &strides).0,
                 imin_by_hand(dims, strides, dim_count),
                 "dims {dims:?} strides {strides:?}"
             );

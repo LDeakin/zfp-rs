@@ -40,9 +40,12 @@ const ZFP_CODEC: u64 = 5;
 // Setup helpers
 // ---------------------------------------------------------------------------
 
-/// Create the default test field (2D f64, 33×401, no data pointer needed).
-fn make_field() -> ZfpField<'static> {
-    ZfpField::new(&[] as &[f64], [FIELD_X_LEN, FIELD_Y_LEN])
+/// Create the default test field metadata (2D f64, 33×401; no data needed).
+fn make_field() -> ZfpFieldMetadata {
+    ZfpFieldMetadata {
+        scalar_type: ZfpScalarType::Double,
+        dims: [FIELD_X_LEN, FIELD_Y_LEN, 0, 0],
+    }
 }
 
 /// Create the default test params (fixed-rate, rate=19, dims=1).
@@ -62,7 +65,7 @@ fn make_params() -> ZfpConfig {
 #[test]
 fn when_zfp_field_metadata_called_expect_lsb_2_bits_encode_scalar_type() {
     let field = make_field();
-    let metadata = field.metadata().expect("metadata should be valid");
+    let metadata = field.to_bits().expect("metadata should be valid");
     // bits [1:0] encode (zfp_type - 1); zfp_type_double == 4 → stored as 3
     let zfp_type = (metadata & 0x3) + 1;
     // ZfpScalarType::Double is the 4th variant (Int32=1, Int64=2, Float=3, Double=4)
@@ -72,7 +75,7 @@ fn when_zfp_field_metadata_called_expect_lsb_2_bits_encode_scalar_type() {
 #[test]
 fn when_zfp_field_metadata_called_expect_lsb_bits_3_to_4_encode_dimensionality() {
     let field = make_field();
-    let metadata = field.metadata().expect("metadata should be valid");
+    let metadata = field.to_bits().expect("metadata should be valid");
     // bits [3:2] encode (dimensionality - 1); field is 2D → stored as 1
     let dimensionality = ((metadata >> 2) & 0x3) + 1;
     assert_eq!(dimensionality, 2, "expected 2D, got {dimensionality}");
@@ -81,7 +84,7 @@ fn when_zfp_field_metadata_called_expect_lsb_bits_3_to_4_encode_dimensionality()
 #[test]
 fn when_zfp_field_metadata_called_expect_lsb_bits_5_to_53_encode_array_dimensions() {
     let field = make_field();
-    let metadata = field.metadata().expect("metadata should be valid");
+    let metadata = field.to_bits().expect("metadata should be valid");
     let mask_24: u64 = 0xff_ffff;
     let mask_48: u64 = 0xffff_ffff_ffff;
     // bits [51:4] encode the array dimensions
@@ -94,25 +97,21 @@ fn when_zfp_field_metadata_called_expect_lsb_bits_5_to_53_encode_array_dimension
 
 #[test]
 fn when_zfp_field_set_metadata_called_expect_scalar_type_set() {
-    let mut field = make_field();
-    let metadata = field.metadata().expect("metadata should be valid");
-    // In Rust the scalar type is baked into the generic parameter (f64); we
-    // verify that round-tripping metadata preserves the encoded type bits.
-    assert!(field.set_metadata(metadata));
-    // type is still Double — the encoded type bits must round-trip
-    let meta2 = field.metadata().expect("metadata should be valid");
-    assert_eq!(
-        meta2 & 0x3,
-        metadata & 0x3,
-        "type bits changed after set_metadata"
-    );
+    let data = vec![0f32; FIELD_X_LEN * FIELD_Y_LEN * 2];
+    let mut field = ZfpField::new(&data, [data.len()]).unwrap();
+    let metadata = make_field();
+    field
+        .set_metadata(metadata)
+        .expect("the buffer covers the new layout");
+    assert_eq!(field.scalar_type(), ZfpScalarType::Double);
+    assert_eq!(field.metadata(), metadata);
 }
 
 #[test]
 fn when_zfp_field_set_metadata_called_expect_array_dimensions_set() {
     let field = make_field();
-    let metadata = field.metadata().expect("metadata should be valid");
-    let orig_size = field.dims();
+    let metadata = field.to_bits().expect("metadata should be valid");
+    let orig_size = field.dims;
 
     let metadata = ZfpFieldMetadata::from_bits(metadata).expect("metadata should decode");
     assert_eq!(metadata.dims[0], orig_size[0], "nx mismatch");
@@ -123,8 +122,11 @@ fn when_zfp_field_set_metadata_called_expect_array_dimensions_set() {
 #[test]
 fn when_zfp_field_metadata_called_on_invalid_size_expect_dimension_too_large() {
     // Create a field with dimensions that exceed the encodable range (2^24 > 24 bits)
-    let big = ZfpField::new(&[] as &[f64], [1 << 25, 1 << 25]);
-    let meta = big.metadata();
+    let big = ZfpFieldMetadata {
+        scalar_type: ZfpScalarType::Double,
+        dims: [1 << 25, 1 << 25, 0, 0],
+    };
+    let meta = big.to_bits();
     assert!(
         matches!(
             meta,
@@ -136,10 +138,9 @@ fn when_zfp_field_metadata_called_on_invalid_size_expect_dimension_too_large() {
 
 #[test]
 fn when_zfp_field_set_metadata_called_for_invalid_meta_expect_false() {
-    let mut field = make_field();
     // meta with bit > ZFP_META_BITS set
     let invalid_meta = 1u64 << (ZFP_META_BITS + 1);
-    assert!(!field.set_metadata(invalid_meta));
+    assert!(ZfpFieldMetadata::from_bits(invalid_meta).is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -241,7 +242,10 @@ fn given_custom_compress_params_set_when_zfp_write_header_mode_expect_64_bits_wr
 fn given_oversized_field_when_zfp_write_header_full_expect_error_and_nothing_written() {
     let config = make_params();
     let mut bs = ZfpBitStream::new(4096);
-    let field = ZfpField::new(&[] as &[f64], [1usize << 25, 1]);
+    let field = ZfpFieldMetadata {
+        scalar_type: ZfpScalarType::Double,
+        dims: [1 << 25, 1, 0, 0],
+    };
     assert_eq!(
         bs.write_header(&config, &field, ZfpHeaderMask::FULL),
         Err(ZfpCompressionError::Metadata(
@@ -261,7 +265,7 @@ fn given_oversized_field_when_zfp_write_header_full_expect_error_and_nothing_wri
 /// `read` returned `expected_read_bits`.
 fn assert_proper_bits_read(
     config: &ZfpConfig,
-    field: &ZfpField<'_>,
+    field: &ZfpFieldMetadata,
     bs: &mut ZfpBitStream,
     mask: ZfpHeaderMask,
     expected_write_bits: usize,
@@ -331,7 +335,7 @@ fn given_proper_header_when_zfp_read_header_metadata_expect_field_array_dims_set
     let config = make_params();
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
-    let orig = field.dims();
+    let orig = field.dims;
 
     assert_eq!(
         bs.write_header(&config, &field, ZfpHeaderMask::META)
@@ -355,7 +359,7 @@ fn given_proper_header_when_zfp_read_header_metadata_expect_field_array_dims_set
         "ny mismatch after read_header META"
     );
     assert_eq!(metadata.dims[2], 0);
-    assert_eq!(metadata.scalar_type, field.scalar_type());
+    assert_eq!(metadata.scalar_type, field.scalar_type);
 }
 
 #[test]
@@ -407,7 +411,7 @@ fn given_proper_header_fixed_accuracy_when_zfp_read_header_mode_expect_proper_nu
 /// match those that were in effect when writing.
 fn assert_compress_params_restored(
     config: ZfpConfig,
-    field: &ZfpField<'_>,
+    field: &ZfpFieldMetadata,
     bs: &mut ZfpBitStream,
     expected_write_bits: usize,
     expected_read_bits: usize,

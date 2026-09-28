@@ -187,11 +187,11 @@ fn gen_header_decode(dir: &Path) -> usize {
     for selector in 0u8..8 {
         let mask = zfp_rs::types::ZfpHeaderMask::from_bits_truncate(u32::from(selector));
         let data = [1.0f64; 64];
-        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
         let config = ZfpConfig::reversible();
 
         let mut bs = ZfpBitStream::new(64);
-        bs.write_header(&config, &field, mask)
+        bs.write_header(&config, &field.metadata(), mask)
             .expect("write header");
         bs.flush();
 
@@ -265,18 +265,18 @@ fn compress_as(
     match ty {
         ZfpScalarType::Int32 => {
             let v: Vec<i32> = src.iter().map(|&x| x as i32).collect();
-            let _ = bs.compress(config, &ZfpField::new(&v, dims));
+            let _ = bs.compress(config, &ZfpField::new(&v, dims).unwrap());
         }
         ZfpScalarType::Int64 => {
             let v: Vec<i64> = src.iter().map(|&x| x as i64).collect();
-            let _ = bs.compress(config, &ZfpField::new(&v, dims));
+            let _ = bs.compress(config, &ZfpField::new(&v, dims).unwrap());
         }
         ZfpScalarType::Float => {
             let v: Vec<f32> = src.iter().map(|&x| x as f32).collect();
-            let _ = bs.compress(config, &ZfpField::new(&v, dims));
+            let _ = bs.compress(config, &ZfpField::new(&v, dims).unwrap());
         }
         ZfpScalarType::Double => {
-            let _ = bs.compress(config, &ZfpField::new(src, dims));
+            let _ = bs.compress(config, &ZfpField::new(src, dims).unwrap());
         }
     }
     bs.flush();

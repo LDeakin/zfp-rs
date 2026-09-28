@@ -6,7 +6,7 @@
 use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
-use crate::field_plan::{FieldPlan, PlanError};
+use crate::field_plan::FieldPlan;
 use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
@@ -43,18 +43,6 @@ fn plan_mut(field: &ZfpFieldMut) -> Result<FieldPlan, ZfpDecompressionError> {
         field.data(),
         field.checked_size_bytes().unwrap_or(usize::MAX),
     )?)
-}
-
-impl From<PlanError> for ZfpDecompressionError {
-    fn from(e: PlanError) -> Self {
-        match e {
-            PlanError::NoData => ZfpDecompressionError::NoData,
-            PlanError::InvalidField { required, actual } => {
-                ZfpDecompressionError::InvalidField { required, actual }
-            }
-            PlanError::MisalignedData { align } => ZfpDecompressionError::MisalignedData { align },
-        }
-    }
 }
 
 /// Decode a single block from the bitstream.
@@ -341,7 +329,7 @@ mod tests {
     /// `[1, 1]` maps index `[x, y]` to `x + y`, so the span is 15 elements.
     fn decode(bs: &mut ZfpBitStream, config: &ZfpConfig, execution: ZfpExecution) -> [u64; 15] {
         let mut out = [0f64; 15];
-        let mut field = ZfpFieldMut::new_strided(&mut out, [8usize, 8], [1isize, 1]);
+        let mut field = ZfpFieldMut::new_strided(&mut out, [8usize, 8], [1isize, 1]).unwrap();
         bs.rewind();
         bs.decompress_with_execution(config, &mut field, execution)
             .unwrap();
@@ -361,7 +349,7 @@ mod tests {
         );
         let src: Vec<f64> = (0..64).map(f64::from).collect();
         let mut bs = ZfpBitStream::new(4096);
-        bs.compress(&config, &ZfpField::new(&src, [8usize, 8]))
+        bs.compress(&config, &ZfpField::new(&src, [8usize, 8]).unwrap())
             .unwrap();
 
         let parallel = decode(

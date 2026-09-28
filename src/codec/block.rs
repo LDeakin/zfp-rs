@@ -52,25 +52,25 @@ pub fn encode_block<T: ZfpScalar>(
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
     use crate::codec::encode::{dim1, dim2, dim3, dim4};
-    match (T::scalar_type(), dims) {
+    match (T::SCALAR_TYPE, dims) {
         // 1D
         (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
-            // T == i32 via exhaustive match on ZfpScalar::scalar_type().
+            // T == i32 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[i32; 4] = as_typed_block_1d::<T, i32>(data)?;
             Ok(dim1::encode_block_1d_i32_default(bs, b))
         }
         (ZfpScalarType::Int64, ZfpDimensionality::D1) => {
-            // T == i64 via exhaustive match on ZfpScalar::scalar_type().
+            // T == i64 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[i64; 4] = as_typed_block_1d::<T, i64>(data)?;
             Ok(dim1::encode_block_1d_i64_default(bs, b))
         }
         (ZfpScalarType::Float, ZfpDimensionality::D1) => {
-            // T == f32 via exhaustive match on ZfpScalar::scalar_type().
+            // T == f32 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[f32; 4] = as_typed_block_1d::<T, f32>(data)?;
             Ok(dim1::encode_block_1d_f32_default(bs, b))
         }
         (ZfpScalarType::Double, ZfpDimensionality::D1) => {
-            // T == f64 via exhaustive match on ZfpScalar::scalar_type().
+            // T == f64 via exhaustive match on ZfpScalar::SCALAR_TYPE.
             let b: &[f64; 4] = as_typed_block_1d::<T, f64>(data)?;
             Ok(dim1::encode_block_1d_f64_default(bs, b))
         }
@@ -144,7 +144,7 @@ pub fn decode_block<T: ZfpScalar>(
     dims: ZfpDimensionality,
 ) -> Result<usize, ZfpBlockError> {
     use crate::codec::decode::{dim1, dim2, dim3, dim4};
-    match (T::scalar_type(), dims) {
+    match (T::SCALAR_TYPE, dims) {
         // 1D
         (ZfpScalarType::Int32, ZfpDimensionality::D1) => {
             let b: &mut [i32; 4] = as_typed_block_1d_mut::<T, i32>(data)?;

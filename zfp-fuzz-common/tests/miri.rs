@@ -117,7 +117,7 @@ const CASES: &[Case] = &[
 
 /// Number of scalars the field's dims and strides span, gaps included.
 fn span_of(case: &Case) -> usize {
-    let (imin, imax) = ZfpField::field_index_span_static(&case.dims, &case.strides);
+    let (imin, imax) = zfp_rs::field::index_span(&case.dims, &case.strides);
     usize::try_from(imax - imin + 1).expect("span fits in usize")
 }
 
@@ -132,7 +132,7 @@ fn rank_of(case: &Case) -> usize {
 /// *lowest* address of the span, which is what the codec assumes, hence the
 /// `-imin` shift.
 fn covered_indices(case: &Case) -> Vec<usize> {
-    let (imin, _) = ZfpField::field_index_span_static(&case.dims, &case.strides);
+    let (imin, _) = zfp_rs::field::index_span(&case.dims, &case.strides);
     let [nx, ny, nz, nw] = case.dims;
     let s = [
         if case.strides[0] != 0 {
@@ -196,12 +196,12 @@ fn roundtrip<T: Sample>(case: &Case, config: &ZfpConfig) {
     let src: Vec<T> = (0..span).map(T::sample).collect();
 
     let cap = config
-        .maximum_size(T::scalar_type(), &case.dims[..rank])
+        .maximum_size(T::SCALAR_TYPE, &case.dims[..rank])
         .map_or(64, |size| size.max(64));
     let mut bs = ZfpBitStream::new(cap);
 
     let written = {
-        let field = ZfpField::new_strided(&src, case.dims, case.strides);
+        let field = ZfpField::new_strided(&src, case.dims, case.strides).unwrap();
         bs.compress(config, &field)
             .unwrap_or_else(|e| panic!("{}: compress failed: {e}", case.name))
     };
@@ -214,7 +214,7 @@ fn roundtrip<T: Sample>(case: &Case, config: &ZfpConfig) {
     let mut dst: Vec<T> = vec![T::default(); span];
     bs.rewind();
     {
-        let mut out = ZfpFieldMut::new_strided(&mut dst, case.dims, case.strides);
+        let mut out = ZfpFieldMut::new_strided(&mut dst, case.dims, case.strides).unwrap();
         bs.decompress(config, &mut out)
             .unwrap_or_else(|e| panic!("{}: decompress failed: {e}", case.name));
     }
@@ -270,11 +270,22 @@ fn strided_fixed_accuracy() {
 
 /// A field whose buffer is shorter than its index span must be rejected before
 /// any pointer arithmetic happens — this is the check the whole raw-pointer
-/// scheme rests on.
+/// scheme rests on. The constructors reject it, and so does the codec for the
+/// unchecked fields the C ABI builds.
 #[test]
 fn undersized_field_is_rejected() {
     let src = vec![0.0f64; 4];
-    let field = ZfpField::new(&src, [1000usize]);
+    assert!(ZfpField::new(&src, [1000usize]).is_err());
+    // SAFETY: the pointer and length describe `src`.
+    let field = unsafe {
+        ZfpField::from_raw_unchecked(
+            src.as_ptr().cast(),
+            32,
+            ZfpScalarType::Double,
+            [1000, 0, 0, 0],
+            [0; 4],
+        )
+    };
     let config = ZfpConfig::reversible();
     let mut bs = ZfpBitStream::new(4096);
     assert!(
@@ -283,7 +294,17 @@ fn undersized_field_is_rejected() {
     );
 
     let mut dst = vec![0.0f64; 4];
-    let mut out = ZfpFieldMut::new(&mut dst, [1000usize]);
+    assert!(ZfpFieldMut::new(&mut dst, [1000usize]).is_err());
+    // SAFETY: the pointer and length describe `dst`.
+    let mut out = unsafe {
+        ZfpFieldMut::from_raw_unchecked(
+            dst.as_mut_ptr().cast(),
+            32,
+            ZfpScalarType::Double,
+            [1000, 0, 0, 0],
+            [0; 4],
+        )
+    };
     assert!(
         bs.decompress(&config, &mut out).is_err(),
         "decompressing into a 4-element buffer declared as 1000 elements must fail"

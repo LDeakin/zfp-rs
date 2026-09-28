@@ -285,7 +285,7 @@ pub unsafe extern "C" fn zfp_write_header(
         bits += zfp_rs::ZFP_MAGIC_BITS as usize;
     }
     if mask.contains(ZfpHeaderMask::META) {
-        let Ok(meta) = rust_field.metadata() else {
+        let Ok(meta) = rust_field.metadata().to_bits() else {
             return 0;
         };
         bs.write_bits(meta, zfp_rs::ZFP_META_BITS);

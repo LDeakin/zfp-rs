@@ -137,7 +137,7 @@ fn stock_rounding_does_not_match_the_c_library() {
 
     let mut bs = ZfpBitStream::new(CAPACITY);
     let never = ZfpConfig::fixed_accuracy(libm::ldexp(1.0, -20));
-    bs.compress(&never, &ZfpField::new(&data[..], lens))
+    bs.compress(&never, &ZfpField::new(&data[..], lens).unwrap())
         .unwrap();
     let never_bytes = bs.as_bytes().to_vec();
 
@@ -158,7 +158,7 @@ fn stock_rounding_does_not_match_the_c_library() {
     let mut bs = ZfpBitStream::new(CAPACITY);
     bs.compress(
         &never.with_rounding(ROUNDING),
-        &ZfpField::new(&data[..], lens),
+        &ZfpField::new(&data[..], lens).unwrap(),
     )
     .unwrap();
     assert_eq!(bs.as_bytes(), &c_bytes[..]);
@@ -173,7 +173,7 @@ macro_rules! compat {
                 let dims = ZfpDimensionality::try_from(u32::try_from(lens.len()).unwrap()).unwrap();
                 for mode in MODES {
                     let mut bs = ZfpBitStream::new(CAPACITY);
-                    bs.compress(&rust_config(mode, $rs_ty, dims), &ZfpField::new(&data[..], lens))
+                    bs.compress(&rust_config(mode, $rs_ty, dims), &ZfpField::new(&data[..], lens).unwrap())
                         .unwrap();
                     let rs_bytes = bs.as_bytes().to_vec();
                     let c_bytes = unsafe {

@@ -31,15 +31,18 @@ fn normal_f64s() -> impl Strategy<Value = Vec<f64>> {
 /// Compress then decompress a 4x4x4 `f64` block with the given config.
 fn round_trip(config: &ZfpConfig, data: &[f64]) -> (Vec<u8>, Vec<f64>) {
     let mut bs = ZfpBitStream::new(4096);
-    bs.compress(config, &ZfpField::new(data, [4usize, 4, 4]))
+    bs.compress(config, &ZfpField::new(data, [4usize, 4, 4]).unwrap())
         .expect("compress");
     bs.flush();
     let bytes = bs.as_bytes().to_vec();
 
     let mut out = vec![0f64; data.len()];
     bs.rewind();
-    bs.decompress(config, &mut ZfpFieldMut::new(&mut out, [4usize, 4, 4]))
-        .expect("decompress");
+    bs.decompress(
+        config,
+        &mut ZfpFieldMut::new(&mut out, [4usize, 4, 4]).unwrap(),
+    )
+    .expect("decompress");
     (bytes, out)
 }
 
@@ -159,10 +162,10 @@ fn header_config_needs_the_encoders_rounding() {
     let data: Vec<f64> = (0..64).map(|i| f64::from(i).sin() * 1.0e3).collect();
     let rounding = ZfpRounding::First { tight_error: true };
     let config = ZfpConfig::fixed_accuracy(1.0e-3).with_rounding(rounding);
-    let field = ZfpField::new(&data, [4usize, 4, 4]);
+    let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
 
     let mut bs = ZfpBitStream::new(4096);
-    bs.write_header(&config, &field, ZfpHeaderMask::FULL)
+    bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL)
         .expect("write header");
     bs.compress(&config, &field).expect("compress");
     bs.flush();
@@ -175,7 +178,7 @@ fn header_config_needs_the_encoders_rounding() {
     let mut out = vec![0f64; data.len()];
     bs.decompress(
         &read.with_rounding(rounding),
-        &mut ZfpFieldMut::new(&mut out, [4usize, 4, 4]),
+        &mut ZfpFieldMut::new(&mut out, [4usize, 4, 4]).unwrap(),
     )
     .expect("decompress");
     assert_eq!(out, want);

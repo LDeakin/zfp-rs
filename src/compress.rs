@@ -6,7 +6,7 @@
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpField;
-use crate::field_plan::{FieldPlan, PlanError};
+use crate::field_plan::FieldPlan;
 use crate::types::{ZFP_MIN_EXP, ZfpCompressionError, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
@@ -51,18 +51,6 @@ fn plan(field: &ZfpField) -> Result<FieldPlan, ZfpCompressionError> {
         field.data(),
         field.checked_size_bytes().unwrap_or(usize::MAX),
     )?)
-}
-
-impl From<PlanError> for ZfpCompressionError {
-    fn from(e: PlanError) -> Self {
-        match e {
-            PlanError::NoData => ZfpCompressionError::NoData,
-            PlanError::InvalidField { required, actual } => {
-                ZfpCompressionError::InvalidField { required, actual }
-            }
-            PlanError::MisalignedData { align } => ZfpCompressionError::MisalignedData { align },
-        }
-    }
 }
 
 /// Encode a single block into the bitstream.
