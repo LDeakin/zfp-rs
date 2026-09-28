@@ -161,7 +161,7 @@ mod tests {
             ZfpFieldMut::from_raw(
                 std::ptr::null_mut(),
                 0,
-                ZfpScalarType::Float,
+                ZfpScalarType::F32,
                 [4, 0, 0, 0],
                 [0; 4],
             )
@@ -188,9 +188,9 @@ mod tests {
         let field = ZfpField::new(&data, [data.len()]).unwrap();
         let config = ZfpConfig::fixed_rate(
             5.0,
-            ZfpScalarType::Float,
+            ZfpScalarType::F32,
             ZfpDimensionality::D1,
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         );
         let execution = ZfpExecution::Rayon {
             threads: 2,

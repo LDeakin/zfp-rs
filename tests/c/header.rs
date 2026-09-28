@@ -43,7 +43,7 @@ const ZFP_CODEC: u64 = 5;
 /// Create the default test field metadata (2D f64, 33×401; no data needed).
 fn make_field() -> ZfpFieldMetadata {
     ZfpFieldMetadata {
-        scalar_type: ZfpScalarType::Double,
+        scalar_type: ZfpScalarType::F64,
         dims: [FIELD_X_LEN, FIELD_Y_LEN, 0, 0],
     }
 }
@@ -52,9 +52,9 @@ fn make_field() -> ZfpFieldMetadata {
 fn make_params() -> ZfpConfig {
     ZfpConfig::fixed_rate(
         ZFP_RATE_PARAM_BITS,
-        ZfpScalarType::Double,
+        ZfpScalarType::F64,
         DIMS,
-        ZfpStreamAlignment::None,
+        ZfpStreamAlignment::Unaligned,
     )
 }
 
@@ -68,7 +68,7 @@ fn when_zfp_field_metadata_called_expect_lsb_2_bits_encode_scalar_type() {
     let metadata = field.to_bits().expect("metadata should be valid");
     // bits [1:0] encode (zfp_type - 1); zfp_type_double == 4 → stored as 3
     let zfp_type = (metadata & 0x3) + 1;
-    // ZfpScalarType::Double is the 4th variant (Int32=1, Int64=2, Float=3, Double=4)
+    // zfp_type_double is the 4th type (int32=1, int64=2, float=3, double=4)
     assert_eq!(zfp_type, 4, "expected Double (4), got {zfp_type}");
 }
 
@@ -103,7 +103,7 @@ fn when_zfp_field_set_metadata_called_expect_scalar_type_set() {
     field
         .set_metadata(metadata)
         .expect("the buffer covers the new layout");
-    assert_eq!(field.scalar_type(), ZfpScalarType::Double);
+    assert_eq!(field.scalar_type(), ZfpScalarType::F64);
     assert_eq!(field.metadata(), metadata);
 }
 
@@ -123,7 +123,7 @@ fn when_zfp_field_set_metadata_called_expect_array_dimensions_set() {
 fn when_zfp_field_metadata_called_on_invalid_size_expect_dimension_too_large() {
     // Create a field with dimensions that exceed the encodable range (2^24 > 24 bits)
     let big = ZfpFieldMetadata {
-        scalar_type: ZfpScalarType::Double,
+        scalar_type: ZfpScalarType::F64,
         dims: [1 << 25, 1 << 25, 0, 0],
     };
     let meta = big.to_bits();
@@ -243,7 +243,7 @@ fn given_oversized_field_when_zfp_write_header_full_expect_error_and_nothing_wri
     let config = make_params();
     let mut bs = ZfpBitStream::new(4096);
     let field = ZfpFieldMetadata {
-        scalar_type: ZfpScalarType::Double,
+        scalar_type: ZfpScalarType::F64,
         dims: [1 << 25, 1, 0, 0],
     };
     assert_eq!(

@@ -26,10 +26,10 @@ impl ZfpFieldMetadata {
     pub fn from_bits(meta: u64) -> Option<Self> {
         let dims = decode_metadata(meta)?;
         let scalar_type = match meta & 0x3 {
-            0 => ZfpScalarType::Int32,
-            1 => ZfpScalarType::Int64,
-            2 => ZfpScalarType::Float,
-            _ => ZfpScalarType::Double,
+            0 => ZfpScalarType::I32,
+            1 => ZfpScalarType::I64,
+            2 => ZfpScalarType::F32,
+            _ => ZfpScalarType::F64,
         };
         Some(Self { scalar_type, dims })
     }
@@ -655,10 +655,10 @@ pub(crate) fn field_metadata(
     dims: &[usize; 4],
 ) -> Result<u64, ZfpMetadataError> {
     let type_bits = match scalar_type {
-        ZfpScalarType::Int32 => 0u64,
-        ZfpScalarType::Int64 => 1u64,
-        ZfpScalarType::Float => 2u64,
-        ZfpScalarType::Double => 3u64,
+        ZfpScalarType::I32 => 0u64,
+        ZfpScalarType::I64 => 1u64,
+        ZfpScalarType::F32 => 2u64,
+        ZfpScalarType::F64 => 3u64,
     };
     if !valid_dims(dims) {
         return Err(ZfpMetadataError::InvalidDims);
@@ -783,7 +783,7 @@ mod tests {
         let strides = [1isize, 0, -100, 0];
         assert_eq!(super::field_index_span(&dims, &strides), (0, 4));
         assert_eq!(
-            checked_size_bytes(&dims, &strides, ZfpScalarType::Double),
+            checked_size_bytes(&dims, &strides, ZfpScalarType::F64),
             Some(5 * size_of::<f64>())
         );
     }
@@ -804,11 +804,7 @@ mod tests {
         // The natural stride for the second axis is nx, so the span is
         // nx * ny elements, which overflows isize here.
         assert_eq!(
-            checked_size_bytes(
-                &[usize::MAX, usize::MAX, 0, 0],
-                &[0; 4],
-                ZfpScalarType::Double
-            ),
+            checked_size_bytes(&[usize::MAX, usize::MAX, 0, 0], &[0; 4], ZfpScalarType::F64),
             None
         );
     }
@@ -861,7 +857,7 @@ mod tests {
             ZfpField::from_raw_unchecked(
                 data.as_ptr().cast(),
                 32,
-                ZfpScalarType::Double,
+                ZfpScalarType::F64,
                 [1000, 0, 0, 0],
                 [0; 4],
             )
@@ -875,7 +871,7 @@ mod tests {
             ZfpFieldMut::from_raw_unchecked(
                 data.as_mut_ptr().cast(),
                 32,
-                ZfpScalarType::Double,
+                ZfpScalarType::F64,
                 [1000, 0, 0, 0],
                 [0; 4],
             )
@@ -893,7 +889,7 @@ mod tests {
         let config = ZfpConfig::reversible();
         let mut bs = ZfpBitStream::new(
             config
-                .maximum_size(ZfpScalarType::Double, [4usize, 4, 4])
+                .maximum_size(ZfpScalarType::F64, [4usize, 4, 4])
                 .unwrap(),
         );
 

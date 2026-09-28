@@ -117,7 +117,7 @@ fn shape_for_dims(dims: u32) -> Vec<usize> {
 }
 
 impl BenchScalar for i32 {
-    const RUST_TYPE: ZfpScalarType = ZfpScalarType::Int32;
+    const RUST_TYPE: ZfpScalarType = ZfpScalarType::I32;
     const C_TYPE: zfp_sys::zfp_type = zfp_sys::zfp_type_zfp_type_int32;
     const FFI_TYPE: ffi::zfp_type = ffi::zfp_type_zfp_type_int32;
 
@@ -128,7 +128,7 @@ impl BenchScalar for i32 {
 }
 
 impl BenchScalar for i64 {
-    const RUST_TYPE: ZfpScalarType = ZfpScalarType::Int64;
+    const RUST_TYPE: ZfpScalarType = ZfpScalarType::I64;
     const C_TYPE: zfp_sys::zfp_type = zfp_sys::zfp_type_zfp_type_int64;
     const FFI_TYPE: ffi::zfp_type = ffi::zfp_type_zfp_type_int64;
 
@@ -141,7 +141,7 @@ impl BenchScalar for i64 {
 }
 
 impl BenchScalar for f32 {
-    const RUST_TYPE: ZfpScalarType = ZfpScalarType::Float;
+    const RUST_TYPE: ZfpScalarType = ZfpScalarType::F32;
     const C_TYPE: zfp_sys::zfp_type = zfp_sys::zfp_type_zfp_type_float;
     const FFI_TYPE: ffi::zfp_type = ffi::zfp_type_zfp_type_float;
 
@@ -152,7 +152,7 @@ impl BenchScalar for f32 {
 }
 
 impl BenchScalar for f64 {
-    const RUST_TYPE: ZfpScalarType = ZfpScalarType::Double;
+    const RUST_TYPE: ZfpScalarType = ZfpScalarType::F64;
     const C_TYPE: zfp_sys::zfp_type = zfp_sys::zfp_type_zfp_type_double;
     const FFI_TYPE: ffi::zfp_type = ffi::zfp_type_zfp_type_double;
 
@@ -168,7 +168,7 @@ fn rust_config<T: BenchScalar>(case: Case) -> ZfpConfig {
             RATE,
             T::RUST_TYPE,
             case.dimensionality(),
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         ),
         ModeKind::FixedPrecision => ZfpConfig::fixed_precision(PRECISION),
         ModeKind::FixedAccuracy => ZfpConfig::fixed_accuracy(ACCURACY),

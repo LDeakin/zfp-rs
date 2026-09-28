@@ -24,9 +24,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configure compression.
     let config = ZfpConfig::fixed_rate(
         8.0,
-        zfp_rs::ZfpScalarType::Double,
+        zfp_rs::ZfpScalarType::F64,
         zfp_rs::ZfpDimensionality::D3,
-        ZfpStreamAlignment::None,
+        ZfpStreamAlignment::Unaligned,
     );
 
     let mut bs = ZfpBitStream::new(4096);

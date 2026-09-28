@@ -141,10 +141,10 @@ unsafe fn decompress_block(
         }};
     }
     decode_dispatch!(
-        ZfpScalarType::Int32 => i32,
-        ZfpScalarType::Int64 => i64,
-        ZfpScalarType::Float => f32,
-        ZfpScalarType::Double => f64,
+        ZfpScalarType::I32 => i32,
+        ZfpScalarType::I64 => i64,
+        ZfpScalarType::F32 => f32,
+        ZfpScalarType::F64 => f64,
     );
 }
 
@@ -336,9 +336,9 @@ mod tests {
     fn aliasing_strides_decompress_serially() {
         let config = ZfpConfig::fixed_rate(
             16.0,
-            ZfpScalarType::Double,
+            ZfpScalarType::F64,
             ZfpDimensionality::D2,
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         );
         let src: Vec<f64> = (0..64).map(f64::from).collect();
         let mut bs = ZfpBitStream::new(4096);

@@ -52,13 +52,13 @@
 //! // Configure fixed-rate compression.
 //! let config = ZfpConfig::fixed_rate(
 //!     8.0,
-//!     ZfpScalarType::Double,
+//!     ZfpScalarType::F64,
 //!     ZfpDimensionality::D2,
-//!     ZfpStreamAlignment::None,
+//!     ZfpStreamAlignment::Unaligned,
 //! );
 //!
 //! // Compress into a stream sized for the worst case.
-//! let capacity = config.maximum_size(ZfpScalarType::Double, field.dims()).unwrap();
+//! let capacity = config.maximum_size(ZfpScalarType::F64, field.dims()).unwrap();
 //! let mut bs = ZfpBitStream::new(capacity);
 //! let compressed_bytes = bs.compress(&config, &field)?;
 //!

@@ -78,7 +78,7 @@ pub fn encode_block_1d_i32_default(
     encode_block_1d_i32(
         bs,
         block,
-        &ZfpConfig::block_default(ZfpScalarType::Int32, ZfpDimensionality::D1),
+        &ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D1),
     )
 }
 
@@ -90,7 +90,7 @@ pub fn encode_block_1d_i64_default(
     encode_block_1d_i64(
         bs,
         block,
-        &ZfpConfig::block_default(ZfpScalarType::Int64, ZfpDimensionality::D1),
+        &ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D1),
     )
 }
 
@@ -102,7 +102,7 @@ pub fn encode_block_1d_f32_default(
     encode_block_1d_f32(
         bs,
         block,
-        &ZfpConfig::block_default(ZfpScalarType::Float, ZfpDimensionality::D1),
+        &ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D1),
     )
 }
 
@@ -114,7 +114,7 @@ pub fn encode_block_1d_f64_default(
     encode_block_1d_f64(
         bs,
         block,
-        &ZfpConfig::block_default(ZfpScalarType::Double, ZfpDimensionality::D1),
+        &ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D1),
     )
 }
 

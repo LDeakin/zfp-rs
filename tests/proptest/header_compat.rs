@@ -91,7 +91,7 @@ fn apply_mode_rust(
                 f64::from(bits) / f64::from(1u32 << (2 * u32::from(dims))),
                 ty,
                 dims,
-                zfp_rs::ZfpStreamAlignment::None,
+                zfp_rs::ZfpStreamAlignment::Unaligned,
             );
         }
         Mode::FixedPrecision(p) => {
@@ -204,24 +204,24 @@ macro_rules! header_write_compat {
 header_write_compat!(
     header_write_i32,
     i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32
 );
 header_write_compat!(
     header_write_i64,
     i64,
-    ZfpScalarType::Int64,
+    ZfpScalarType::I64,
     zfp_sys::zfp_type_zfp_type_int64
 );
 header_write_compat!(
     header_write_f32,
     f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float
 );
 header_write_compat!(
     header_write_f64,
     f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double
 );

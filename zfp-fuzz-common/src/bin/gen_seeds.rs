@@ -137,10 +137,10 @@ fn gen_block_codec(dir: &Path) -> usize {
 fn gen_decompress_stream(dir: &Path) -> usize {
     let mut count = 0;
     for (kind, ty) in [
-        (0u8, ZfpScalarType::Int32),
-        (1, ZfpScalarType::Int64),
-        (2, ZfpScalarType::Float),
-        (3, ZfpScalarType::Double),
+        (0u8, ZfpScalarType::I32),
+        (1, ZfpScalarType::I64),
+        (2, ZfpScalarType::F32),
+        (3, ZfpScalarType::F64),
     ] {
         for rank in 0u8..4 {
             for (family, config) in [
@@ -231,7 +231,7 @@ fn gen_bitstream_ops(dir: &Path) -> usize {
 // Helpers
 // ---------------------------------------------------------------------------
 
-use zfp_rs::ZfpStreamAlignment::None as Align;
+use zfp_rs::ZfpStreamAlignment::Unaligned as Align;
 
 fn dimensionality(rank: u8) -> zfp_rs::types::ZfpDimensionality {
     match rank {
@@ -263,19 +263,19 @@ fn compress_as(
 ) -> Vec<u8> {
     let mut bs = ZfpBitStream::new(cap);
     match ty {
-        ZfpScalarType::Int32 => {
+        ZfpScalarType::I32 => {
             let v: Vec<i32> = src.iter().map(|&x| x as i32).collect();
             let _ = bs.compress(config, &ZfpField::new(&v, dims).unwrap());
         }
-        ZfpScalarType::Int64 => {
+        ZfpScalarType::I64 => {
             let v: Vec<i64> = src.iter().map(|&x| x as i64).collect();
             let _ = bs.compress(config, &ZfpField::new(&v, dims).unwrap());
         }
-        ZfpScalarType::Float => {
+        ZfpScalarType::F32 => {
             let v: Vec<f32> = src.iter().map(|&x| x as f32).collect();
             let _ = bs.compress(config, &ZfpField::new(&v, dims).unwrap());
         }
-        ZfpScalarType::Double => {
+        ZfpScalarType::F64 => {
             let _ = bs.compress(config, &ZfpField::new(src, dims).unwrap());
         }
     }

@@ -13,9 +13,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Compress first (simulating reading from a file).
     let compress_stream = ZfpConfig::fixed_rate(
         8.0,
-        zfp_rs::ZfpScalarType::Float,
+        zfp_rs::ZfpScalarType::F32,
         zfp_rs::ZfpDimensionality::D1,
-        ZfpStreamAlignment::None,
+        ZfpStreamAlignment::Unaligned,
     );
 
     let field = ZfpField::new(&data, [data.len()])?;

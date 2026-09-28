@@ -442,10 +442,10 @@ pub unsafe extern "C" fn zfp_stream_set_rate(
     // Rate is positive and n fits in u32, so this cast is safe.
     let mut bits = (f64::from(n) * rate + 0.5).floor() as u32;
     match rust_ty {
-        ZfpScalarType::Float if bits < 1 + 8 => {
+        ZfpScalarType::F32 if bits < 1 + 8 => {
             bits = 1 + 8;
         }
-        ZfpScalarType::Double if bits < 1 + 11 => {
+        ZfpScalarType::F64 if bits < 1 + 11 => {
             bits = 1 + 11;
         }
         _ => {}
@@ -457,7 +457,7 @@ pub unsafe extern "C" fn zfp_stream_set_rate(
     let stream_align = if align {
         ZfpStreamAlignment::WordAligned
     } else {
-        ZfpStreamAlignment::None
+        ZfpStreamAlignment::Unaligned
     };
     let zfp = ZfpConfig::fixed_rate(rate, rust_ty, rust_dims, stream_align);
     write_params(stream, &zfp);

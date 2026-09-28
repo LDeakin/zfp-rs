@@ -36,10 +36,10 @@ pub unsafe fn is_bitstream_mut_null(stream: *mut bitstream) -> zfp_bool {
 /// Returns `None` for `zfp_type_none` (unsupported).
 pub fn zfp_type_to_scalar(ty: zfp_type) -> Option<zfp_rs::ZfpScalarType> {
     match ty {
-        zfp_type_zfp_type_int32 => Some(zfp_rs::ZfpScalarType::Int32),
-        zfp_type_zfp_type_int64 => Some(zfp_rs::ZfpScalarType::Int64),
-        zfp_type_zfp_type_float => Some(zfp_rs::ZfpScalarType::Float),
-        zfp_type_zfp_type_double => Some(zfp_rs::ZfpScalarType::Double),
+        zfp_type_zfp_type_int32 => Some(zfp_rs::ZfpScalarType::I32),
+        zfp_type_zfp_type_int64 => Some(zfp_rs::ZfpScalarType::I64),
+        zfp_type_zfp_type_float => Some(zfp_rs::ZfpScalarType::F32),
+        zfp_type_zfp_type_double => Some(zfp_rs::ZfpScalarType::F64),
         _ => None,
     }
 }
@@ -60,10 +60,10 @@ pub fn rust_mode_to_zfp(mode: ZfpMode) -> zfp_mode {
 /// Returns `None` for `zfp_type_none` and out-of-range values.
 pub fn zfp_type_to_rust_type(ty: zfp_type) -> Option<ZfpScalarType> {
     match ty {
-        zfp_type_zfp_type_int32 => Some(ZfpScalarType::Int32),
-        zfp_type_zfp_type_int64 => Some(ZfpScalarType::Int64),
-        zfp_type_zfp_type_float => Some(ZfpScalarType::Float),
-        zfp_type_zfp_type_double => Some(ZfpScalarType::Double),
+        zfp_type_zfp_type_int32 => Some(ZfpScalarType::I32),
+        zfp_type_zfp_type_int64 => Some(ZfpScalarType::I64),
+        zfp_type_zfp_type_float => Some(ZfpScalarType::F32),
+        zfp_type_zfp_type_double => Some(ZfpScalarType::F64),
         _ => None,
     }
 }
@@ -71,10 +71,10 @@ pub fn zfp_type_to_rust_type(ty: zfp_type) -> Option<ZfpScalarType> {
 /// Convert Rust `ZfpScalarType` to C `zfp_type`.
 pub fn rust_type_to_zfp_type(ty: ZfpScalarType) -> zfp_type {
     match ty {
-        ZfpScalarType::Int32 => zfp_type_zfp_type_int32,
-        ZfpScalarType::Int64 => zfp_type_zfp_type_int64,
-        ZfpScalarType::Float => zfp_type_zfp_type_float,
-        ZfpScalarType::Double => zfp_type_zfp_type_double,
+        ZfpScalarType::I32 => zfp_type_zfp_type_int32,
+        ZfpScalarType::I64 => zfp_type_zfp_type_int64,
+        ZfpScalarType::F32 => zfp_type_zfp_type_float,
+        ZfpScalarType::F64 => zfp_type_zfp_type_double,
     }
 }
 

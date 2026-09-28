@@ -45,7 +45,7 @@ fn rust_config(mode: Mode, ty: ZfpScalarType, dims: ZfpDimensionality) -> ZfpCon
             f64::from(bits) / f64::from(1u32 << (2 * u32::from(dims))),
             ty,
             dims,
-            ZfpStreamAlignment::None,
+            ZfpStreamAlignment::Unaligned,
         ),
         Mode::FixedPrecision(p) => ZfpConfig::fixed_precision(p),
         Mode::FixedAccuracy(e) => ZfpConfig::fixed_accuracy(libm::ldexp(1.0, e)),
@@ -198,28 +198,28 @@ fn normal_f64() -> impl Strategy<Value = f64> {
 
 compat!(
     rounding_1d_i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32,
     [37usize],
     any::<i32>()
 );
 compat!(
     rounding_1d_i64,
-    ZfpScalarType::Int64,
+    ZfpScalarType::I64,
     zfp_sys::zfp_type_zfp_type_int64,
     [37usize],
     any::<i64>()
 );
 compat!(
     rounding_1d_f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [37usize],
     normal_f32()
 );
 compat!(
     rounding_1d_f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [37usize],
     normal_f64()
@@ -227,21 +227,21 @@ compat!(
 
 compat!(
     rounding_2d_i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32,
     [7usize, 5],
     any::<i32>()
 );
 compat!(
     rounding_2d_f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [7usize, 5],
     normal_f32()
 );
 compat!(
     rounding_2d_f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [7usize, 5],
     normal_f64()
@@ -249,21 +249,21 @@ compat!(
 
 compat!(
     rounding_3d_i64,
-    ZfpScalarType::Int64,
+    ZfpScalarType::I64,
     zfp_sys::zfp_type_zfp_type_int64,
     [5usize, 3, 6],
     any::<i64>()
 );
 compat!(
     rounding_3d_f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [5usize, 3, 6],
     normal_f32()
 );
 compat!(
     rounding_3d_f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [5usize, 3, 6],
     normal_f64()
@@ -272,21 +272,21 @@ compat!(
 // 4-D exercises the `*_many_ints_*` encoders (block size 256 > 64).
 compat!(
     rounding_4d_i32,
-    ZfpScalarType::Int32,
+    ZfpScalarType::I32,
     zfp_sys::zfp_type_zfp_type_int32,
     [5usize, 3, 2, 6],
     any::<i32>()
 );
 compat!(
     rounding_4d_f32,
-    ZfpScalarType::Float,
+    ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [5usize, 3, 2, 6],
     normal_f32()
 );
 compat!(
     rounding_4d_f64,
-    ZfpScalarType::Double,
+    ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [5usize, 3, 2, 6],
     normal_f64()

@@ -19,9 +19,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Configure compression parameters.
     let config = ZfpConfig::fixed_rate(
         8.0,
-        zfp_rs::ZfpScalarType::Double,
+        zfp_rs::ZfpScalarType::F64,
         zfp_rs::ZfpDimensionality::D1,
-        ZfpStreamAlignment::None,
+        ZfpStreamAlignment::Unaligned,
     );
 
     // Allocate a bitstream for the compressed output.
