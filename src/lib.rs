@@ -34,6 +34,13 @@
 //! The other [`ZfpRounding`] variants match a `libzfp` built with the
 //! corresponding `ZFP_ROUNDING_MODE` / `ZFP_WITH_TIGHT_ERROR`.
 //!
+//! ## Features
+//!
+//! - `rayon`: parallel compression, and fixed-rate decompression, with
+//!   [`ZfpExecution::Rayon`]. Without it, that policy runs serially.
+//! - `ffi`: low-level APIs for the `zfp-rs-ffi` C ABI.
+//! - `internals`: the monomorphised codec, for this crate's test suites.
+//!
 //! ## Quick start
 //!
 //! See the [CHANGELOG] for release notes.
@@ -60,7 +67,9 @@
 //! // Compress into a stream sized for the worst case.
 //! let capacity = config.maximum_size(ZfpScalarType::F64, field.dims()).unwrap();
 //! let mut bs = ZfpBitStream::new(capacity);
-//! let compressed_bytes = bs.compress(&config, &field)?;
+//! let size = bs.compress(&config, &field)?;
+//! let compressed: &[u8] = bs.as_bytes();
+//! assert_eq!(compressed.len(), size);
 //!
 //! // Decompress back.
 //! bs.rewind();
