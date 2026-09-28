@@ -44,6 +44,9 @@ impl std::fmt::Debug for ZfpBitStream {
 
 impl ZfpBitStream {
     /// Create a new, empty `ZfpBitStream` with at least `capacity` bytes of storage.
+    ///
+    /// The stream never grows: writes past the end are dropped and flagged,
+    /// see [`overflowed`][Self::overflowed].
     #[must_use]
     pub fn new(capacity: usize) -> Self {
         let nwords = capacity.div_ceil(STREAM_WORD_BYTES);

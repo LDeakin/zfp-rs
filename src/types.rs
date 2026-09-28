@@ -121,6 +121,25 @@ pub enum ZfpCompressionError {
         /// Alignment the scalar type requires, in bytes.
         align: usize,
     },
+    /// The bitstream is too small to hold the compressed output.
+    ///
+    /// Writes past the end of the buffer are dropped, so the stream contents
+    /// are incomplete. [`ZfpConfig::maximum_size`][crate::ZfpConfig::maximum_size]
+    /// gives a capacity that is always sufficient.
+    BufferTooSmall {
+        /// Bytes the stream needed, from its start.
+        required: usize,
+        /// Bytes the stream can hold.
+        capacity: usize,
+    },
+    /// Header field metadata could not be encoded.
+    Metadata(ZfpMetadataError),
+}
+
+impl From<ZfpMetadataError> for ZfpCompressionError {
+    fn from(e: ZfpMetadataError) -> Self {
+        Self::Metadata(e)
+    }
 }
 
 impl fmt::Display for ZfpCompressionError {
@@ -135,11 +154,23 @@ impl fmt::Display for ZfpCompressionError {
                 f,
                 "input field data buffer is not {align}-byte aligned for its scalar type"
             ),
+            ZfpCompressionError::BufferTooSmall { required, capacity } => write!(
+                f,
+                "bitstream needs {required} bytes but holds only {capacity}"
+            ),
+            ZfpCompressionError::Metadata(e) => write!(f, "cannot write header: {e}"),
         }
     }
 }
 
-impl std::error::Error for ZfpCompressionError {}
+impl std::error::Error for ZfpCompressionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Metadata(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 /// Errors that can occur during decompression.
 ///

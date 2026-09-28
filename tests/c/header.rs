@@ -11,8 +11,8 @@ use zfp_rs::types::{
     ZfpMetadataError,
 };
 use zfp_rs::{
-    ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMetadata, ZfpScalarType,
-    ZfpStreamAlignment,
+    ZfpBitStream, ZfpCompressionError, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMetadata,
+    ZfpScalarType, ZfpStreamAlignment,
 };
 
 // ---------------------------------------------------------------------------
@@ -244,7 +244,9 @@ fn given_oversized_field_when_zfp_write_header_full_expect_error_and_nothing_wri
     let field = ZfpField::new(&[] as &[f64], [1usize << 25, 1]);
     assert_eq!(
         bs.write_header(&config, &field, ZfpHeaderMask::FULL),
-        Err(ZfpMetadataError::DimensionTooLarge)
+        Err(ZfpCompressionError::Metadata(
+            ZfpMetadataError::DimensionTooLarge
+        ))
     );
     bs.flush();
     assert!(bs.as_bytes().is_empty());

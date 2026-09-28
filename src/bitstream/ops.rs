@@ -42,6 +42,12 @@ pub trait ZfpBitStreamOps {
     fn as_bytes(&self) -> &[u8];
     /// Return the complete backing buffer as a byte slice.
     fn backing_bytes(&self) -> &[u8];
+    /// Whether a write has fallen past the end of the buffer since the stream
+    /// was created, rewound or last positioned with `seek_write`.
+    ///
+    /// Such writes are dropped. [`compress`][ZfpBitStreamMutOps::compress]
+    /// reports this as [`ZfpCompressionError::BufferTooSmall`][crate::ZfpCompressionError::BufferTooSmall].
+    fn overflowed(&self) -> bool;
     /// The backing buffer's start pointer.
     #[cfg(feature = "ffi")]
     fn data_ptr(&self) -> *mut std::os::raw::c_void;
@@ -134,15 +140,16 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     ///
     /// # Errors
     ///
-    /// Returns [`ZfpMetadataError`][crate::types::ZfpMetadataError] if `mask` includes
-    /// [`ZfpHeaderMask::META`] and the field metadata cannot be encoded.
-    /// Nothing is written in that case.
+    /// Returns [`ZfpCompressionError::Metadata`][crate::types::ZfpCompressionError::Metadata]
+    /// if `mask` includes [`ZfpHeaderMask::META`] and the field metadata cannot be
+    /// encoded, or [`ZfpCompressionError::BufferTooSmall`][crate::types::ZfpCompressionError::BufferTooSmall]
+    /// if the header does not fit in the stream. Nothing is written in either case.
     fn write_header(
         &mut self,
         config: &ZfpConfig,
         field: &ZfpField,
         mask: ZfpHeaderMask,
-    ) -> Result<usize, crate::types::ZfpMetadataError> {
+    ) -> Result<usize, crate::types::ZfpCompressionError> {
         let mode = config.mode_bits();
         crate::header::write_header_bs(self, field, mask, mode)
     }
@@ -152,7 +159,9 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     /// # Errors
     ///
     /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
-    /// type or dimensions are unsupported for the selected configuration.
+    /// is invalid, or [`BufferTooSmall`][crate::types::ZfpCompressionError::BufferTooSmall]
+    /// if the output does not fit in the stream. Size the stream with
+    /// [`ZfpConfig::maximum_size`] to rule the latter out.
     fn compress(
         &mut self,
         config: &ZfpConfig,
@@ -166,7 +175,9 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     /// # Errors
     ///
     /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
-    /// type or dimensions are unsupported for the selected configuration.
+    /// is invalid, or [`BufferTooSmall`][crate::types::ZfpCompressionError::BufferTooSmall]
+    /// if the output does not fit in the stream. Size the stream with
+    /// [`ZfpConfig::maximum_size`] to rule the latter out.
     fn compress_with_execution(
         &mut self,
         config: &ZfpConfig,
@@ -264,6 +275,10 @@ macro_rules! impl_bitstream_ops {
                 backing_bytes(self)
             }
 
+            pub fn overflowed(&self) -> bool {
+                self.state().overflowed
+            }
+
             #[cfg(feature = "ffi")]
             pub fn data_ptr(&self) -> *mut std::os::raw::c_void {
                 self.words()
@@ -345,7 +360,7 @@ macro_rules! impl_bitstream_mut_ops {
             config: &ZfpConfig,
             field: &ZfpField,
             mask: ZfpHeaderMask,
-        ) -> Result<usize, crate::types::ZfpMetadataError>;
+        ) -> Result<usize, crate::types::ZfpCompressionError>;
 
         #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
         pub fn compress(

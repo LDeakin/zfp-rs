@@ -89,6 +89,71 @@ mod tests {
     }
 
     #[test]
+    fn given_undersized_stream_when_compress_expect_buffer_too_small_not_panic() {
+        use crate::config::ZfpConfig;
+        use crate::field::ZfpField;
+        use crate::types::ZfpCompressionError;
+
+        let data: Vec<f64> = (0..256).map(|i| f64::from(i).sin()).collect();
+        let field = ZfpField::new(&data, [16usize, 16]);
+        let config = ZfpConfig::reversible();
+
+        let mut big = ZfpBitStream::new(1 << 16);
+        let size = big.compress(&config, &field).unwrap();
+        assert!(!big.overflowed());
+
+        let mut small = ZfpBitStream::new(size - 8);
+        assert_eq!(
+            small.compress(&config, &field),
+            Err(ZfpCompressionError::BufferTooSmall {
+                required: size,
+                capacity: size - 8,
+            })
+        );
+        assert!(small.overflowed());
+        // The committed bytes are the prefix that fit.
+        assert_eq!(small.as_bytes(), &big.as_bytes()[..size - 8]);
+        small.rewind();
+        assert!(!small.overflowed());
+
+        let mut words = vec![0u64; 2];
+        let mut borrowed = ZfpBitStreamRefMut::from_words_mut(&mut words);
+        assert_eq!(
+            borrowed.compress(&config, &field),
+            Err(ZfpCompressionError::BufferTooSmall {
+                required: size,
+                capacity: 16,
+            })
+        );
+    }
+
+    #[test]
+    fn given_undersized_stream_when_write_header_expect_buffer_too_small_and_nothing_written() {
+        use crate::config::ZfpConfig;
+        use crate::field::ZfpField;
+        use crate::types::{ZfpCompressionError, ZfpHeaderMask};
+
+        let data = [0.0f32; 16];
+        let field = ZfpField::new(&data, [4usize, 4]);
+        let config = ZfpConfig::fixed_precision(8);
+
+        // 32 + 52 + 12 = 96 bits do not fit in one word.
+        let mut bs = ZfpBitStream::new(8);
+        assert_eq!(
+            bs.write_header(&config, &field, ZfpHeaderMask::FULL),
+            Err(ZfpCompressionError::BufferTooSmall {
+                required: 16,
+                capacity: 8,
+            })
+        );
+        assert_eq!(bs.write_pos(), 0);
+        assert_eq!(
+            bs.write_header(&config, &field, ZfpHeaderMask::MAGIC),
+            Ok(32)
+        );
+    }
+
+    #[test]
     fn given_decompression_field_without_data_when_decompress_expect_no_data_error() {
         use crate::config::ZfpConfig;
         use crate::field::ZfpFieldMut;

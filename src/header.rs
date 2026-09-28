@@ -2,10 +2,11 @@
 
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
+use crate::config::{STREAM_WORD_BITS, STREAM_WORD_BYTES};
 use crate::field::{ZfpField, ZfpFieldMetadata};
 use crate::types::{
-    ZFP_MAGIC_BITS, ZFP_META_BITS, ZFP_MODE_LONG_BITS, ZFP_MODE_SHORT_BITS, ZfpHeaderMask,
-    ZfpMetadataError,
+    ZFP_MAGIC_BITS, ZFP_META_BITS, ZFP_MODE_LONG_BITS, ZFP_MODE_SHORT_BITS, ZfpCompressionError,
+    ZfpHeaderMask,
 };
 use std::fmt;
 
@@ -61,43 +62,57 @@ const MODE_SHORT_MAX: u64 = (1u64 << ZFP_MODE_SHORT_BITS) - 2;
 /// Write header to `bs`, given the precomputed `mode_bits` for the mode section.
 /// Returns bits written.
 ///
-/// Metadata is validated before anything is written, so nothing is written on failure.
+/// Metadata and capacity are validated before anything is written, so nothing
+/// is written on failure.
 pub(crate) fn write_header_bs(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     field: &ZfpField,
     mask: ZfpHeaderMask,
     mode_bits_val: u64,
-) -> Result<usize, ZfpMetadataError> {
+) -> Result<usize, ZfpCompressionError> {
     let meta = if mask.contains(ZfpHeaderMask::META) {
         Some(field.metadata()?)
     } else {
         None
     };
+    let mode_size = if mode_bits_val > MODE_SHORT_MAX {
+        ZFP_MODE_LONG_BITS
+    } else {
+        ZFP_MODE_SHORT_BITS
+    };
+
     let mut bits = 0usize;
+    if mask.contains(ZfpHeaderMask::MAGIC) {
+        bits += ZFP_MAGIC_BITS as usize;
+    }
+    if meta.is_some() {
+        bits += ZFP_META_BITS as usize;
+    }
+    if mask.contains(ZfpHeaderMask::MODE) {
+        bits += mode_size as usize;
+    }
+    let capacity = bs.capacity();
+    let end = bs.write_pos().saturating_add(bits as u64);
+    if end > (capacity as u64).saturating_mul(8) {
+        let required = end.div_ceil(u64::from(STREAM_WORD_BITS)) * STREAM_WORD_BYTES as u64;
+        return Err(ZfpCompressionError::BufferTooSmall {
+            required: usize::try_from(required).unwrap_or(usize::MAX),
+            capacity,
+        });
+    }
 
     if mask.contains(ZfpHeaderMask::MAGIC) {
         bs.write_bits(u64::from(b'z'), 8);
         bs.write_bits(u64::from(b'f'), 8);
         bs.write_bits(u64::from(b'p'), 8);
         bs.write_bits(u64::from(ZFP_CODEC), 8);
-        bits += ZFP_MAGIC_BITS as usize;
     }
-
     if let Some(meta) = meta {
         bs.write_bits(meta, ZFP_META_BITS);
-        bits += ZFP_META_BITS as usize;
     }
-
     if mask.contains(ZfpHeaderMask::MODE) {
-        let size = if mode_bits_val > MODE_SHORT_MAX {
-            ZFP_MODE_LONG_BITS
-        } else {
-            ZFP_MODE_SHORT_BITS
-        };
-        bs.write_bits(mode_bits_val, size);
-        bits += size as usize;
+        bs.write_bits(mode_bits_val, mode_size);
     }
-
     Ok(bits)
 }
 
