@@ -84,6 +84,7 @@ inv_round!(inv_round_u64, u64, NBMASK_U64);
 // Block decode: integer (matches C `decode_block_Int_DIMS`)
 // ---------------------------------------------------------------------------
 
+#[inline]
 pub(crate) fn decode_block_1d_i32_core(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
@@ -101,6 +102,7 @@ pub(crate) fn decode_block_1d_i32_core(
     iblock
 }
 
+#[inline]
 pub(crate) fn decode_block_1d_i64_core(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
@@ -118,6 +120,7 @@ pub(crate) fn decode_block_1d_i64_core(
     iblock
 }
 
+#[inline]
 pub(crate) fn decode_block_2d_i32_core(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
@@ -135,6 +138,7 @@ pub(crate) fn decode_block_2d_i32_core(
     iblock
 }
 
+#[inline]
 pub(crate) fn decode_block_2d_i64_core(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
@@ -152,6 +156,7 @@ pub(crate) fn decode_block_2d_i64_core(
     iblock
 }
 
+#[inline]
 pub(crate) fn decode_block_3d_i32_core(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
@@ -169,6 +174,7 @@ pub(crate) fn decode_block_3d_i32_core(
     iblock
 }
 
+#[inline]
 pub(crate) fn decode_block_3d_i64_core(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,

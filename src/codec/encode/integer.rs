@@ -2,6 +2,11 @@
 //!
 //! Reference: `zfp/src/template/encodei.c`, `encode.c`
 
+#![allow(
+    clippy::inline_always,
+    reason = "LLVM declines to inline the transform into the block encoder; the call costs a store-forwarding stall"
+)]
+
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::bitplane::{PlaneBlock, encode_ints};
 use crate::codec::encode::core::{fwd_order_i32, fwd_order_i64, fwd_round_i32, fwd_round_i64};
@@ -28,6 +33,7 @@ pub(crate) trait Transform64<const N: usize> {
 
 pub(crate) struct Dim1i32;
 impl Transform32<4> for Dim1i32 {
+    #[inline(always)]
     fn transform(block: &mut [i32; 4]) {
         fwd_xform(block);
     }
@@ -38,6 +44,7 @@ impl Transform32<4> for Dim1i32 {
 
 pub(crate) struct Dim1i64;
 impl Transform64<4> for Dim1i64 {
+    #[inline(always)]
     fn transform(block: &mut [i64; 4]) {
         fwd_xform(block);
     }
@@ -50,6 +57,7 @@ impl Transform64<4> for Dim1i64 {
 
 pub(crate) struct Dim2i32;
 impl Transform32<16> for Dim2i32 {
+    #[inline(always)]
     fn transform(block: &mut [i32; 16]) {
         fwd_xform(block);
     }
@@ -60,6 +68,7 @@ impl Transform32<16> for Dim2i32 {
 
 pub(crate) struct Dim2i64;
 impl Transform64<16> for Dim2i64 {
+    #[inline(always)]
     fn transform(block: &mut [i64; 16]) {
         fwd_xform(block);
     }
@@ -72,6 +81,7 @@ impl Transform64<16> for Dim2i64 {
 
 pub(crate) struct Dim3i32;
 impl Transform32<64> for Dim3i32 {
+    #[inline(always)]
     fn transform(block: &mut [i32; 64]) {
         fwd_xform(block);
     }
@@ -82,6 +92,7 @@ impl Transform32<64> for Dim3i32 {
 
 pub(crate) struct Dim3i64;
 impl Transform64<64> for Dim3i64 {
+    #[inline(always)]
     fn transform(block: &mut [i64; 64]) {
         fwd_xform(block);
     }
@@ -94,6 +105,7 @@ impl Transform64<64> for Dim3i64 {
 
 pub(crate) struct Dim4i32;
 impl Transform32<256> for Dim4i32 {
+    #[inline(always)]
     fn transform(block: &mut [i32; 256]) {
         fwd_xform(block);
     }
@@ -104,6 +116,7 @@ impl Transform32<256> for Dim4i32 {
 
 pub(crate) struct Dim4i64;
 impl Transform64<256> for Dim4i64 {
+    #[inline(always)]
     fn transform(block: &mut [i64; 256]) {
         fwd_xform(block);
     }
