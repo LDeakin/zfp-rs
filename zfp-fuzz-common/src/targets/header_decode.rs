@@ -70,7 +70,7 @@ pub fn run(data: &[u8]) {
         // word. The real invariant is that the encoding is idempotent, so a
         // stream written from a decoded header is stable.
         let bits = config.mode_bits();
-        let decoded = ZfpConfig::from_mode(bits)
+        let decoded = ZfpConfig::from_mode_bits(bits)
             .expect("a mode word produced by mode_bits must decode again");
         assert_eq!(
             decoded.mode_bits(),

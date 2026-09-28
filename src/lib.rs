@@ -58,7 +58,7 @@
 //! );
 //!
 //! // Compress into a stream sized for the worst case.
-//! let capacity = config.maximum_size(ZfpScalarType::Double, &[4, 4]).unwrap();
+//! let capacity = config.maximum_size(ZfpScalarType::Double, field.dims()).unwrap();
 //! let mut bs = ZfpBitStream::new(capacity);
 //! let compressed_bytes = bs.compress(&config, &field)?;
 //!
@@ -97,9 +97,13 @@ pub use execution::ZfpExecution;
 pub use field::{ZfpField, ZfpFieldMetadata, ZfpFieldMut};
 pub use header::{ZfpHeader, ZfpHeaderError};
 pub use types::{
-    InvalidDimensionalityError, ZfpBitStreamWord, ZfpCompressionError, ZfpDecompressionError,
-    ZfpDimensionality, ZfpDims, ZfpHeaderMask, ZfpMetadataError, ZfpMode, ZfpScalar, ZfpScalarType,
-    ZfpStrides,
+    InvalidDimensionalityError, ZfpBitStreamWord, ZfpBlockError, ZfpCompressionError,
+    ZfpDecompressionError, ZfpDimensionality, ZfpDims, ZfpFieldError, ZfpHeaderMask,
+    ZfpMetadataError, ZfpMode, ZfpScalar, ZfpScalarType, ZfpStrides,
+};
+pub use types::{
+    ZFP_HEADER_MAX_BITS, ZFP_MAGIC_BITS, ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_META_BITS, ZFP_MIN_BITS,
+    ZFP_MIN_EXP, ZFP_MODE_LONG_BITS, ZFP_MODE_SHORT_BITS,
 };
 
 // ---------------------------------------------------------------------------
@@ -111,13 +115,6 @@ pub use types::{
 pub use config::{
     accuracy_from_params, compression_mode_from_params, mode_bits_from_params,
     precision_from_params, rate_from_params,
-};
-
-// Re-export FFI-specific numeric constants at the crate root.
-#[cfg(feature = "ffi")]
-pub use types::{
-    ZFP_HEADER_MAX_BITS, ZFP_MAGIC_BITS, ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_META_BITS, ZFP_MIN_BITS,
-    ZFP_MIN_EXP, ZFP_MODE_LONG_BITS, ZFP_MODE_SHORT_BITS,
 };
 
 /// Compress through any writable bitstream implementation.

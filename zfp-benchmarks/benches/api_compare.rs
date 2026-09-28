@@ -211,23 +211,19 @@ unsafe fn apply_mode_ffi<T: BenchScalar>(zfp: *mut ffi::zfp_stream, case: Case) 
 }
 
 fn rust_field<'a, T: BenchScalar>(data: &'a [T], dims: &[usize]) -> ZfpField<'a> {
-    match dims {
-        [nx] => ZfpField::new(data, [*nx]).unwrap(),
-        [nx, ny] => ZfpField::new(data, [*nx, *ny]).unwrap(),
-        [nx, ny, nz] => ZfpField::new(data, [*nx, *ny, *nz]).unwrap(),
-        [nx, ny, nz, nw] => ZfpField::new(data, [*nx, *ny, *nz, *nw]).unwrap(),
-        _ => panic!("unsupported dimensionality"),
-    }
+    ZfpField::new(data, dims4(dims)).unwrap()
 }
 
 fn rust_field_mut<'a, T: BenchScalar>(data: &'a mut [T], dims: &[usize]) -> ZfpFieldMut<'a> {
-    match dims {
-        [nx] => ZfpFieldMut::new(data, [*nx]).unwrap(),
-        [nx, ny] => ZfpFieldMut::new(data, [*nx, *ny]).unwrap(),
-        [nx, ny, nz] => ZfpFieldMut::new(data, [*nx, *ny, *nz]).unwrap(),
-        [nx, ny, nz, nw] => ZfpFieldMut::new(data, [*nx, *ny, *nz, *nw]).unwrap(),
-        _ => panic!("unsupported dimensionality"),
-    }
+    ZfpFieldMut::new(data, dims4(dims)).unwrap()
+}
+
+/// Zero-pad 1-4 dimensions to the `[nx, ny, nz, nw]` form.
+fn dims4(dims: &[usize]) -> [usize; 4] {
+    assert!((1..=4).contains(&dims.len()), "unsupported dimensionality");
+    let mut out = [0; 4];
+    out[..dims.len()].copy_from_slice(dims);
+    out
 }
 
 unsafe fn c_field<T: BenchScalar>(data: *mut c_void, dims: &[usize]) -> *mut zfp_sys::zfp_field {
@@ -381,7 +377,7 @@ fn compressed_rust<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Ve
     let field = rust_field(data, dims);
     let mut bs = ZfpBitStream::new(
         config
-            .maximum_size(T::RUST_TYPE, dims)
+            .maximum_size(T::RUST_TYPE, dims4(dims))
             .expect("maximum size"),
     );
     let bytes = bs
@@ -392,7 +388,7 @@ fn compressed_rust<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Ve
 
 fn compressed_c<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec<u8> {
     let capacity = rust_config::<T>(case)
-        .maximum_size(T::RUST_TYPE, dims)
+        .maximum_size(T::RUST_TYPE, dims4(dims))
         .expect("maximum size");
     let stream = CStream::new(capacity);
     unsafe {
@@ -409,7 +405,7 @@ fn compressed_c<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec<u
 
 fn compressed_ffi<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Vec<u8> {
     let capacity = rust_config::<T>(case)
-        .maximum_size(T::RUST_TYPE, dims)
+        .maximum_size(T::RUST_TYPE, dims4(dims))
         .expect("maximum size");
     let stream = FfiStream::new(capacity);
     unsafe {
@@ -428,7 +424,7 @@ fn bench_case<T: BenchScalar>(criterion: &mut Criterion, case: Case) {
     let (data, dims) = T::generate(case.dims);
     let elements = data.len() as u64;
     let capacity = rust_config::<T>(case)
-        .maximum_size(T::RUST_TYPE, &dims)
+        .maximum_size(T::RUST_TYPE, dims4(&dims))
         .expect("maximum size");
     let case_label = case.label();
 

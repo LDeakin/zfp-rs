@@ -247,12 +247,11 @@ pub unsafe extern "C" fn zfp_stream_maximum_size(
     let all_dims = [field.nx, field.ny, field.nz, field.nw];
     // Determine actual dimensionality (1–4) by counting non-zero trailing dims.
     // This matches C zfp's `zfp_field_dimensionality` semantics.
-    let dims = match (&all_dims[1..], &all_dims[2..], &all_dims[3..]) {
-        ([0, 0, 0], ..) => &all_dims[..1],
-        ([_, 0, 0], ..) => &all_dims[..2],
-        ([_, _, 0], ..) => &all_dims[..3],
-        _ => &all_dims[..4],
-    };
+    // As `zfp_field_dimensionality`, dimensions from the first zero one on are inert.
+    let mut dims = all_dims;
+    if let Some(first_zero) = dims.iter().position(|&n| n == 0) {
+        dims[first_zero..].fill(0);
+    }
     zfp.maximum_size(ty, dims).unwrap_or(0)
 }
 
@@ -477,7 +476,7 @@ pub unsafe extern "C" fn zfp_stream_set_precision(
     // precision is already u32
     let zfp = ZfpConfig::fixed_precision(precision);
     write_params(stream, &zfp);
-    zfp.precision()
+    zfp.precision().unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
@@ -488,7 +487,7 @@ pub unsafe extern "C" fn zfp_stream_set_accuracy(stream: *mut zfp_stream, tolera
     let stream = unsafe { &mut *stream };
     let zfp = ZfpConfig::fixed_accuracy(tolerance);
     write_params(stream, &zfp);
-    zfp.accuracy()
+    zfp.accuracy().unwrap_or(0.0)
 }
 
 #[unsafe(no_mangle)]
@@ -497,12 +496,12 @@ pub unsafe extern "C" fn zfp_stream_set_mode(stream: *mut zfp_stream, mode: uint
         return zfp_mode::zfp_mode_null;
     }
     let stream = unsafe { &mut *stream };
-    let Some(zfp) = ZfpConfig::from_mode(mode) else {
+    let Some(zfp) = ZfpConfig::from_mode_bits(mode) else {
         write_params(stream, &stream_with_c_state(stream));
         return zfp_mode::zfp_mode_null;
     };
     write_params(stream, &zfp);
-    crate::util::rust_mode_to_zfp(zfp.compression_mode())
+    crate::util::rust_mode_to_zfp(zfp.mode())
 }
 
 #[unsafe(no_mangle)]

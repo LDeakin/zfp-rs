@@ -70,7 +70,7 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
     let Some(config) = mode.to_config(ty, shape.dimensionality()) else {
         return;
     };
-    let Some(cap) = config.maximum_size(ty, &dims[..rank]) else {
+    let Some(cap) = config.maximum_size(ty, dims) else {
         return;
     };
     if cap > MAX_STREAM_BYTES {

@@ -400,7 +400,7 @@ fn run_compress_decompress<T: ZfpScalar>(
         };
 
         let buf_size = config
-            .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
+            .maximum_size(T::SCALAR_TYPE, n)
             .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
 
@@ -504,7 +504,7 @@ fn run_reversible<T: ZfpScalar + PartialEq + std::fmt::Debug>(
 
     let config = ZfpConfig::reversible();
     let buf_size = config
-        .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
+        .maximum_size(T::SCALAR_TYPE, n)
         .expect("maximum size");
     let mut bs = ZfpBitStream::new(buf_size);
 
@@ -618,8 +618,8 @@ fn test_set_rate_align<T: ZfpScalar>(dims: u32) {
         zfp_dims,
         ZfpStreamAlignment::WordAligned,
     );
-    let rate_without_align = params_no_align.rate(zfp_dims);
-    let rate_with_align = params_align.rate(zfp_dims);
+    let rate_without_align = params_no_align.rate(zfp_dims).expect("fixed rate");
+    let rate_with_align = params_align.rate(zfp_dims).expect("fixed rate");
     assert!(
         rate_with_align >= rate_without_align,
         "rateWithAlign ({rate_with_align}) >= rateWithoutAlign ({rate_without_align}) failed"
@@ -646,7 +646,7 @@ fn test_bitrate<T: ZfpScalar>(dims: u32, n: [usize; 4], src: &[T]) {
             ZfpStreamAlignment::None,
         );
         let buf_size = config
-            .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
+            .maximum_size(T::SCALAR_TYPE, n)
             .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
         let field = make_field(src, dims, n, [0; 4]);
@@ -690,7 +690,7 @@ fn test_accuracy<T: ZfpScalar>(dims: u32, n: [usize; 4], strided: &StridedData<T
         let tolerance = fixed_accuracy_param(param_num);
         let config = ZfpConfig::fixed_accuracy(tolerance);
         let buf_size = config
-            .maximum_size(T::SCALAR_TYPE, &n[..dims as usize])
+            .maximum_size(T::SCALAR_TYPE, n)
             .expect("maximum size");
         let mut bs = ZfpBitStream::new(buf_size);
 

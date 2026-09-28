@@ -33,14 +33,17 @@ pub fn run(data: &[u8]) {
 
     // Bounded dims, matching what the allocating targets actually use.
     let dims = shape.dims();
-    let _ = config.maximum_size(ty, &dims[..shape.rank()]);
+    let _ = config.maximum_size(ty, dims);
 
     // Unbounded dims: no allocation happens, so this is safe to probe with
     // values the other targets must reject.
     let wild = wild_dims(&data[11..]);
     for rank in 1..=4usize {
-        let _ = config.maximum_size(ty, &wild[..rank]);
+        let mut dims = [0usize; 4];
+        dims[..rank].copy_from_slice(&wild[..rank]);
+        let _ = config.maximum_size(ty, dims);
     }
+    let _ = config.maximum_size(ty, [wild[0], 0, wild[2], 0]);
 
     // Expert parameters straight from the fuzzer, with no normalisation. This
     // reaches configurations `ModeSpec` deliberately excludes, including
@@ -63,7 +66,7 @@ pub fn run(data: &[u8]) {
         // through `ModeSpec` above are normalised and *are* held to the
         // idempotence bar.
         check_queries(expert);
-        if expert.compression_mode() != ZfpMode::Null
+        if expert.mode() != ZfpMode::Null
             && expert.min_bits() >= 1
             && expert.max_bits() <= ZFP_MAX_BITS
             && expert.min_bits() <= expert.max_bits()
@@ -83,7 +86,7 @@ pub fn run(data: &[u8]) {
 /// one that matters: a header written from a decoded header must not drift.
 fn check_mode_roundtrip(config: ZfpConfig) {
     let bits = config.mode_bits();
-    let Some(decoded) = ZfpConfig::from_mode(bits) else {
+    let Some(decoded) = ZfpConfig::from_mode_bits(bits) else {
         panic!("from_mode rejected the mode word {bits:#x} produced by mode_bits");
     };
     assert_eq!(
@@ -92,15 +95,15 @@ fn check_mode_roundtrip(config: ZfpConfig) {
         "mode-word encoding is not idempotent for {config:?}"
     );
     assert_eq!(
-        decoded.compression_mode(),
-        config.compression_mode(),
+        decoded.mode(),
+        config.mode(),
         "compression mode changed across a mode-word round-trip for {config:?}"
     );
 }
 
 /// None of the parameter queries may panic, whatever the config holds.
 fn check_queries(config: ZfpConfig) {
-    let _ = config.compression_mode();
+    let _ = config.mode();
     let _ = config.precision();
     let _ = config.accuracy();
     let _ = config.mode_bits();
@@ -118,7 +121,7 @@ fn check_queries(config: ZfpConfig) {
         ZfpScalarType::Float,
         ZfpScalarType::Double,
     ] {
-        let _ = config.maximum_size(ty, &[1]);
+        let _ = config.maximum_size(ty, 1usize);
     }
 }
 

@@ -153,7 +153,7 @@ fn gen_decompress_stream(dir: &Path) -> usize {
             ] {
                 let dims = seed_dims(rank);
                 let n: usize = dims[..=usize::from(rank)].iter().product();
-                let Some(cap) = config.maximum_size(ty, &dims[..=usize::from(rank)]) else {
+                let Some(cap) = config.maximum_size(ty, dims) else {
                     continue;
                 };
 

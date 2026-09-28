@@ -192,11 +192,10 @@ impl Sample for i32 {
 
 fn roundtrip<T: Sample>(case: &Case, config: &ZfpConfig) {
     let span = span_of(case);
-    let rank = rank_of(case);
     let src: Vec<T> = (0..span).map(T::sample).collect();
 
     let cap = config
-        .maximum_size(T::SCALAR_TYPE, &case.dims[..rank])
+        .maximum_size(T::SCALAR_TYPE, case.dims)
         .map_or(64, |size| size.max(64));
     let mut bs = ZfpBitStream::new(cap);
 
@@ -221,7 +220,7 @@ fn roundtrip<T: Sample>(case: &Case, config: &ZfpConfig) {
 
     // Reversible mode is bit-exact, so it doubles as a correctness oracle:
     // it catches a gather/scatter that stays in bounds but hits the wrong index.
-    if config.compression_mode() == ZfpMode::Reversible {
+    if config.mode() == ZfpMode::Reversible {
         for i in covered_indices(case) {
             assert_eq!(
                 src[i], dst[i],

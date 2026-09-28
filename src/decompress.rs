@@ -168,14 +168,7 @@ pub(crate) fn decompress_rayon(
     threads: u32,
     chunk_size: u32,
 ) -> Result<usize, ZfpDecompressionError> {
-    use crate::config::compression_mode_from_params;
-
-    let is_fixed_rate = compression_mode_from_params(
-        config.min_bits(),
-        config.max_bits(),
-        config.max_prec(),
-        config.min_exp(),
-    ) == crate::types::ZfpMode::FixedRate;
+    let is_fixed_rate = config.mode() == crate::types::ZfpMode::FixedRate;
 
     if !is_fixed_rate {
         return decompress(bs, field, config);
