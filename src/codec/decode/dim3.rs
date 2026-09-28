@@ -5,7 +5,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::bitstream::ZfpBitStreamOps;
-use crate::codec::decode::core::strided_decode_wrappers;
+use crate::codec::decode::core::{strided_decode_wrappers, write_row};
 use crate::codec::decode::float::{decode_block_3d_f32, decode_block_3d_f64};
 use crate::codec::decode::integer::{decode_block_3d_i32, decode_block_3d_i64};
 #[cfg(feature = "internals")]
@@ -16,14 +16,12 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 unsafe fn scatter_3d<T: Copy>(block: &[T; 64], data: *mut T, sx: isize, sy: isize, sz: isize) {
-    let mut q = 0usize;
+    let mut rows = block.as_chunks::<4>().0.iter();
     for z in 0isize..4 {
         for y in 0isize..4 {
-            for x in 0isize..4 {
-                // SAFETY: caller guarantees data spans 4^3 elements with strides sx, sy, sz
-                unsafe { *data.offset(z * sz + y * sy + x * sx) = block[q] };
-                q += 1;
-            }
+            let row = rows.next().unwrap_or_else(|| unreachable!());
+            // SAFETY: caller guarantees data spans 4^3 elements with strides sx, sy, sz
+            unsafe { write_row(data.offset(z * sz + y * sy), sx, row) };
         }
     }
 }

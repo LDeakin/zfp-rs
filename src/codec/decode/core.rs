@@ -251,6 +251,30 @@ pub(crate) fn decode_block_4d_i64_core(
 }
 
 // ---------------------------------------------------------------------------
+// Strided row access (used by the full-block scatters)
+// ---------------------------------------------------------------------------
+
+/// Write `row` to `data[0]`, `data[sx]`, `data[2 * sx]` and `data[3 * sx]`.
+///
+/// Unit stride, the usual case, is a single store.
+///
+/// # Safety
+/// `data` must be valid for every offset the stride generates.
+#[inline]
+pub(crate) unsafe fn write_row<T: Copy>(data: *mut T, sx: isize, row: &[T; 4]) {
+    if sx == 1 {
+        // SAFETY: the row is four contiguous elements, and `[T; 4]` has the
+        // alignment of `T`.
+        unsafe { data.cast::<[T; 4]>().write(*row) }
+    } else {
+        for (x, &v) in (0isize..).zip(row) {
+            // SAFETY: the caller's contract.
+            unsafe { *data.offset(x * sx) = v };
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Float decode helpers
 // ---------------------------------------------------------------------------
 
