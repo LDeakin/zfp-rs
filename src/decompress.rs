@@ -7,7 +7,8 @@ use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
 use crate::field_plan::FieldPlan;
-use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpScalarType};
+use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpScalar, ZfpScalarType};
+use std::ops::Range;
 
 // ---------------------------------------------------------------------------
 // Serial decompression
@@ -23,11 +24,9 @@ pub(crate) fn decompress(
     // Derived once: a fresh `&mut` retag per block would be needless work, and
     // interleaving it with shared borrows of `field` is a hazard worth avoiding.
     let base = field.data_mut().as_mut_ptr();
-    for block_idx in 0..info.num_blocks {
-        // SAFETY: `FieldPlan::new` validated the buffer's length and
-        // alignment, which is exactly `decompress_block`'s contract.
-        unsafe { decompress_block(bs, base, &info, config, block_idx) };
-    }
+    // SAFETY: `FieldPlan::new` validated the buffer's length and alignment,
+    // which is exactly `decompress_blocks`' contract.
+    unsafe { decompress_blocks(bs, base, &info, config, 0..info.num_blocks, None) };
 
     bs.align();
     Ok(bs.byte_len())
@@ -45,7 +44,10 @@ fn plan_mut(field: &ZfpFieldMut) -> Result<FieldPlan, ZfpDecompressionError> {
     )?)
 }
 
-/// Decode a single block from the bitstream.
+/// Decode blocks `range` from the bitstream, in order.
+///
+/// With `seek = Some((start, bits))`, block `i` is read from bit
+/// `start + i * bits` rather than where the previous block ended.
 ///
 /// # Safety
 /// `base` must point to the start of the field's data buffer: at least
@@ -53,99 +55,76 @@ fn plan_mut(field: &ZfpFieldMut) -> Result<FieldPlan, ZfpDecompressionError> {
 /// writable for the duration of the call. `FieldPlan::new` validates both
 /// properties, so deriving `base` from a field it accepted satisfies this.
 // `FieldPlan::new` rejects a field whose buffer is not aligned for its scalar
-// type, so these casts are checked once per field rather than once per block.
+// type, so this cast is checked once per field rather than once per block.
 #[allow(clippy::cast_ptr_alignment)]
-#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
-unsafe fn decompress_block(
+unsafe fn decompress_blocks(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     base: *mut u8,
     info: &FieldPlan,
     config: &ZfpConfig,
-    block_idx: usize,
+    range: Range<usize>,
+    seek: Option<(u64, u64)>,
+) {
+    // SAFETY: the caller's contract, with the pointer cast to the scalar type
+    // `FieldPlan::new` checked its alignment for.
+    unsafe {
+        match info.scalar_type {
+            ZfpScalarType::I32 => {
+                decompress_typed(bs, base.cast::<i32>(), info, config, range, seek);
+            }
+            ZfpScalarType::I64 => {
+                decompress_typed(bs, base.cast::<i64>(), info, config, range, seek);
+            }
+            ZfpScalarType::F32 => {
+                decompress_typed(bs, base.cast::<f32>(), info, config, range, seek);
+            }
+            ZfpScalarType::F64 => {
+                decompress_typed(bs, base.cast::<f64>(), info, config, range, seek);
+            }
+        }
+    }
+}
+
+/// [`decompress_blocks`] for one scalar type.
+///
+/// # Safety
+/// As for [`decompress_blocks`], with `base` cast to `T`.
+unsafe fn decompress_typed<T: ZfpScalar>(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    base: *mut T,
+    info: &FieldPlan,
+    config: &ZfpConfig,
+    range: Range<usize>,
+    seek: Option<(u64, u64)>,
 ) {
     use crate::codec::block::{
         decode_block_strided, decode_block_strided_reversible, decode_partial_block_strided,
     };
 
-    let (ix, iy, iz, iw) = info.block_coords(block_idx);
-    let [nx, ny, nz, nw] = info.dims;
-    let dim_count = info.dim_count();
-
-    let elem_off = -info.imin
-        + (ix as isize) * 4 * info.strides[0]
-        + (iy as isize) * 4 * info.strides[1]
-        + (iz as isize) * 4 * info.strides[2]
-        + (iw as isize) * 4 * info.strides[3];
-
-    let lx = (nx - ix * 4).min(4);
-    let ly = if dim_count >= 2 {
-        (ny - iy * 4).min(4)
-    } else {
-        0
-    };
-    let lz = if dim_count >= 3 {
-        (nz - iz * 4).min(4)
-    } else {
-        0
-    };
-    let lw = if dim_count >= 4 {
-        (nw - iw * 4).min(4)
-    } else {
-        0
-    };
-
-    let full = lx == 4
-        && (dim_count < 2 || ly == 4)
-        && (dim_count < 3 || lz == 4)
-        && (dim_count < 4 || lw == 4);
-
-    let lengths = [lx, ly, lz, lw];
     let dims = info.dims_enum;
-
-    let byte_off = (elem_off as usize) * info.elem_size();
-
-    let ty = info.scalar_type;
-
-    macro_rules! decode_dispatch {
-        ($($zfp_ty:path => $elem_ty:ty),* $(,)?) => {{
-            match ty {
-                $(
-                    $zfp_ty => {
-                        // SAFETY: `base` is the field's whole data buffer, which
-                        // `FieldPlan::new` validated to be at least
-                        // `checked_size_bytes()` long and aligned for the scalar
-                        // type. `byte_off` is the block origin measured from the
-                        // *lowest* address of the strided span (`elem_off`
-                        // includes the `-imin` shift), so every offset the
-                        // strides generate from it lands inside the buffer.
-                        let block = unsafe { base.add(byte_off).cast::<$elem_ty>() };
-                        unsafe {
-                            if config.min_exp() < ZFP_MIN_EXP {
-                                decode_block_strided_reversible(
-                                    bs, block, dims, &info.strides, lengths, config,
-                                );
-                            } else if full {
-                                decode_block_strided(
-                                    bs, block, dims, &info.strides, config,
-                                );
-                            } else {
-                                decode_partial_block_strided(
-                                    bs, block, dims, &lengths, &info.strides,
-                                    config,
-                                );
-                            }
-                        }
-                    }
-                )*
+    let strides = &info.strides;
+    let reversible = config.min_exp() < ZFP_MIN_EXP;
+    for (block_idx, coords) in range.clone().zip(info.blocks(range)) {
+        if let Some((start, bits)) = seek {
+            bs.seek_read(start + block_idx as u64 * bits);
+        }
+        let (offset, lengths) = info.block_geometry(coords);
+        // SAFETY: `base` is the field's whole data buffer, which
+        // `FieldPlan::new` validated to be at least `checked_size_bytes()`
+        // long and aligned for the scalar type. `offset` is the block origin
+        // measured from the *lowest* address of the strided span, so every
+        // offset the strides generate from it lands inside the buffer.
+        unsafe {
+            let block = base.add(offset);
+            if reversible {
+                decode_block_strided_reversible(bs, block, dims, strides, lengths, config);
+            } else if info.is_full(lengths) {
+                decode_block_strided(bs, block, dims, strides, config);
+            } else {
+                decode_partial_block_strided(bs, block, dims, &lengths, strides, config);
             }
-        }};
+        }
     }
-    decode_dispatch!(
-        ZfpScalarType::I32 => i32,
-        ZfpScalarType::I64 => i64,
-        ZfpScalarType::F32 => f32,
-        ZfpScalarType::F64 => f64,
-    );
 }
 
 // ---------------------------------------------------------------------------
@@ -279,13 +258,18 @@ fn decompress_chunks(
         };
 
         let mut local_bs = ZfpBitStreamRef::from_words(words);
-
-        for block_idx in start_block..end_block {
-            local_bs.seek_read(start_read_bit + block_idx as u64 * u64::from(bits_per_block));
-            // SAFETY: `base` is the buffer `FieldPlan::new` validated for
-            // length and alignment, and chunks cover disjoint blocks, so this
-            // thread writes only bytes no other thread touches.
-            unsafe { decompress_block(&mut local_bs, base.ptr(), info, config, block_idx) };
+        // SAFETY: `base` is the buffer `FieldPlan::new` validated for length
+        // and alignment, and chunks cover disjoint blocks, so this thread
+        // writes only bytes no other thread touches.
+        unsafe {
+            decompress_blocks(
+                &mut local_bs,
+                base.ptr(),
+                info,
+                config,
+                start_block..end_block,
+                Some((start_read_bit, u64::from(bits_per_block))),
+            );
         }
     });
 }
