@@ -346,4 +346,43 @@ mod tests {
         );
         assert_eq!(parallel, decode(&mut bs, &config, ZfpExecution::Serial));
     }
+
+    /// A truncated stream decodes as if the missing words were zeros, in
+    /// parallel as serially, and both end where the whole stream does. The
+    /// parallel path's final seek once clamped to the buffer instead.
+    #[test]
+    fn truncated_stream_decompresses_as_if_zero_padded() {
+        let config = ZfpConfig::fixed_rate(
+            16.0,
+            ZfpScalarType::F64,
+            ZfpDimensionality::D2,
+            ZfpStreamAlignment::Unaligned,
+        );
+        let src: Vec<f64> = (0..64).map(f64::from).collect();
+        let mut bs = ZfpBitStream::new(4096);
+        let size = bs
+            .compress(&config, &ZfpField::new(&src, [8usize, 8]).unwrap())
+            .unwrap();
+        let kept = size / 2;
+        let mut padded = bs.as_bytes()[..kept].to_vec();
+        padded.resize(size, 0);
+
+        let decode = |bytes: &[u8], execution| {
+            let mut out = [0f64; 64];
+            let mut field = ZfpFieldMut::new(&mut out, [8usize, 8]).unwrap();
+            let read = ZfpBitStream::from_bytes(bytes)
+                .decompress_with_execution(&config, &mut field, execution)
+                .unwrap();
+            (read, out.map(f64::to_bits))
+        };
+        let expect = decode(&padded, ZfpExecution::Serial);
+        assert_eq!(expect.0, size);
+        let truncated = &bs.as_bytes()[..kept];
+        assert_eq!(decode(truncated, ZfpExecution::Serial), expect);
+        let parallel = ZfpExecution::Rayon {
+            threads: 4,
+            chunk_size: 1,
+        };
+        assert_eq!(decode(truncated, parallel), expect);
+    }
 }

@@ -51,7 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `ZfpFieldMetadata::to_bits` no longer panics (or wraps) for a zero leading dimension.
-- Rayon decompression leaves the stream cursor where serial decompression does, and returns the same size.
+- Rayon decompression leaves the stream cursor where serial decompression does, and returns the same size, truncated streams included.
+- Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it to the buffer: reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made `codec::block::decode_block` return a wrapped bit count.
 - Writing past the end of a bitstream no longer panics. The write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28

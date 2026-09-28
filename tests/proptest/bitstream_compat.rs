@@ -292,6 +292,27 @@ proptest! {
 }
 
 proptest! {
+    /// Seeks past the end of the buffer keep their offset, as in C. Only
+    /// word-aligned offsets are compared: for any other, C loads the word
+    /// under the cursor, which past the end is out of bounds.
+    #[test]
+    fn seek_past_end_compat(past_words in 0u64..=1_000_000) {
+        let capacity = 64;
+        let mut rs = ZfpBitStream::new(capacity);
+        let mut cs = CStream::new(capacity);
+        let offset = (capacity as u64 / 8 + past_words) * 64;
+
+        rs.seek_read(offset);
+        cs.rseek(offset);
+        prop_assert_eq!(rs.read_pos(), cs.rtell(), "read_pos mismatch after seek_read");
+
+        rs.seek_write(offset);
+        cs.wseek(offset);
+        prop_assert_eq!(rs.write_pos(), cs.wtell(), "write_pos mismatch after seek_write");
+    }
+}
+
+proptest! {
     /// flush compatibility: write a partial word, flush both, compare the
     /// number of padding bits returned and the resulting buffer.
     #[test]

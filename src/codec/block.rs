@@ -204,7 +204,7 @@ mod tests {
     use super::{decode_block, encode_block};
     use crate::{
         ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMut, ZfpRounding, ZfpScalar,
-        ZfpStreamAlignment,
+        ZfpScalarType, ZfpStreamAlignment,
     };
 
     /// Block coding must match compressing a field that is exactly one block.
@@ -274,6 +274,33 @@ mod tests {
         check_type(&f.iter().map(|&x| x as i32).collect::<Vec<_>>());
         #[allow(clippy::cast_possible_truncation, reason = "test data")]
         check_type(&f.iter().map(|&x| (x * 1e6) as i64).collect::<Vec<_>>());
+    }
+
+    /// Each block of a truncated fixed-rate stream still reads its whole
+    /// budget: reads past the end yield zeros, and skips there keep their
+    /// offset. Skips were once clamped to the buffer, which moved the cursor
+    /// backwards and underflowed the bit count.
+    #[test]
+    fn truncated_fixed_rate_blocks_read_their_budget() {
+        let config = ZfpConfig::fixed_rate(
+            8.0,
+            ZfpScalarType::F64,
+            ZfpDimensionality::D2,
+            ZfpStreamAlignment::Unaligned,
+        );
+        let data: Vec<f64> = (0..64).map(f64::from).collect();
+        let mut bs = ZfpBitStream::new(1024);
+        bs.compress(&config, &ZfpField::new(&data, [8usize, 8]).unwrap())
+            .unwrap();
+        // One word of four blocks' worth, so most blocks start past the end.
+        let mut truncated = ZfpBitStream::from_bytes(&bs.as_bytes()[..8]);
+        let mut block = [0f64; 16];
+        for i in 1..=4 {
+            let read =
+                decode_block(&mut truncated, &config, &mut block, ZfpDimensionality::D2).unwrap();
+            assert_eq!(read, 128);
+            assert_eq!(truncated.read_pos(), 128 * i);
+        }
     }
 
     #[test]
