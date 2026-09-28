@@ -131,7 +131,7 @@ pub fn compress_bitstream(
     field: &ZfpField,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpCompressionError> {
-    compress::compress(bs, field, config)
+    bs.compress(config, field)
 }
 
 /// Decompress through any readable bitstream implementation.
@@ -146,7 +146,7 @@ pub fn decompress_bitstream(
     field: &mut ZfpFieldMut,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpDecompressionError> {
-    decompress::decompress(bs, field, config)
+    bs.decompress(config, field)
 }
 
 /// Read a ZFP header through any readable bitstream implementation.
@@ -159,5 +159,5 @@ pub fn read_header_bitstream(
     bs: &mut dyn ZfpBitStreamOps,
     mask: ZfpHeaderMask,
 ) -> Result<ZfpHeader, ZfpHeaderError> {
-    header::read_header_bs(bs, mask)
+    bs.read_header(mask)
 }

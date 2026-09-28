@@ -82,68 +82,6 @@ impl<'a> ZfpBitStreamRefMut<'a> {
     pub fn from_bytes_mut(buf: &'a mut [u8]) -> Option<Self> {
         cast_bytes_to_words_mut(buf).map(Self::from_words_mut)
     }
-
-    /// Compress the field into this bitstream using the given execution policy.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
-    /// type or dimensions are unsupported for the selected configuration.
-    ///
-    pub fn compress_with_execution(
-        &mut self,
-        config: &crate::config::ZfpConfig,
-        field: &crate::field::ZfpField,
-        execution: crate::execution::ZfpExecution,
-    ) -> Result<usize, crate::types::ZfpCompressionError> {
-        match execution {
-            crate::execution::ZfpExecution::Serial => {
-                crate::compress::compress(self, field, config)
-            }
-            #[cfg(feature = "rayon")]
-            crate::execution::ZfpExecution::Rayon {
-                threads,
-                chunk_size,
-            } => crate::compress::compress_rayon(self, field, config, threads, chunk_size),
-            #[cfg(not(feature = "rayon"))]
-            crate::execution::ZfpExecution::Rayon { .. } => {
-                // Rayon feature not compiled; fall back to serial.
-                crate::compress::compress(self, field, config)
-            }
-        }
-    }
-
-    /// Decompress from this bitstream into the field using the given execution policy.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if the target
-    /// field type or dimensions are unsupported for the selected configuration.
-    ///
-    /// Note: Parallel decompression is only available for fixed-rate streams.
-    /// Other modes fall back to serial decompression.
-    pub fn decompress_with_execution(
-        &mut self,
-        config: &crate::config::ZfpConfig,
-        field: &mut crate::field::ZfpFieldMut,
-        execution: crate::execution::ZfpExecution,
-    ) -> Result<usize, crate::types::ZfpDecompressionError> {
-        match execution {
-            crate::execution::ZfpExecution::Serial => {
-                crate::decompress::decompress(self, field, config)
-            }
-            #[cfg(feature = "rayon")]
-            crate::execution::ZfpExecution::Rayon {
-                threads,
-                chunk_size,
-            } => crate::decompress::decompress_rayon(self, field, config, threads, chunk_size),
-            #[cfg(not(feature = "rayon"))]
-            crate::execution::ZfpExecution::Rayon { .. } => {
-                // Rayon feature not compiled; fall back to serial.
-                crate::decompress::decompress(self, field, config)
-            }
-        }
-    }
 }
 
 impl BitStreamStorage for ZfpBitStreamRefMut<'_> {
@@ -163,5 +101,54 @@ impl BitStreamStorage for ZfpBitStreamRefMut<'_> {
 impl BitStreamStorageMut for ZfpBitStreamRefMut<'_> {
     fn words_mut(&mut self) -> &mut [ZfpBitStreamWord] {
         self.words
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ZfpBitStreamRef, ZfpBitStreamRefMut};
+    use crate::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut, ZfpHeaderMask};
+
+    fn ramp() -> Vec<f64> {
+        (0..64).map(f64::from).collect()
+    }
+
+    #[test]
+    fn borrowed_stream_reads_header_and_decompresses() {
+        let data = ramp();
+        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let config = ZfpConfig::reversible();
+        let mut bs = ZfpBitStream::new(4096);
+        assert_ne!(bs.write_header(&config, &field, ZfpHeaderMask::FULL), 0);
+        bs.compress(&config, &field).expect("compress");
+        let words = bs.into_words();
+
+        let mut bs = ZfpBitStreamRef::from_words(&words);
+        let header = bs.read_header(ZfpHeaderMask::FULL).expect("read header");
+        assert_eq!(header.config, Some(config));
+        let mut out = vec![0f64; 64];
+        let mut field = ZfpFieldMut::new(&mut out, [4usize, 4, 4]);
+        bs.decompress(&config, &mut field).expect("decompress");
+        assert_eq!(out, data);
+    }
+
+    #[test]
+    fn borrowed_mut_stream_round_trips_with_header() {
+        let data = ramp();
+        let field = ZfpField::new(&data, [4usize, 4, 4]);
+        let config = ZfpConfig::reversible();
+        let mut words = vec![0u64; 512];
+
+        let mut bs = ZfpBitStreamRefMut::from_words_mut(&mut words);
+        assert_ne!(bs.write_header(&config, &field, ZfpHeaderMask::FULL), 0);
+        bs.compress(&config, &field).expect("compress");
+        bs.flush();
+        bs.rewind();
+        let header = bs.read_header(ZfpHeaderMask::FULL).expect("read header");
+        assert_eq!(header.config, Some(config));
+        let mut out = vec![0f64; 64];
+        let mut field = ZfpFieldMut::new(&mut out, [4usize, 4, 4]);
+        bs.decompress(&config, &mut field).expect("decompress");
+        assert_eq!(out, data);
     }
 }
