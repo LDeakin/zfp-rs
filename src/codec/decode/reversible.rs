@@ -53,7 +53,7 @@ where
     let mut bits = PBITS_32 as usize;
 
     let remaining = maxbits.saturating_sub(PBITS_32);
-    let (ublock, ubits) = decode_ints::<[u32; N]>(bs, remaining, prec, rounding);
+    let (ublock, ubits, _) = decode_ints::<[u32; N]>(bs, remaining, prec, rounding);
     bits += ubits as usize;
 
     inv_order_i32(&ublock, iblock, perm);
@@ -75,7 +75,7 @@ where
     let mut bits = PBITS_64 as usize;
 
     let remaining = maxbits.saturating_sub(PBITS_64);
-    let (ublock, ubits) = decode_ints::<[u64; N]>(bs, remaining, prec, rounding);
+    let (ublock, ubits, _) = decode_ints::<[u64; N]>(bs, remaining, prec, rounding);
     bits += ubits as usize;
 
     inv_order_i64(&ublock, iblock, perm);

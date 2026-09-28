@@ -560,13 +560,16 @@ fn encode_planes<P: Plane>(
 ///
 /// C `decode_ints`, including its `ZFP_ROUND_LAST` bias. As in
 /// [`encode_ints`], `maxbits` only binds when the block could exceed it.
+///
+/// Also returns whether the block is all zeros, which lets callers skip the
+/// inverse transform, since it maps zeros to zeros.
 #[inline]
 pub(crate) fn decode_ints<B: PlaneBlock>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     rounding: ZfpRounding,
-) -> (B, u32) {
+) -> (B, u32, bool) {
     let constrained = with_maxbits(maxbits, maxprec, B::SIZE);
     let budget = if constrained { maxbits } else { u32::MAX };
     let kmin = B::INTPREC.saturating_sub(maxprec);
@@ -577,12 +580,14 @@ pub(crate) fn decode_ints<B: PlaneBlock>(
             B::set_plane(&mut planes, k, x);
         })
     };
-    let mut block = if low == B::INTPREC {
+    let zero = low == B::INTPREC;
+    let mut block = if zero {
         B::zero()
     } else {
         B::from_planes(&planes, low)
     };
-    if matches!(rounding, ZfpRounding::Last { .. }) {
+    let round = matches!(rounding, ZfpRounding::Last { .. });
+    if round {
         let (m, prec) = if constrained {
             (m, prec)
         } else {
@@ -592,7 +597,7 @@ pub(crate) fn decode_ints<B: PlaneBlock>(
         };
         block.inv_round(m, prec);
     }
-    (block, bits)
+    (block, bits, zero && !round)
 }
 
 /// The bit-plane loop of C's `decode_few_ints` and `decode_many_ints`.
