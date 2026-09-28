@@ -178,31 +178,58 @@ pub(crate) fn precision_f(
     maxprec.min(raw.max(0) as u32)
 }
 
+/// Largest `|x|` in a block; NaNs are skipped, as C's `max < f` test never
+/// takes them.
+///
+/// With the NaNs zeroed, `if a > b { a } else { b }` is exactly `maxps`, and a
+/// tree reduction keeps the dependency chain short.
+macro_rules! max_abs {
+    ($data:expr, $t:ty) => {{
+        let mut keys = [0.0; N];
+        for (key, x) in keys.iter_mut().zip($data) {
+            let abs = x.abs();
+            *key = if abs <= <$t>::INFINITY { abs } else { 0.0 };
+        }
+        let mut n = keys.len();
+        while n > 1 {
+            n /= 2;
+            for i in 0..n {
+                let (a, b) = (keys[i], keys[i + n]);
+                keys[i] = if a > b { a } else { b };
+            }
+        }
+        keys[0]
+    }};
+}
+
 /// Return the maximum floating-point exponent in an f32 block.
 ///
 /// Uses `frexp` semantics: returns the exponent `e` such that `|x| = m * 2^e`
-/// with `0.5 ≤ m < 1`. Returns `-EBIAS = -127` when all values are zero.
-pub(crate) fn exponent_block_f32(data: &[f32]) -> i32 {
+/// with `0.5 ≤ m < 1`, clamped to `1 - EBIAS` for subnormals. Returns
+/// `-EBIAS = -127` when all values are zero.
+pub(crate) fn exponent_block_f32<const N: usize>(data: &[f32; N]) -> i32 {
     const EBIAS: i32 = 127;
-    let max = data.iter().map(|x| x.abs()).fold(0.0f32, f32::max);
-    if max > 0.0 {
-        // frexpf returns (mantissa in [0.5,1), exponent e) such that x = m * 2^e
-        let (_, e) = libm::frexpf(max);
-        e.max(1 - EBIAS)
-    } else {
-        -EBIAS
+    let max = max_abs!(data, f32).to_bits();
+    match max >> 23 {
+        _ if max == 0 => -EBIAS,
+        // frexpf leaves the exponent of infinity at zero.
+        0xff => 0,
+        // A normal number's `frexpf` exponent. A subnormal one's biased
+        // exponent is zero, which gives the clamp.
+        biased => biased.cast_signed() - (EBIAS - 1),
     }
 }
 
 /// Return the maximum floating-point exponent in an f64 block.
-pub(crate) fn exponent_block_f64(data: &[f64]) -> i32 {
+///
+/// As [`exponent_block_f32`].
+pub(crate) fn exponent_block_f64<const N: usize>(data: &[f64; N]) -> i32 {
     const EBIAS: i32 = 1023;
-    let max = data.iter().map(|x| x.abs()).fold(0.0f64, f64::max);
-    if max > 0.0 {
-        let (_, e) = libm::frexp(max);
-        e.max(1 - EBIAS)
-    } else {
-        -EBIAS
+    let max = max_abs!(data, f64).to_bits();
+    match max >> 52 {
+        _ if max == 0 => -EBIAS,
+        0x7ff => 0,
+        biased => biased as i32 - (EBIAS - 1),
     }
 }
 
@@ -215,8 +242,11 @@ pub(crate) fn fwd_cast_f32(iblock: &mut [i32], fblock: &[f32], emax: i32) {
     let s = libm::ldexpf(1.0f32, 30 - emax);
     for (i, f) in iblock.iter_mut().zip(fblock.iter()) {
         let v = s * f;
-        *i = if v.is_finite() && (-2_147_483_648.0_f32..2_147_483_648.0_f32).contains(&v) {
-            v as i32
+        // NaN and ±inf fail the range test too.
+        *i = if (-2_147_483_648.0_f32..2_147_483_648.0_f32).contains(&v) {
+            // SAFETY: `v` is in range, so this truncates exactly as `as`
+            // would, without the saturation that keeps `as` from vectorizing.
+            unsafe { v.to_int_unchecked() }
         } else {
             i32::MIN
         };
@@ -229,14 +259,29 @@ pub(crate) fn fwd_cast_f64(iblock: &mut [i64], fblock: &[f64], emax: i32) {
     // In C on x86, (int64_t)(±inf) returns INT64_MIN; replicate here.
     let s = libm::ldexp(1.0f64, 62 - emax);
     for (i, f) in iblock.iter_mut().zip(fblock.iter()) {
-        let v = s * f;
-        *i = if v.is_finite()
-            && (-9_223_372_036_854_775_808.0_f64..9_223_372_036_854_775_808.0_f64).contains(&v)
-        {
-            v as i64
+        *i = truncate_f64(s * f);
+    }
+}
+
+/// `v` truncated to `i64`, or `i64::MIN` if out of range, as x86's `cvttsd2si`.
+#[inline]
+fn truncate_f64(v: f64) -> i64 {
+    // The instruction itself, since SSE2 cannot convert `f64` lanes to `i64`
+    // and the portable form costs two compares and a select per value.
+    #[cfg(target_arch = "x86_64")]
+    {
+        use std::arch::x86_64::{_mm_cvttsd_si64, _mm_set_sd};
+        // SAFETY: SSE2 is part of the x86-64 baseline.
+        unsafe { _mm_cvttsd_si64(_mm_set_sd(v)) }
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        if (-9_223_372_036_854_775_808.0_f64..9_223_372_036_854_775_808.0_f64).contains(&v) {
+            // SAFETY: as in `fwd_cast_f32`.
+            unsafe { v.to_int_unchecked() }
         } else {
             i64::MIN
-        };
+        }
     }
 }
 
@@ -331,7 +376,95 @@ pub(crate) use strided_encode_wrappers;
 
 #[cfg(test)]
 mod tests {
-    use super::{fwd_round_i32, fwd_round_i64, precision_f};
+    use super::{
+        exponent_block_f32, exponent_block_f64, fwd_round_i32, fwd_round_i64, precision_f,
+        truncate_f64,
+    };
+
+    #[test]
+    fn truncate_f64_gives_i64_min_out_of_range() {
+        let two63 = 9_223_372_036_854_775_808.0_f64;
+        for (v, expect) in [
+            (0.0, 0),
+            (-0.0, 0),
+            (1.9, 1),
+            (-1.9, -1),
+            (-two63, i64::MIN),
+            (two63, i64::MIN),
+            (f64::MAX, i64::MIN),
+            (f64::INFINITY, i64::MIN),
+            (f64::NEG_INFINITY, i64::MIN),
+            (f64::NAN, i64::MIN),
+            (4_611_686_018_427_387_904.5, 4_611_686_018_427_387_904),
+        ] {
+            assert_eq!(truncate_f64(v), expect, "{v}");
+        }
+    }
+
+    /// C's `exponent_block`: `frexp` of the largest `|x|`, NaNs skipped.
+    fn frexp_exponent_f32(data: &[f32]) -> i32 {
+        let max = data
+            .iter()
+            .fold(0.0f32, |max, x| if max < x.abs() { x.abs() } else { max });
+        if max > 0.0 {
+            libm::frexpf(max).1.max(-126)
+        } else {
+            -127
+        }
+    }
+
+    fn frexp_exponent_f64(data: &[f64]) -> i32 {
+        let max = data
+            .iter()
+            .fold(0.0f64, |max, x| if max < x.abs() { x.abs() } else { max });
+        if max > 0.0 {
+            libm::frexp(max).1.max(-1022)
+        } else {
+            -1023
+        }
+    }
+
+    #[test]
+    fn exponent_block_matches_frexp() {
+        let specials32 = [
+            0.0,
+            -0.0,
+            f32::MIN_POSITIVE,
+            -f32::MIN_POSITIVE / 3.0,
+            f32::from_bits(1),
+            f32::MAX,
+            f32::MIN,
+            f32::INFINITY,
+            f32::NEG_INFINITY,
+            f32::NAN,
+            -f32::NAN,
+            f32::from_bits(0x7fff_ffff),
+            1.0,
+            0.75,
+            -3.5e-20,
+        ];
+        let mut x = 0x2545_f491_4f6c_dd1du64;
+        let mut next = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for &a in &specials32 {
+            for &b in &specials32 {
+                let block = [a, b, 0.5 * a, -b];
+                assert_eq!(exponent_block_f32(&block), frexp_exponent_f32(&block));
+                let block = [f64::from(a), f64::from(b), 1e-310, -f64::from(b)];
+                assert_eq!(exponent_block_f64(&block), frexp_exponent_f64(&block));
+            }
+        }
+        for _ in 0..10_000 {
+            let block: [f32; 4] = std::array::from_fn(|_| f32::from_bits(next() as u32));
+            assert_eq!(exponent_block_f32(&block), frexp_exponent_f32(&block));
+            let block: [f64; 4] = std::array::from_fn(|_| f64::from_bits(next()));
+            assert_eq!(exponent_block_f64(&block), frexp_exponent_f64(&block));
+        }
+    }
 
     #[test]
     fn fwd_round_is_a_no_op_at_full_precision() {
