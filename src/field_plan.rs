@@ -1,5 +1,7 @@
 //! Per-field block iteration plan, shared by compression and decompression.
 
+use std::ops::Range;
+
 use crate::field::{dimensionality, field_index_span};
 use crate::types::{ZfpDimensionality, ZfpFieldError, ZfpScalarType};
 
@@ -85,12 +87,6 @@ impl FieldPlan {
         usize::from(self.dims_enum)
     }
 
-    /// Element size in bytes.
-    #[inline]
-    pub(crate) fn elem_size(&self) -> usize {
-        self.scalar_type.size()
-    }
-
     /// Whether two distinct index tuples can address the same element.
     ///
     /// Sorts the active axes by `|stride|` and checks each one clears the span
@@ -122,7 +118,7 @@ impl FieldPlan {
 
     /// Block grid coordinates of a linear block index.
     #[inline]
-    pub(crate) fn block_coords(&self, block_idx: usize) -> (usize, usize, usize, usize) {
+    pub(crate) fn block_coords(&self, block_idx: usize) -> [usize; 4] {
         let rem = block_idx;
         let iw = rem / (self.bx * self.by * self.bz);
         let rem = rem % (self.bx * self.by * self.bz);
@@ -130,7 +126,62 @@ impl FieldPlan {
         let rem = rem % (self.bx * self.by);
         let iy = rem / self.bx;
         let ix = rem % self.bx;
-        (ix, iy, iz, iw)
+        [ix, iy, iz, iw]
+    }
+
+    /// Grid coordinates of blocks `range`, in index order.
+    ///
+    /// Divides once, for the first block, then steps like an odometer: a
+    /// division per block is a measurable share of coding a 2-D block.
+    pub(crate) fn blocks(&self, range: Range<usize>) -> impl Iterator<Item = [usize; 4]> {
+        // An empty grid has nothing to divide by.
+        let mut next = if range.is_empty() {
+            [0; 4]
+        } else {
+            self.block_coords(range.start)
+        };
+        let (bx, by, bz) = (self.bx, self.by, self.bz);
+        range.map(move |_| {
+            let coords = next;
+            next[0] += 1;
+            if next[0] == bx {
+                next[0] = 0;
+                next[1] += 1;
+                if next[1] == by {
+                    next[1] = 0;
+                    next[2] += 1;
+                    if next[2] == bz {
+                        next[2] = 0;
+                        next[3] += 1;
+                    }
+                }
+            }
+            coords
+        })
+    }
+
+    /// Where block `[ix, iy, iz, iw]` starts, as an element offset from the
+    /// buffer's low end, and how many of its values lie inside the field
+    /// along each axis (zero past the dimensionality).
+    #[inline]
+    #[allow(clippy::cast_possible_wrap)] // block indices fit in isize for a valid field
+    pub(crate) fn block_geometry(&self, coords: [usize; 4]) -> (usize, [usize; 4]) {
+        let mut offset = -self.imin;
+        let mut lengths = [0; 4];
+        for axis in 0..self.dim_count() {
+            let origin = 4 * coords[axis];
+            offset += origin as isize * self.strides[axis];
+            lengths[axis] = (self.dims[axis] - origin).min(4);
+        }
+        // `-imin` is where index zero sits, so every block starts at or above
+        // the buffer's low end.
+        (offset.cast_unsigned(), lengths)
+    }
+
+    /// Whether `lengths`, from [`Self::block_geometry`], is a whole block.
+    #[inline]
+    pub(crate) fn is_full(&self, lengths: [usize; 4]) -> bool {
+        lengths[..self.dim_count()].iter().all(|&n| n == 4)
     }
 }
 
@@ -171,6 +222,40 @@ mod tests {
                 imin_by_hand(dims, strides, dim_count),
                 "dims {dims:?} strides {strides:?}"
             );
+        }
+    }
+
+    #[test]
+    fn blocks_of_an_empty_grid_is_empty() {
+        let plan = FieldPlan {
+            num_blocks: 0,
+            bx: 0,
+            by: 1,
+            bz: 1,
+            imin: 0,
+            strides: [1, 0, 0, 0],
+            dims: [0; 4],
+            dims_enum: ZfpDimensionality::D1,
+            scalar_type: ZfpScalarType::F32,
+        };
+        assert_eq!(plan.blocks(0..0).count(), 0);
+    }
+
+    #[test]
+    fn blocks_step_through_block_coords() {
+        let data = vec![0u8; 4 * 9 * 5 * 6 * 7];
+        let plan = FieldPlan::new(
+            ZfpScalarType::F32,
+            [9, 5, 6, 7],
+            ZfpDimensionality::D4,
+            [1, 9, 45, 270],
+            &data,
+            data.len(),
+        )
+        .unwrap();
+        for range in [0..plan.num_blocks, 0..0, 3..4, 7..plan.num_blocks, 11..40] {
+            let expect: Vec<_> = range.clone().map(|i| plan.block_coords(i)).collect();
+            assert_eq!(plan.blocks(range).collect::<Vec<_>>(), expect);
         }
     }
 
