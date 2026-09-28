@@ -207,6 +207,7 @@ macro_rules! max_abs {
 /// Uses `frexp` semantics: returns the exponent `e` such that `|x| = m * 2^e`
 /// with `0.5 ≤ m < 1`, clamped to `1 - EBIAS` for subnormals. Returns
 /// `-EBIAS = -127` when all values are zero.
+#[inline(always)]
 pub(crate) fn exponent_block_f32<const N: usize>(data: &[f32; N]) -> i32 {
     const EBIAS: i32 = 127;
     let max = max_abs!(data, f32).to_bits();
@@ -223,6 +224,7 @@ pub(crate) fn exponent_block_f32<const N: usize>(data: &[f32; N]) -> i32 {
 /// Return the maximum floating-point exponent in an f64 block.
 ///
 /// As [`exponent_block_f32`].
+#[inline(always)]
 pub(crate) fn exponent_block_f64<const N: usize>(data: &[f64; N]) -> i32 {
     const EBIAS: i32 = 1023;
     let max = max_abs!(data, f64).to_bits();
