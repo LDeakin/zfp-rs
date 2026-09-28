@@ -21,11 +21,10 @@
 //! ```
 //!
 //! The stream is zero-padded out to the decoder's true worst-case budget
-//! (`num_blocks * max_bits`, not `maximum_size` — see the comment in `typed`).
-//! That deliberately excludes the truncated-stream index panic
-//! (`read_word_raw` is `stream.words()[pos]`), which would otherwise be the
-//! only thing this target ever reported. **Any panic reaching this target is
-//! therefore a real bug.**
+//! (`num_blocks * max_bits`, not `maximum_size` — see the comment in `typed`),
+//! and then decoded again unpadded. Past the end of a stream, reads yield zeros
+//! and seeks keep their offset, so the truncated stream must decode exactly as
+//! the padded one did. **Any panic reaching this target is a real bug.**
 
 use zfp_rs::{ZfpBitStream, ZfpField, ZfpFieldMut};
 
@@ -138,6 +137,30 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
             dst[i].to_bits_u64(),
             again[i].to_bits_u64(),
             "decompression of untrusted bytes is not deterministic at index {i}"
+        );
+    }
+
+    // The payload unpadded must decode exactly as it did padded: the padding
+    // is zeros, which is what reads past the end of a stream yield, and the
+    // cursor must end in the same place, however far past the end that is.
+    let kept = payload.len().min(buffer_bytes.div_ceil(8) * 8);
+    let mut truncated = vec![T::default(); n];
+    let truncated_consumed = {
+        let mut out =
+            ZfpFieldMut::new(&mut truncated, dims).expect("an exactly-sized field is valid");
+        ZfpBitStream::from_bytes(&payload[..kept])
+            .decompress_with_execution(&config, &mut out, exec)
+            .unwrap_or_else(|e| panic!("decompress failed on an exactly-sized field: {e}"))
+    };
+    assert_eq!(
+        truncated_consumed, consumed,
+        "a truncated stream ended somewhere other than its zero-padded copy"
+    );
+    for i in 0..n {
+        assert_eq!(
+            truncated[i].to_bits_u64(),
+            dst[i].to_bits_u64(),
+            "a truncated stream decoded differently from its zero-padded copy at index {i}"
         );
     }
 
