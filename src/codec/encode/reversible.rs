@@ -8,10 +8,7 @@ use crate::codec::encode::core::{
     PERM_1, PERM_2, PERM_3, PERM_4, encode_ints_u32, encode_ints_u64, exponent_block_f32,
     exponent_block_f64, fwd_cast_f32, fwd_cast_f64, fwd_order_i32, fwd_order_i64,
 };
-use crate::codec::transform::{
-    rev_fwd_xform_1d, rev_fwd_xform_1d_i64, rev_fwd_xform_2d, rev_fwd_xform_2d_i64,
-    rev_fwd_xform_3d, rev_fwd_xform_3d_i64, rev_fwd_xform_4d, rev_fwd_xform_4d_i64,
-};
+use crate::codec::transform::rev_fwd_xform;
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -254,7 +251,7 @@ pub fn encode_block_reversible_1d_f32(
     block: &[f32; 4],
 ) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_1d(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u32(bs, iblock, maxbits, &PERM_1)
     })
 }
@@ -265,7 +262,7 @@ pub fn encode_block_reversible_1d_f64(
     block: &[f64; 4],
 ) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_1d_i64(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u64(bs, iblock, maxbits, &PERM_1)
     })
 }
@@ -276,7 +273,7 @@ pub fn encode_block_reversible_2d_f32(
     block: &[f32; 16],
 ) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_2d(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u32(bs, iblock, maxbits, &PERM_2)
     })
 }
@@ -287,7 +284,7 @@ pub fn encode_block_reversible_2d_f64(
     block: &[f64; 16],
 ) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_2d_i64(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u64(bs, iblock, maxbits, &PERM_2)
     })
 }
@@ -298,7 +295,7 @@ pub fn encode_block_reversible_3d_f32(
     block: &[f32; 64],
 ) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_3d(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u32(bs, iblock, maxbits, &PERM_3)
     })
 }
@@ -309,7 +306,7 @@ pub fn encode_block_reversible_3d_f64(
     block: &[f64; 64],
 ) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_3d_i64(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u64(bs, iblock, maxbits, &PERM_3)
     })
 }
@@ -320,7 +317,7 @@ pub fn encode_block_reversible_4d_f32(
     block: &[f32; 256],
 ) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_4d(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u32(bs, iblock, maxbits, &PERM_4)
     })
 }
@@ -331,7 +328,7 @@ pub fn encode_block_reversible_4d_f64(
     block: &[f64; 256],
 ) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
-        rev_fwd_xform_4d_i64(iblock);
+        rev_fwd_xform(iblock);
         rev_encode_int_block_u64(bs, iblock, maxbits, &PERM_4)
     })
 }
@@ -346,7 +343,7 @@ pub fn encode_block_reversible_1d_i32(
     block: &[i32; 4],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_1d(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u32(bs, &b, u32::MAX, &PERM_1)
 }
 
@@ -356,7 +353,7 @@ pub fn encode_block_reversible_1d_i64(
     block: &[i64; 4],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_1d_i64(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u64(bs, &b, u32::MAX, &PERM_1)
 }
 
@@ -366,7 +363,7 @@ pub fn encode_block_reversible_2d_i32(
     block: &[i32; 16],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_2d(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u32(bs, &b, u32::MAX, &PERM_2)
 }
 
@@ -376,7 +373,7 @@ pub fn encode_block_reversible_2d_i64(
     block: &[i64; 16],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_2d_i64(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u64(bs, &b, u32::MAX, &PERM_2)
 }
 
@@ -386,7 +383,7 @@ pub fn encode_block_reversible_3d_i32(
     block: &[i32; 64],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_3d(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u32(bs, &b, u32::MAX, &PERM_3)
 }
 
@@ -396,7 +393,7 @@ pub fn encode_block_reversible_3d_i64(
     block: &[i64; 64],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_3d_i64(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u64(bs, &b, u32::MAX, &PERM_3)
 }
 
@@ -406,7 +403,7 @@ pub fn encode_block_reversible_4d_i32(
     block: &[i32; 256],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_4d(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u32(bs, &b, u32::MAX, &PERM_4)
 }
 
@@ -416,6 +413,6 @@ pub fn encode_block_reversible_4d_i64(
     block: &[i64; 256],
 ) -> usize {
     let mut b = *block;
-    crate::codec::transform::rev_fwd_xform_4d_i64(&mut b);
+    crate::codec::transform::rev_fwd_xform(&mut b);
     rev_encode_int_block_u64(bs, &b, u32::MAX, &PERM_4)
 }

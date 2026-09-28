@@ -614,7 +614,7 @@ pub(crate) fn decode_block_1d_i32_core(
     }
     let mut iblock = [0i32; 4];
     inv_order_i32(&ublock, &mut iblock, &PERM_1);
-    crate::codec::transform::inv_xform_1d(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
@@ -632,7 +632,7 @@ pub(crate) fn decode_block_1d_i64_core(
     }
     let mut iblock = [0i64; 4];
     inv_order_i64(&ublock, &mut iblock, &PERM_1);
-    crate::codec::transform::inv_xform_1d_i64(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
@@ -650,7 +650,7 @@ pub(crate) fn decode_block_2d_i32_core(
     }
     let mut iblock = [0i32; 16];
     inv_order_i32(&ublock, &mut iblock, &PERM_2);
-    crate::codec::transform::inv_xform_2d(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
@@ -668,7 +668,7 @@ pub(crate) fn decode_block_2d_i64_core(
     }
     let mut iblock = [0i64; 16];
     inv_order_i64(&ublock, &mut iblock, &PERM_2);
-    crate::codec::transform::inv_xform_2d_i64(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
@@ -686,7 +686,7 @@ pub(crate) fn decode_block_3d_i32_core(
     }
     let mut iblock = [0i32; 64];
     inv_order_i32(&ublock, &mut iblock, &PERM_3);
-    crate::codec::transform::inv_xform_3d(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
@@ -704,7 +704,7 @@ pub(crate) fn decode_block_3d_i64_core(
     }
     let mut iblock = [0i64; 64];
     inv_order_i64(&ublock, &mut iblock, &PERM_3);
-    crate::codec::transform::inv_xform_3d_i64(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
@@ -722,7 +722,7 @@ pub(crate) fn decode_block_4d_i32_core(
     }
     let mut iblock = [0i32; 256];
     inv_order_i32(&ublock, &mut iblock, &PERM_4);
-    crate::codec::transform::inv_xform_4d(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
@@ -740,7 +740,7 @@ pub(crate) fn decode_block_4d_i64_core(
     }
     let mut iblock = [0i64; 256];
     inv_order_i64(&ublock, &mut iblock, &PERM_4);
-    crate::codec::transform::inv_xform_4d_i64(&mut iblock);
+    crate::codec::transform::inv_xform(&mut iblock);
     iblock
 }
 
