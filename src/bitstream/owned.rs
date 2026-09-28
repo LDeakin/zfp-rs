@@ -37,7 +37,7 @@ impl std::fmt::Debug for ZfpBitStream {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ZfpBitStream")
             .field("capacity_bytes", &self.capacity())
-            .field("bits_written", &self.bits_written())
+            .field("write_pos", &self.write_pos())
             .finish()
     }
 }
@@ -58,24 +58,30 @@ impl ZfpBitStream {
 
     /// Wrap an existing word buffer (takes ownership).
     #[must_use]
-    pub fn from_buffer(words: Vec<ZfpBitStreamWord>) -> Self {
+    pub fn from_words(words: Vec<ZfpBitStreamWord>) -> Self {
         Self {
             words,
             state: BitStreamState::new(),
         }
     }
 
-    /// Wrap an existing byte buffer as word-aligned 64-bit words.
+    /// Copy a byte buffer into a new stream.
+    ///
+    /// A trailing partial word is zero-padded.
     #[must_use]
     pub fn from_bytes(buf: &[u8]) -> Self {
-        Self::from_buffer(bytes_to_words(buf))
+        Self::from_words(bytes_to_words(buf))
     }
 
-    /// Consume the bitstream, returning the underlying word buffer.
+    /// Flush and consume the stream, returning the words written, as
+    /// [`as_words`][Self::as_words].
     #[must_use]
     pub fn into_words(mut self) -> Vec<ZfpBitStreamWord> {
         self.flush();
-        std::mem::take(&mut self.words)
+        let len = self.as_words().len();
+        let mut words = std::mem::take(&mut self.words);
+        words.truncate(len);
+        words
     }
 
     /// The current partial-word buffer value.
@@ -99,9 +105,10 @@ impl ZfpBitStream {
         self.words[index]
     }
 
-    /// Flush and consume the stream, returning the underlying byte buffer.
+    /// Flush and consume the stream, returning the bytes written, as
+    /// [`as_bytes`][Self::as_bytes].
     #[must_use]
-    pub fn into_vec(mut self) -> Vec<u8> {
+    pub fn into_bytes(mut self) -> Vec<u8> {
         self.flush();
         self.as_bytes().to_vec()
     }

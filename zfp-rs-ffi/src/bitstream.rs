@@ -178,7 +178,7 @@ pub unsafe extern "C" fn stream_open(
         let words = unsafe {
             std::slice::from_raw_parts_mut(buffer.cast::<zfp_rs::ZfpBitStreamWord>(), words_len)
         };
-        let bs = ZfpBitStreamRefMut::from_words_mut(words);
+        let bs = ZfpBitStreamRefMut::from_words(words);
         // SAFETY: the caller owns the backing buffer and guarantees it lives
         // for the lifetime of the returned handle (until `stream_close`).
         let bs: ZfpBitStreamRefMut<'static> = unsafe { std::mem::transmute(bs) };
@@ -348,7 +348,7 @@ pub unsafe extern "C" fn stream_read_bit(stream: *mut bitstream) -> uint {
         return 0;
     };
 
-    wrapper.inner.read_bit() as uint
+    uint::from(wrapper.inner.read_bit())
 }
 
 // ===========================================================================
@@ -369,7 +369,8 @@ pub unsafe extern "C" fn stream_write_bit(stream: *mut bitstream, bit: uint) -> 
         return 0;
     };
 
-    wrapper.inner.write_bit(bit)
+    wrapper.inner.write_bit(bit & 1 != 0);
+    bit
 }
 
 // ===========================================================================
@@ -548,9 +549,7 @@ pub unsafe extern "C" fn stream_skip(stream: *mut bitstream, n: bitstream_size) 
         return;
     };
 
-    #[allow(clippy::cast_possible_truncation)]
-    // FFI: bitstream_size is bounded to u32 range by the C API contract.
-    wrapper.inner.skip(n as usize);
+    wrapper.inner.skip(n);
 }
 
 // ===========================================================================
@@ -571,9 +570,7 @@ pub unsafe extern "C" fn stream_pad(stream: *mut bitstream, n: bitstream_size) {
         return;
     };
 
-    #[allow(clippy::cast_possible_truncation)]
-    // FFI: bitstream_size is bounded to u32 range by the C API contract.
-    wrapper.inner.pad(n as usize);
+    wrapper.inner.pad(n);
 }
 
 // ===========================================================================
@@ -643,9 +640,7 @@ pub unsafe extern "C" fn stream_copy(dst: *mut bitstream, src: *mut bitstream, n
         return;
     };
 
-    #[allow(clippy::cast_possible_truncation)]
-    // FFI: bitstream_size is bounded to u32 range by the C API contract.
     dst_wrapper
         .inner
-        .copy_from(src_wrapper.inner.as_ops_mut(), n as usize);
+        .copy_from(src_wrapper.inner.as_ops_mut(), n);
 }

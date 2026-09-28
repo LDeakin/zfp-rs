@@ -692,7 +692,7 @@ pub unsafe extern "C" fn zfp_stream_flush(stream: *mut zfp_stream) -> usize {
     }
     let bs = unsafe { (*stream).stream };
     match unsafe { crate::bitstream_api::get_handle_mut(bs) } {
-        Some(handle) => handle.inner.flush(),
+        Some(handle) => handle.inner.flush() as usize,
         None => 0,
     }
 }

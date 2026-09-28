@@ -20,8 +20,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let field = ZfpField::new(&data, [data.len()])?;
     let mut bs = ZfpBitStream::new(1024);
-    let _compressed_bytes = bs.compress(&compress_stream, &field)?;
-    println!("Compressed: {} bytes", bs.size());
+    let compressed_bytes = bs.compress(&compress_stream, &field)?;
+    println!("Compressed: {compressed_bytes} bytes");
 
     // Now "read" the compressed data back.
     let config = ZfpConfig::new();

@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ZfpFieldError`, returned by the field constructors and setters.
 - `ZfpField::from_raw_unchecked` and `ZfpFieldMut::from_raw_unchecked`, and `field::index_span`, behind `ffi`.
 - `ZfpFieldMut::set_strides`.
+- `ZfpBitStreamOps::{as_words, backing_words}`.
 - `ZfpBlockError`, `ZfpFieldError` and the documented `ZFP_*` constants are re-exported at the crate root without `ffi`.
 - `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}` provided methods. `ZfpBitStreamRef` and `ZfpBitStreamRefMut` now have the same codec methods as `ZfpBitStream`, so borrowed buffers can be encoded and decoded without copying.
 
@@ -38,10 +39,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpScalarType` variants are renamed `I32`, `I64`, `F32` and `F64`, and its `size`, `align`, `precision` and `is_aligned` methods take `self` by value.
 - **Breaking**: `ZfpStreamAlignment::None` is renamed `Unaligned`, so it cannot be confused with `Option::None`.
 - **Breaking**: `ZfpHeaderMask::NONE` is removed; use `ZfpHeaderMask::empty()`.
+- **Breaking**: `ZfpBitStreamOps` and `ZfpBitStreamMutOps` are sealed.
+- **Breaking**: `read_bit` returns `bool`, and `write_bit` takes `bool` and returns nothing. `write_word` returns nothing.
+- **Breaking**: Bit counts are `u64`: `skip`, `pad` and `copy_from` take `u64`. `flush` returns `u32`, like `align`.
+- **Breaking**: `bits_written`, `word_pos` and `size` are removed from the stream API; use `write_pos` or `as_bytes().len()`. `size` remains behind `ffi`. `words` is renamed `backing_words`.
+- **Breaking**: `ZfpBitStream::from_buffer` is renamed `from_words`, and `into_vec` is renamed `into_bytes`. `into_words` returns only the words written, like `into_bytes`. `from_bytes` zero-pads a trailing partial word instead of dropping it.
+- **Breaking**: `ZfpBitStreamRefMut::{from_words_mut, from_bytes_mut}` are renamed `from_words` and `from_bytes`.
 
 ### Fixed
 
 - `ZfpFieldMetadata::to_bits` no longer panics (or wraps) for a zero leading dimension.
+- Rayon decompression leaves the stream cursor where serial decompression does, and returns the same size.
 - Writing past the end of a bitstream no longer panics. The write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28

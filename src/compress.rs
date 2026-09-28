@@ -34,11 +34,11 @@ fn finish(bs: &mut (impl ZfpBitStreamMutOps + ?Sized)) -> Result<usize, ZfpCompr
     bs.flush();
     if bs.overflowed() {
         return Err(ZfpCompressionError::BufferTooSmall {
-            required: bs.size(),
+            required: bs.byte_len(),
             capacity: bs.capacity(),
         });
     }
-    Ok(bs.size())
+    Ok(bs.byte_len())
 }
 
 /// Derive the block plan for a field, mapping the layout error.
@@ -195,7 +195,7 @@ pub(crate) fn compress_rayon(
     let (chunks, chunk_starts) = compute_chunk_ranges(blocks, threads, chunk_size);
 
     // Each chunk returns (bits_written, words) for bit-level concatenation.
-    let chunk_results: Vec<(usize, Vec<u64>)> = if threads > 0 {
+    let chunk_results: Vec<(u64, Vec<u64>)> = if threads > 0 {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads as usize)
             .build()
@@ -216,22 +216,8 @@ pub(crate) fn compress_rayon(
     // Concatenate chunks at bit-level granularity, matching C's stream_copy.
     // Write chunks sequentially (no seeking) to avoid buffer clobbering.
     for (bits_written, chunk_words) in &chunk_results {
-        // Create a temporary read bitstream from the chunk's words.
         let mut src = crate::ZfpBitStreamRef::from_words(chunk_words);
-        // Copy bits at current write position (sequential, no seek).
-        let mut remaining = *bits_written;
-        while remaining > 64 {
-            let w = src.read_bits(64);
-            bs.write_bits(w, 64);
-            remaining -= 64;
-        }
-        if remaining > 0 {
-            #[allow(clippy::cast_possible_truncation)]
-            // remaining is strictly < 64 after the loop above.
-            let bits = remaining as u32;
-            let w = src.read_bits(bits);
-            bs.write_bits(w, bits);
-        }
+        bs.copy_from(&mut src, *bits_written);
     }
 
     finish(bs)
@@ -250,7 +236,7 @@ fn compress_one_chunk(
     config: &ZfpConfig,
     total_blocks: usize,
     chunk: usize,
-) -> (usize, Vec<u64>) {
+) -> (u64, Vec<u64>) {
     use crate::ZfpBitStream;
 
     let start = chunk_starts[chunk];
@@ -267,10 +253,8 @@ fn compress_one_chunk(
     // SAFETY: `buf` is the field's whole data buffer, validated by `FieldPlan::new`.
     unsafe { compress_blocks_range(&mut local_bs, buf.as_ptr(), info, config, start, end) };
     // Record bits written before flushing (flush pads to word boundary).
-    let bits_written = local_bs.bits_written();
-    local_bs.flush();
-    let words_written = local_bs.word_pos();
-    (bits_written, local_bs.words[..words_written].to_vec())
+    let bits_written = local_bs.write_pos();
+    (bits_written, local_bs.into_words())
 }
 
 /// Compute chunk ranges following C OMP semantics.

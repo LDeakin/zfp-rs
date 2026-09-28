@@ -157,7 +157,7 @@ macro_rules! encode_block_strided_tests_1d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -198,7 +198,7 @@ macro_rules! encode_block_strided_tests_1d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, SX) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -329,7 +329,7 @@ macro_rules! encode_block_strided_tests_2d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -374,7 +374,7 @@ macro_rules! encode_block_strided_tests_2d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(4096);
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, SX, SY) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -521,7 +521,7 @@ macro_rules! encode_block_strided_tests_3d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(65536);
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY, SZ) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -566,7 +566,7 @@ macro_rules! encode_block_strided_tests_3d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(65536);
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -726,7 +726,7 @@ macro_rules! encode_block_strided_tests_4d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(1 << 20);
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY, SZ, SW) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]
@@ -771,7 +771,7 @@ macro_rules! encode_block_strided_tests_4d {
                 let data = make_strided_array(DUMMY_VAL);
                 let mut bs = ZfpBitStream::new(1 << 20);
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW) };
-                assert_eq!(bits_written, bs.bits_written());
+                assert_eq!(bits_written as u64, bs.write_pos());
             }
 
             #[test]

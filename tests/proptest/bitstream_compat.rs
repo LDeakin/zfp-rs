@@ -122,9 +122,8 @@ proptest! {
         for op in &ops {
             match *op {
                 Op::WriteBit(b) => {
-                    let r = rs.write_bit(b);
-                    let c = cs.write_bit(b);
-                    prop_assert_eq!(r, c, "write_bit return mismatch for bit={}", b);
+                    rs.write_bit(b != 0);
+                    cs.write_bit(b);
                 }
                 Op::WriteBits { value, n } => {
                     let r = rs.write_bits(value, n);
@@ -165,7 +164,7 @@ proptest! {
         for op in &write_ops {
             match *op {
                 Op::WriteBit(b) => {
-                    rs.write_bit(b);
+                    rs.write_bit(b != 0);
                     cs.write_bit(b);
                     total_bits_written += 1;
                 }
@@ -203,9 +202,8 @@ proptest! {
         let mut cs = CStream::new(capacity);
 
         for &b in &bits {
-            let r = rs.write_bit(b);
-            let c = cs.write_bit(b);
-            prop_assert_eq!(r, c, "write_bit return mismatch");
+            rs.write_bit(b != 0);
+            cs.write_bit(b);
         }
         rs.flush();
         cs.flush();
@@ -213,7 +211,7 @@ proptest! {
         cs.rewind();
 
         for (i, &b) in bits.iter().enumerate() {
-            let r = rs.read_bit();
+            let r = u32::from(rs.read_bit());
             let c = cs.read_bit();
             prop_assert_eq!(r, c, "read_bit mismatch at index {}, expected {}", i, b);
         }
@@ -231,7 +229,7 @@ proptest! {
 
         for op in &ops {
             match *op {
-                Op::WriteBit(b) => { rs.write_bit(b); cs.write_bit(b); }
+                Op::WriteBit(b) => { rs.write_bit(b != 0); cs.write_bit(b); }
                 Op::WriteBits { value, n } => { rs.write_bits(value, n); cs.write_bits(value, n as usize); }
             }
             prop_assert_eq!(rs.write_pos(), cs.wtell(), "write_pos mismatch");
@@ -274,7 +272,7 @@ proptest! {
 
         // Write extra bits.
         for &b in &extra_bits {
-            rs.write_bit(b);
+            rs.write_bit(b != 0);
             cs.write_bit(b);
         }
         rs.flush();
@@ -286,7 +284,7 @@ proptest! {
         prop_assert_eq!(rs.read_pos(), cs.rtell(), "read_pos mismatch after seek_read");
 
         for (i, &b) in extra_bits.iter().enumerate() {
-            let r = rs.read_bit();
+            let r = u32::from(rs.read_bit());
             let c = cs.read_bit();
             prop_assert_eq!(r, c, "read_bit mismatch at extra bit index {}, expected {}", i, b);
         }
@@ -312,7 +310,7 @@ proptest! {
 
         let r_pad = rs.flush();
         let c_pad = cs.flush();
-        prop_assert_eq!(r_pad, c_pad, "flush padding mismatch");
+        prop_assert_eq!(r_pad as usize, c_pad, "flush padding mismatch");
 
         prop_assert_eq!(
             rs.as_bytes(),
@@ -352,7 +350,7 @@ proptest! {
         for (i, &expected) in values.iter().enumerate() {
             for bit_pos in 0u32..64u32 {
                 let expected_bit = ((expected >> bit_pos) & 1) as u32;
-                let r = rs.read_bit();
+                let r = u32::from(rs.read_bit());
                 let c = cs.read_bit();
                 let bit_idx = (i as u32) * 64 + bit_pos;
                 prop_assert_eq!(r, c, "read_bit mismatch at bit {} (value {} bit {})",

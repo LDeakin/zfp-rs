@@ -30,7 +30,7 @@ pub(crate) fn decompress(
     }
 
     bs.align();
-    Ok(bs.size())
+    Ok(bs.byte_len())
 }
 
 /// Derive the block plan for a field, mapping the layout error.
@@ -191,7 +191,7 @@ pub(crate) fn decompress_rayon(
     // Shared read-only slice of all words in the bitstream buffer.
     // `word_pos` tracks the current read cursor (reset by rewind), so we use
     // the full buffer length to cover all compressed data.
-    let words = bs.words();
+    let words = bs.backing_words();
 
     let base = FieldPtr(field.data_mut().as_mut_ptr());
 
@@ -216,7 +216,14 @@ pub(crate) fn decompress_rayon(
         run();
     }
 
-    Ok(bs.size())
+    // Leave the cursor where serial decompression would.
+    let end = (blocks as u64)
+        .checked_mul(u64::from(bits_per_block))
+        .and_then(|bits| bits.checked_add(start_read_bit))
+        .unwrap_or(u64::MAX);
+    bs.seek_read(end);
+    bs.align();
+    Ok(bs.byte_len())
 }
 
 /// A `*mut u8` into the field's data buffer, handed to worker threads.

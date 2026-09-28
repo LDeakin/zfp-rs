@@ -4,7 +4,7 @@ use crate::types::ZfpBitStreamWord;
 pub(crate) const WSIZE: u32 = 64;
 
 #[derive(Clone, Copy)]
-pub(crate) struct BitStreamState {
+pub struct BitStreamState {
     pub(crate) word_pos: usize,
     pub(crate) buffer: u64,
     pub(crate) bits: u32,
@@ -23,23 +23,53 @@ impl BitStreamState {
     }
 }
 
-pub(crate) trait BitStreamStorage {
+/// Buffer and cursor access behind every stream type.
+///
+/// Public but unnameable outside the crate, this seals
+/// [`ZfpBitStreamOps`][super::ZfpBitStreamOps] and carries the C-style bit
+/// I/O the codec is written against.
+pub trait BitStreamStorage {
     fn words(&self) -> &[ZfpBitStreamWord];
     fn state(&self) -> &BitStreamState;
     fn state_mut(&mut self) -> &mut BitStreamState;
+
+    /// Read a single bit as 0 or 1 (C `stream_read_bit`).
+    #[inline]
+    fn get_bit(&mut self) -> u32 {
+        read_bit_impl(self)
+    }
+
+    /// Bytes up to the cursor's word, unclamped (C `stream_size`).
+    #[inline]
+    fn byte_len(&self) -> usize {
+        self.state().word_pos * STREAM_WORD_BYTES
+    }
 }
 
-pub(crate) trait BitStreamStorageMut: BitStreamStorage {
+/// Mutable counterpart of [`BitStreamStorage`], sealing
+/// [`ZfpBitStreamMutOps`][super::ZfpBitStreamMutOps].
+pub trait BitStreamStorageMut: BitStreamStorage {
     fn words_mut(&mut self) -> &mut [ZfpBitStreamWord];
+
+    /// Write the low bit of `bit` and return it (C `stream_write_bit`).
+    #[inline]
+    fn put_bit(&mut self, bit: u32) -> u32 {
+        write_bit_impl(self, bit)
+    }
 }
 
 pub(super) fn bytes_to_words(buf: &[u8]) -> Vec<ZfpBitStreamWord> {
-    let chunks = buf.as_chunks::<{ size_of::<ZfpBitStreamWord>() }>().0;
-    let mut out: Vec<ZfpBitStreamWord> = Vec::with_capacity(chunks.len());
+    let (chunks, tail) = buf.as_chunks::<{ size_of::<ZfpBitStreamWord>() }>();
+    let mut out: Vec<ZfpBitStreamWord> = Vec::with_capacity(buf.len().div_ceil(STREAM_WORD_BYTES));
     match bytemuck::try_cast_slice::<u8, ZfpBitStreamWord>(&buf[..chunks.len() * STREAM_WORD_BYTES])
     {
         Ok(words) => out.extend_from_slice(words),
         Err(_) => out.extend(chunks.iter().map(|c| ZfpBitStreamWord::from_ne_bytes(*c))),
+    }
+    if !tail.is_empty() {
+        let mut last = [0u8; STREAM_WORD_BYTES];
+        last[..tail.len()].copy_from_slice(tail);
+        out.push(ZfpBitStreamWord::from_ne_bytes(last));
     }
     out
 }
@@ -75,11 +105,11 @@ fn write_word_raw<S: BitStreamStorageMut + ?Sized>(stream: &mut S, value: u64) {
     stream.state_mut().word_pos += 1;
 }
 
-pub(super) fn as_committed_bytes<S: BitStreamStorage + ?Sized>(stream: &S) -> &[u8] {
-    // Clamped: a seek past the end is permitted, so `word_pos` may exceed the buffer.
+pub(super) fn committed_words<S: BitStreamStorage + ?Sized>(stream: &S) -> &[ZfpBitStreamWord] {
+    // Clamped: reads and dropped writes may carry `word_pos` past the buffer.
     let words = stream.words();
     let end = stream.state().word_pos.min(words.len());
-    bytemuck::cast_slice(&words[..end])
+    &words[..end]
 }
 
 pub(super) fn backing_bytes<S: BitStreamStorage + ?Sized>(stream: &S) -> &[u8] {
@@ -158,11 +188,8 @@ pub(super) fn seek_read_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offse
     }
 }
 
-pub(super) fn write_word_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, word: u64) -> u64 {
-    let pos = stream.state().word_pos;
-    let prev = stream.words().get(pos).copied().unwrap_or(0);
+pub(super) fn write_word_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, word: u64) {
     write_word_raw(stream, word);
-    prev
 }
 
 pub(super) fn write_bits_impl<S: BitStreamStorageMut + ?Sized>(
@@ -256,15 +283,15 @@ pub(super) fn read_pos_impl<S: BitStreamStorage + ?Sized>(stream: &S) -> u64 {
         .wrapping_sub(u64::from(stream.state().bits))
 }
 
-pub(super) fn skip_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: usize) {
+pub(super) fn skip_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: u64) {
     // Wrapping, as in `read_pos_impl`.
-    let pos = read_pos_impl(stream).wrapping_add(n as u64);
+    let pos = read_pos_impl(stream).wrapping_add(n);
     seek_read_impl(stream, pos);
 }
 
 #[allow(clippy::cast_possible_truncation)]
-pub(super) fn pad_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, n: usize) {
-    let mut bits = u64::from(stream.state().bits) + n as u64;
+pub(super) fn pad_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, n: u64) {
+    let mut bits = u64::from(stream.state().bits).saturating_add(n);
     while bits >= u64::from(WSIZE) {
         let buffer = stream.state().buffer;
         write_word_raw(stream, buffer);
@@ -277,15 +304,15 @@ pub(super) fn pad_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, n: usize
 pub(super) fn align_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u32 {
     let bits = stream.state().bits;
     if bits != 0 {
-        skip_impl(stream, bits as usize);
+        skip_impl(stream, u64::from(bits));
     }
     bits
 }
 
-pub(super) fn flush_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S) -> usize {
+pub(super) fn flush_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S) -> u32 {
     let pad = (WSIZE - stream.state().bits) % WSIZE;
     if pad != 0 {
-        pad_impl(stream, pad as usize);
+        pad_impl(stream, u64::from(pad));
     }
-    pad as usize
+    pad
 }
