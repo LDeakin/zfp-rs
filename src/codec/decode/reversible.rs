@@ -7,8 +7,9 @@
 #![allow(clippy::cast_sign_loss)] // i32→u32 and i64→u64 for BFP reconstruction
 
 use crate::bitstream::ZfpBitStreamOps;
-use crate::codec::decode::core::{decode_ints_u32, decode_ints_u64, inv_order_i32, inv_order_i64};
+use crate::codec::bitplane::{PlaneBlock, decode_ints};
 use crate::codec::decode::core::{inv_cast_f32, inv_cast_f64};
+use crate::codec::decode::core::{inv_order_i32, inv_order_i64};
 use crate::codec::encode::core::{PERM_1, PERM_2, PERM_3, PERM_4};
 use crate::codec::transform::rev_inv_xform;
 use crate::config::ZfpRounding;
@@ -36,42 +37,46 @@ const TCMASK_F64: u64 = 0x7fff_ffff_ffff_ffff;
 
 /// Decode a reversibly-encoded integer block into `iblock`.
 /// Returns bits read.
-fn rev_decode_int_block_u32(
+fn rev_decode_int_block_u32<const N: usize>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
-    iblock: &mut [i32],
-    perm: &[u8],
+    iblock: &mut [i32; N],
+    perm: &[u8; N],
     rounding: ZfpRounding,
-) -> usize {
-    let n = iblock.len();
+) -> usize
+where
+    [u32; N]: PlaneBlock,
+{
     // Read prec-1 (PBITS_32 bits), then prec = bits+1
     let prec_minus_1 = bs.read_bits(PBITS_32) as u32;
     let prec = prec_minus_1 + 1;
     let mut bits = PBITS_32 as usize;
 
-    let mut ublock = vec![0u32; n];
     let remaining = maxbits.saturating_sub(PBITS_32);
-    bits += decode_ints_u32(bs, remaining, prec, &mut ublock, rounding) as usize;
+    let (ublock, ubits) = decode_ints::<[u32; N]>(bs, remaining, prec, rounding);
+    bits += ubits as usize;
 
     inv_order_i32(&ublock, iblock, perm);
     bits
 }
 
-fn rev_decode_int_block_u64(
+fn rev_decode_int_block_u64<const N: usize>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
-    iblock: &mut [i64],
-    perm: &[u8],
+    iblock: &mut [i64; N],
+    perm: &[u8; N],
     rounding: ZfpRounding,
-) -> usize {
-    let n = iblock.len();
+) -> usize
+where
+    [u64; N]: PlaneBlock,
+{
     let prec_minus_1 = bs.read_bits(PBITS_64) as u32;
     let prec = prec_minus_1 + 1;
     let mut bits = PBITS_64 as usize;
 
-    let mut ublock = vec![0u64; n];
     let remaining = maxbits.saturating_sub(PBITS_64);
-    bits += decode_ints_u64(bs, remaining, prec, &mut ublock, rounding) as usize;
+    let (ublock, ubits) = decode_ints::<[u64; N]>(bs, remaining, prec, rounding);
+    bits += ubits as usize;
 
     inv_order_i64(&ublock, iblock, perm);
     bits

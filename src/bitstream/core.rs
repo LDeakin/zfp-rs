@@ -32,6 +32,8 @@ pub trait BitStreamStorage {
     fn words(&self) -> &[ZfpBitStreamWord];
     fn state(&self) -> &BitStreamState;
     fn state_mut(&mut self) -> &mut BitStreamState;
+    /// The buffer and the cursor at once, for [`BitReader`].
+    fn split(&mut self) -> (&[ZfpBitStreamWord], &mut BitStreamState);
 
     /// Read a single bit as 0 or 1 (C `stream_read_bit`).
     #[inline]
@@ -50,6 +52,8 @@ pub trait BitStreamStorage {
 /// [`ZfpBitStreamMutOps`][super::ZfpBitStreamMutOps].
 pub trait BitStreamStorageMut: BitStreamStorage {
     fn words_mut(&mut self) -> &mut [ZfpBitStreamWord];
+    /// The buffer and the cursor at once, for [`BitWriter`].
+    fn split_mut(&mut self) -> (&mut [ZfpBitStreamWord], &mut BitStreamState);
 
     /// Write the low bit of `bit` and return it (C `stream_write_bit`).
     #[inline]
@@ -315,4 +319,159 @@ pub(super) fn flush_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S) -> u32
         pad_impl(stream, u64::from(pad));
     }
     pad
+}
+
+/// A stream's read cursor, copied into locals for the length of a block.
+///
+/// C decodes a block through a copy of the `bitstream` for the same reason: a
+/// cursor behind a pointer cannot stay in registers. Reads have exactly the
+/// effect `read_bits` would, and the cursor is written back on drop.
+pub(crate) struct BitReader<'a> {
+    words: &'a [ZfpBitStreamWord],
+    state: &'a mut BitStreamState,
+    word_pos: usize,
+    buffer: u64,
+    bits: u32,
+}
+
+impl<'a> BitReader<'a> {
+    #[inline]
+    pub(crate) fn new<S: BitStreamStorage + ?Sized>(stream: &'a mut S) -> Self {
+        let (words, state) = stream.split();
+        Self {
+            words,
+            word_pos: state.word_pos,
+            buffer: state.buffer,
+            bits: state.bits,
+            state,
+        }
+    }
+
+    /// The word after the buffered bits; zero past the end, as in `read_word_raw`.
+    #[inline]
+    fn next_word(&self) -> u64 {
+        self.words.get(self.word_pos).copied().unwrap_or(0)
+    }
+
+    /// The next 64 bits, without consuming them.
+    ///
+    /// Relies on the cursor invariant `buffer < 2^bits`, with `bits < 64`.
+    #[inline]
+    pub(crate) fn peek(&self) -> u64 {
+        self.buffer | (self.next_word() << self.bits)
+    }
+
+    /// Consume `n <= 64` bits, leaving the cursor as `read_bits(n)` would.
+    #[inline]
+    pub(crate) fn consume(&mut self, n: u32) {
+        debug_assert!(n <= WSIZE);
+        if n <= self.bits {
+            self.buffer >>= n;
+            self.bits -= n;
+        } else {
+            let word = self.next_word();
+            self.word_pos += 1;
+            self.bits = self.bits + WSIZE - n;
+            // `word >> (WSIZE - bits)`, and zero when `bits == 0`.
+            self.buffer = (word >> 1) >> (WSIZE - 1 - self.bits);
+        }
+    }
+
+    /// Read `n <= 64` bits, least significant first.
+    #[inline]
+    pub(crate) fn read(&mut self, n: u32) -> u64 {
+        let value = self.peek();
+        self.consume(n);
+        if n < WSIZE {
+            value & ((1u64 << n) - 1)
+        } else {
+            value
+        }
+    }
+}
+
+impl Drop for BitReader<'_> {
+    #[inline]
+    fn drop(&mut self) {
+        self.state.word_pos = self.word_pos;
+        self.state.buffer = self.buffer;
+        self.state.bits = self.bits;
+    }
+}
+
+/// A stream's write cursor, copied into locals for the length of a block.
+///
+/// The write counterpart of [`BitReader`]: writes have exactly the effect
+/// `write_bits` would, including dropping words past the end of the buffer,
+/// and the cursor is written back on drop.
+pub(crate) struct BitWriter<'a> {
+    words: &'a mut [ZfpBitStreamWord],
+    state: &'a mut BitStreamState,
+    word_pos: usize,
+    buffer: u64,
+    bits: u32,
+    overflowed: bool,
+}
+
+impl<'a> BitWriter<'a> {
+    #[inline]
+    pub(crate) fn new<S: BitStreamStorageMut + ?Sized>(stream: &'a mut S) -> Self {
+        let (words, state) = stream.split_mut();
+        Self {
+            words,
+            word_pos: state.word_pos,
+            buffer: state.buffer,
+            bits: state.bits,
+            overflowed: state.overflowed,
+            state,
+        }
+    }
+
+    #[inline]
+    fn write_word(&mut self, word: u64) {
+        if let Some(slot) = self.words.get_mut(self.word_pos) {
+            *slot = word;
+        } else {
+            self.overflowed = true;
+        }
+        self.word_pos += 1;
+    }
+
+    /// Append the `n <= 64` bits of `value`, which must have no bits set above
+    /// them.
+    #[inline]
+    pub(crate) fn put(&mut self, value: u64, n: u32) {
+        debug_assert!(n <= WSIZE && (n == WSIZE || value >> n == 0));
+        self.buffer |= value << self.bits;
+        let total = self.bits + n;
+        if total >= WSIZE {
+            let spilled = self.bits;
+            self.write_word(self.buffer);
+            self.bits = total - WSIZE;
+            // `value >> (WSIZE - spilled)`, and zero when `spilled == 0`.
+            self.buffer = (value >> 1) >> (WSIZE - 1 - spilled);
+        } else {
+            self.bits = total;
+        }
+    }
+
+    /// Append `n` zero bits.
+    #[inline]
+    pub(crate) fn put_zeros(&mut self, mut n: u32) {
+        while n > WSIZE {
+            self.put(0, WSIZE);
+            n -= WSIZE;
+        }
+        self.put(0, n);
+    }
+}
+
+impl Drop for BitWriter<'_> {
+    #[inline]
+    fn drop(&mut self) {
+        self.state.word_pos = self.word_pos;
+        self.state.buffer = self.buffer;
+        self.state.bits = self.bits;
+        self.state.overflowed = self.overflowed;
+    }
 }

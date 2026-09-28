@@ -1,4 +1,4 @@
-//! Shared decode utilities: `uint2int`, `inv_order`, bit-plane decoder.
+//! Shared decode utilities: `uint2int`, `inv_order`, `inv_round`, block decode.
 //!
 //! Reference: `zfp/src/template/decode.c`, `codecf.c`
 
@@ -6,8 +6,9 @@
 #![allow(clippy::cast_precision_loss)] // i32→f32 and i64→f64 for reconstruction (intentional loss)
 
 use crate::bitstream::ZfpBitStreamOps;
+use crate::codec::bitplane::decode_ints;
 use crate::codec::encode::core::{
-    NBMASK_U32, NBMASK_U64, PERM_1, PERM_2, PERM_3, PERM_4, precision_f, with_maxbits,
+    NBMASK_U32, NBMASK_U64, PERM_1, PERM_2, PERM_3, PERM_4, precision_f,
 };
 use crate::config::{ZfpConfig, ZfpRounding};
 use crate::types::ZfpDimensionality;
@@ -49,7 +50,7 @@ pub(crate) fn inv_order_i64(ublock: &[u64], iblock: &mut [i64], perm: &[u8]) {
 }
 
 // ---------------------------------------------------------------------------
-// Bit-plane decoders (u32, size ≤ 64): rate-constrained
+// Rounding
 // ---------------------------------------------------------------------------
 
 /// Bias coefficients so truncation rounds to nearest (`ZFP_ROUND_LAST`).
@@ -79,523 +80,6 @@ macro_rules! inv_round {
 inv_round!(inv_round_u32, u32, NBMASK_U32);
 inv_round!(inv_round_u64, u64, NBMASK_U64);
 
-/// Decode `size ≤ 64` u32 integers from a rate-constrained bitstream.
-///
-/// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_few_ints_u32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    maxprec: u32,
-    data: &mut [u32],
-) -> (u32, u32, u32) {
-    let size = data.len() as u32;
-    let intprec: u32 = 32;
-    let kmin = intprec.saturating_sub(maxprec);
-    let mut bits = maxbits;
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut m: u32 = 0;
-    let mut k = intprec;
-    while bits != 0 {
-        m = 0;
-        if k <= kmin {
-            // C decrements k in the loop condition even on this exit.
-            k = k.wrapping_sub(1);
-            break;
-        }
-        k -= 1;
-        // Step 1: decode first n bits of bit plane k
-        m = n.min(bits);
-        bits -= m;
-        let mut x = bs.read_bits(m);
-        // Step 2: unary RLE decode remainder
-        // Mirrors C: `for (; bits && n < size; n++, m=n)`
-        while bits != 0 && n < size {
-            bits -= 1;
-            if bs.get_bit() != 0 {
-                // positive group test: scan for next 1-bit
-                // Mirrors C inner: `for (; bits && n < size-1; n++) { bits--; if (read_bit()) break; }`
-                while bits != 0 && n < size - 1 {
-                    bits -= 1;
-                    if bs.get_bit() != 0 {
-                        break;
-                    }
-                    n += 1;
-                }
-                // set bit at found position
-                x |= 1u64 << n;
-            } else {
-                // negative group test: done with bit plane
-                m = size;
-                break;
-            }
-            // outer post-increment
-            n += 1;
-            m = n;
-        }
-        // Step 3: deposit bit plane from x
-        let mut i = 0usize;
-        let mut xx = x;
-        while xx != 0 {
-            data[i] += ((xx & 1) as u32) << k;
-            xx >>= 1;
-            i += 1;
-        }
-    }
-    (maxbits - bits, m, intprec.wrapping_sub(k))
-}
-
-/// Decode `size ≤ 64` u64 integers from a rate-constrained bitstream.
-///
-/// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_few_ints_u64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    maxprec: u32,
-    data: &mut [u64],
-) -> (u32, u32, u32) {
-    let size = data.len() as u32;
-    let intprec: u32 = 64;
-    let kmin = intprec.saturating_sub(maxprec);
-    let mut bits = maxbits;
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut m: u32 = 0;
-    let mut k = intprec;
-    while bits != 0 {
-        m = 0;
-        if k <= kmin {
-            // C decrements k in the loop condition even on this exit.
-            k = k.wrapping_sub(1);
-            break;
-        }
-        k -= 1;
-        m = n.min(bits);
-        bits -= m;
-        let mut x = bs.read_bits(m);
-        // Mirrors C: `for (; bits && n < size; n++, m=n)`
-        while bits != 0 && n < size {
-            bits -= 1;
-            if bs.get_bit() != 0 {
-                // positive group test: scan for next 1-bit
-                while bits != 0 && n < size - 1 {
-                    bits -= 1;
-                    if bs.get_bit() != 0 {
-                        break;
-                    }
-                    n += 1;
-                }
-                x |= 1u64 << n;
-            } else {
-                // negative group test: done with bit plane
-                m = size;
-                break;
-            }
-            n += 1;
-            m = n;
-        }
-        let mut i = 0usize;
-        let mut xx = x;
-        while xx != 0 {
-            data[i] += (xx & 1) << k;
-            xx >>= 1;
-            i += 1;
-        }
-    }
-    (maxbits - bits, m, intprec.wrapping_sub(k))
-}
-
-// ---------------------------------------------------------------------------
-// Bit-plane decoders (u32, size > 64): rate-constrained
-// ---------------------------------------------------------------------------
-
-/// Decode `size > 64` u32 integers from a rate-constrained bitstream.
-///
-/// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_many_ints_u32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    maxprec: u32,
-    data: &mut [u32],
-) -> (u32, u32, u32) {
-    let size = data.len() as u32;
-    let intprec: u32 = 32;
-    let kmin = intprec.saturating_sub(maxprec);
-    let mut bits = maxbits;
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut m: u32 = 0;
-    let mut k = intprec;
-    while bits != 0 {
-        m = 0;
-        if k <= kmin {
-            // C decrements k in the loop condition even on this exit.
-            k = k.wrapping_sub(1);
-            break;
-        }
-        k -= 1;
-        // Step 1: decode first n individual bits
-        m = n.min(bits);
-        bits -= m;
-        for d in &mut data[..m as usize] {
-            if bs.get_bit() != 0 {
-                *d += 1u32 << k;
-            }
-        }
-        // Step 2: unary RLE decode remainder.
-        // Mirrors C: `for (; bits && n < size; n++, m = n)`
-        // The outer `n++` runs at end of each positive iteration (not on negative break).
-        // The inner `for (; bits && n < size - 1; n++)` increments n only if no break.
-        'outer_u32: loop {
-            if bits == 0 || n >= size {
-                break;
-            }
-            bits -= 1;
-            if bs.get_bit() != 0 {
-                // positive group test; scan for one-bit
-                loop {
-                    if bits == 0 || n >= size - 1 {
-                        break;
-                    }
-                    bits -= 1;
-                    if bs.get_bit() != 0 {
-                        break; // inner break: outer n++ still runs
-                    }
-                    n += 1; // inner n++ (only if no break)
-                }
-                data[n as usize] += 1u32 << k;
-            } else {
-                // negative: outer n++ does NOT run
-                m = size;
-                break 'outer_u32;
-            }
-            n += 1; // outer n++
-            m = n;
-        }
-    }
-    (maxbits - bits, m, intprec.wrapping_sub(k))
-}
-
-/// Decode `size > 64` u64 integers from a rate-constrained bitstream.
-///
-/// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_many_ints_u64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    maxprec: u32,
-    data: &mut [u64],
-) -> (u32, u32, u32) {
-    let size = data.len() as u32;
-    let intprec: u32 = 64;
-    let kmin = intprec.saturating_sub(maxprec);
-    let mut bits = maxbits;
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut m: u32 = 0;
-    let mut k = intprec;
-    while bits != 0 {
-        m = 0;
-        if k <= kmin {
-            // C decrements k in the loop condition even on this exit.
-            k = k.wrapping_sub(1);
-            break;
-        }
-        k -= 1;
-        m = n.min(bits);
-        bits -= m;
-        for d in &mut data[..m as usize] {
-            if bs.get_bit() != 0 {
-                *d += 1u64 << k;
-            }
-        }
-        'outer_u64: loop {
-            if bits == 0 || n >= size {
-                break;
-            }
-            bits -= 1;
-            if bs.get_bit() != 0 {
-                loop {
-                    if bits == 0 || n >= size - 1 {
-                        break;
-                    }
-                    bits -= 1;
-                    if bs.get_bit() != 0 {
-                        break;
-                    }
-                    n += 1;
-                }
-                data[n as usize] += 1u64 << k;
-            } else {
-                // negative: outer n++ does NOT run
-                m = size;
-                break 'outer_u64;
-            }
-            n += 1; // outer n++
-            m = n;
-        }
-    }
-    (maxbits - bits, m, intprec.wrapping_sub(k))
-}
-
-// ---------------------------------------------------------------------------
-// Variable-rate bit-plane decoders (no maxbits constraint)
-// ---------------------------------------------------------------------------
-
-/// Decode `size ≤ 64` u32 integers with no rate constraint.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_few_ints_prec_u32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxprec: u32,
-    data: &mut [u32],
-) -> u32 {
-    let size = data.len() as u32;
-    let intprec: u32 = 32;
-    let kmin = intprec.saturating_sub(maxprec);
-    let start = bs.read_pos();
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut k = intprec;
-    while k > kmin {
-        k -= 1;
-        // Step 1: decode first n bits
-        let mut x = bs.read_bits(n);
-        // Step 2: unary RLE decode remainder
-        // Mirrors C: `for (; n < size && read_bit(); x += 1<<n, n++)`
-        while n < size && bs.get_bit() != 0 {
-            // inner scan: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.get_bit() == 0 {
-                n += 1;
-            }
-            // outer post-increment: set bit at found position, advance n
-            x |= 1u64 << n;
-            n += 1;
-        }
-        // Step 3: deposit bit plane
-        let mut i = 0usize;
-        let mut xx = x;
-        while xx != 0 {
-            data[i] += ((xx & 1) as u32) << k;
-            xx >>= 1;
-            i += 1;
-        }
-    }
-    (bs.read_pos() - start) as u32
-}
-
-/// Decode `size ≤ 64` u64 integers with no rate constraint.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_few_ints_prec_u64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxprec: u32,
-    data: &mut [u64],
-) -> u32 {
-    let size = data.len() as u32;
-    let intprec: u32 = 64;
-    let kmin = intprec.saturating_sub(maxprec);
-    let start = bs.read_pos();
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut k = intprec;
-    while k > kmin {
-        k -= 1;
-        let mut x = bs.read_bits(n);
-        // Mirrors C: `for (; n < size && read_bit(); x += 1<<n, n++)`
-        while n < size && bs.get_bit() != 0 {
-            // inner scan: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.get_bit() == 0 {
-                n += 1;
-            }
-            // outer post-increment
-            x |= 1u64 << n;
-            n += 1;
-        }
-        let mut i = 0usize;
-        let mut xx = x;
-        while xx != 0 {
-            data[i] += (xx & 1) << k;
-            xx >>= 1;
-            i += 1;
-        }
-    }
-    (bs.read_pos() - start) as u32
-}
-
-/// Decode `size > 64` u32 integers with no rate constraint.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_many_ints_prec_u32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxprec: u32,
-    data: &mut [u32],
-) -> u32 {
-    let size = data.len() as u32;
-    let intprec: u32 = 32;
-    let kmin = intprec.saturating_sub(maxprec);
-    let start = bs.read_pos();
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut k = intprec;
-    while k > kmin {
-        k -= 1;
-        // Step 1: decode first n bits directly
-        for d in &mut data[..n as usize] {
-            if bs.get_bit() != 0 {
-                *d += 1u32 << k;
-            }
-        }
-        // Step 2: unary RLE decode
-        // Mirrors C: `for (; n < size && read_bit(); data[n] += 1<<k, n++)`
-        while n < size && bs.get_bit() != 0 {
-            // inner: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.get_bit() == 0 {
-                n += 1;
-            }
-            // outer post-increment
-            data[n as usize] += 1u32 << k;
-            n += 1;
-        }
-    }
-    (bs.read_pos() - start) as u32
-}
-
-/// Decode `size > 64` u64 integers with no rate constraint.
-#[allow(clippy::many_single_char_names)]
-pub(crate) fn decode_many_ints_prec_u64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxprec: u32,
-    data: &mut [u64],
-) -> u32 {
-    let size = data.len() as u32;
-    let intprec: u32 = 64;
-    let kmin = intprec.saturating_sub(maxprec);
-    let start = bs.read_pos();
-
-    for d in data.iter_mut() {
-        *d = 0;
-    }
-
-    let mut n: u32 = 0;
-    let mut k = intprec;
-    while k > kmin {
-        k -= 1;
-        // Step 1: decode first n bits directly
-        for d in &mut data[..n as usize] {
-            if bs.get_bit() != 0 {
-                *d += 1u64 << k;
-            }
-        }
-        // Step 2: unary RLE decode
-        // Mirrors C: `for (; n < size && read_bit(); data[n] += 1<<k, n++)`
-        while n < size && bs.get_bit() != 0 {
-            // inner: `for (; n < size-1 && !read_bit(); n++)`
-            while n < size - 1 && bs.get_bit() == 0 {
-                n += 1;
-            }
-            // outer post-increment
-            data[n as usize] += 1u64 << k;
-            n += 1;
-        }
-    }
-    (bs.read_pos() - start) as u32
-}
-
-// ---------------------------------------------------------------------------
-// Main dispatch: decode_ints
-// ---------------------------------------------------------------------------
-
-/// Decode `data.len()` u32 integers; returns bits read.
-pub(crate) fn decode_ints_u32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    maxprec: u32,
-    data: &mut [u32],
-    rounding: ZfpRounding,
-) -> u32 {
-    let size = data.len() as u32;
-    let (bits, m, prec) = if with_maxbits(maxbits, maxprec, size) {
-        if size <= 64 {
-            decode_few_ints_u32(bs, maxbits, maxprec, data)
-        } else {
-            decode_many_ints_u32(bs, maxbits, maxprec, data)
-        }
-    } else {
-        let bits = if size <= 64 {
-            decode_few_ints_prec_u32(bs, maxprec, data)
-        } else {
-            decode_many_ints_prec_u32(bs, maxprec, data)
-        };
-        // The loop always exits with k == kmin - 1, and m is always 0.
-        let kmin = 32u32.saturating_sub(maxprec);
-        (bits, 0, 32u32.wrapping_sub(kmin.wrapping_sub(1)))
-    };
-    if matches!(rounding, ZfpRounding::Last { .. }) {
-        inv_round_u32(data, m, prec);
-    }
-    bits
-}
-
-/// Decode `data.len()` u64 integers; returns bits read.
-pub(crate) fn decode_ints_u64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    maxprec: u32,
-    data: &mut [u64],
-    rounding: ZfpRounding,
-) -> u32 {
-    let size = data.len() as u32;
-    let (bits, m, prec) = if with_maxbits(maxbits, maxprec, size) {
-        if size <= 64 {
-            decode_few_ints_u64(bs, maxbits, maxprec, data)
-        } else {
-            decode_many_ints_u64(bs, maxbits, maxprec, data)
-        }
-    } else {
-        let bits = if size <= 64 {
-            decode_few_ints_prec_u64(bs, maxprec, data)
-        } else {
-            decode_many_ints_prec_u64(bs, maxprec, data)
-        };
-        // The loop always exits with k == kmin - 1, and m is always 0.
-        let kmin = 64u32.saturating_sub(maxprec);
-        (bits, 0, 64u32.wrapping_sub(kmin.wrapping_sub(1)))
-    };
-    if matches!(rounding, ZfpRounding::Last { .. }) {
-        inv_round_u64(data, m, prec);
-    }
-    bits
-}
-
 // ---------------------------------------------------------------------------
 // Block decode: integer (matches C `decode_block_Int_DIMS`)
 // ---------------------------------------------------------------------------
@@ -607,8 +91,7 @@ pub(crate) fn decode_block_1d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 4] {
-    let mut ublock = [0u32; 4];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u32; 4]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -625,8 +108,7 @@ pub(crate) fn decode_block_1d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 4] {
-    let mut ublock = [0u64; 4];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u64; 4]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -643,8 +125,7 @@ pub(crate) fn decode_block_2d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 16] {
-    let mut ublock = [0u32; 16];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u32; 16]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -661,8 +142,7 @@ pub(crate) fn decode_block_2d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 16] {
-    let mut ublock = [0u64; 16];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u64; 16]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -679,8 +159,7 @@ pub(crate) fn decode_block_3d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 64] {
-    let mut ublock = [0u32; 64];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u32; 64]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -697,8 +176,7 @@ pub(crate) fn decode_block_3d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 64] {
-    let mut ublock = [0u64; 64];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u64; 64]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -715,8 +193,7 @@ pub(crate) fn decode_block_4d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 256] {
-    let mut ublock = [0u32; 256];
-    let bits = decode_ints_u32(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u32; 256]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -733,8 +210,7 @@ pub(crate) fn decode_block_4d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 256] {
-    let mut ublock = [0u64; 256];
-    let bits = decode_ints_u64(bs, maxbits, maxprec, &mut ublock, rounding);
+    let (ublock, bits) = decode_ints::<[u64; 256]>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }

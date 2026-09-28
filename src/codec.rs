@@ -11,6 +11,9 @@
 
 pub mod block;
 
+// The embedded bit-plane coder behind every encode and decode path.
+pub(crate) mod bitplane;
+
 #[cfg(feature = "internals")]
 pub mod decode;
 #[cfg(not(feature = "internals"))]
