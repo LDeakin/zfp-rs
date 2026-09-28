@@ -166,11 +166,28 @@ pub(crate) fn compress_rayon(
     // Concatenate chunks at bit-level granularity, matching C's stream_copy.
     // Write chunks sequentially (no seeking) to avoid buffer clobbering.
     for (bits_written, chunk_words) in &chunk_results {
-        let mut src = crate::ZfpBitStreamRef::from_words(chunk_words);
-        bs.copy_from(&mut src, *bits_written);
+        append_bits(bs, chunk_words, *bits_written);
     }
 
     finish(bs)
+}
+
+/// Append the first `bits` bits of `words`, as `copy_from` would, but a word at
+/// a time without going through a `dyn` stream. Words past the end read as
+/// zero, as they do from a stream.
+#[cfg(feature = "rayon")]
+#[allow(clippy::cast_possible_truncation)] // `bits / 64` counts words in memory
+fn append_bits(bs: &mut (impl ZfpBitStreamMutOps + ?Sized), words: &[u64], bits: u64) {
+    let mut w = crate::bitstream::BitWriter::new(bs);
+    let word = |i: usize| words.get(i).copied().unwrap_or(0);
+    let full = (bits / 64) as usize;
+    for i in 0..full {
+        w.put(word(i), 64);
+    }
+    let rest = (bits % 64) as u32;
+    if rest != 0 {
+        w.put(word(full) & ((1 << rest) - 1), rest);
+    }
 }
 
 /// Compress one chunk of blocks, returning (`bits_written`, `compressed_words`).
