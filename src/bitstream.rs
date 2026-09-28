@@ -698,6 +698,32 @@ mod tests {
     }
 
     #[test]
+    fn when_seek_read_past_end_expect_offset_kept_and_zeros_read() {
+        let mut s = setup();
+        let offset = 5 * u64::from(WSIZE) + 3;
+        s.seek_read(offset);
+        assert_eq!(s.read_pos(), offset);
+        assert_eq!(s.read_bits(10), 0);
+        assert_eq!(s.read_pos(), offset + 10);
+        s.skip(100);
+        assert_eq!(s.read_pos(), offset + 110);
+    }
+
+    #[test]
+    fn when_seek_write_past_end_expect_offset_kept_and_writes_dropped() {
+        let mut s = setup();
+        let offset = 5 * u64::from(WSIZE) + 3;
+        s.seek_write(offset);
+        assert_eq!(s.write_pos(), offset);
+        s.write_bits(0x3ff, 10);
+        s.flush();
+        assert!(s.overflowed());
+        assert_eq!(s.write_pos(), 6 * u64::from(WSIZE));
+        assert!(s.backing_words().iter().all(|&w| w == 0));
+        assert_eq!(s.as_bytes().len(), s.capacity());
+    }
+
+    #[test]
     fn when_align_expect_buffer_empty_bits_zero() {
         let read_bit_count: u32 = 3;
 

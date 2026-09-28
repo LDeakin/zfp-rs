@@ -27,6 +27,9 @@ pub trait ZfpBitStreamOps: BitStreamStorage {
     /// Move the cursor to the start of the stream.
     fn rewind(&mut self);
     /// Position the stream for reading at `offset` bits from the start.
+    ///
+    /// An offset past the end of the buffer is kept, as in C, and reads there
+    /// yield zeros.
     fn seek_read(&mut self, offset: u64);
     /// Return the current read offset in bits (`stream_rtell`).
     fn read_pos(&self) -> u64;
@@ -143,6 +146,9 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps + BitStreamStorageMut {
     /// Write a single bit.
     fn write_bit(&mut self, bit: bool);
     /// Position the stream for writing at `offset` bits from the start.
+    ///
+    /// An offset past the end of the buffer is kept, as in C, and writes there
+    /// are dropped; see [`overflowed`][ZfpBitStreamOps::overflowed].
     fn seek_write(&mut self, offset: u64);
     /// Write `n` zero bits (`stream_pad`).
     fn pad(&mut self, n: u64);

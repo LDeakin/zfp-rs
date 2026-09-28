@@ -174,12 +174,22 @@ pub(super) fn read_bit_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u32
     bit
 }
 
+/// The index of the word holding bit `offset`, which may be past the end of
+/// the buffer.
+///
+/// Saturates where `usize` is narrower than the offset. No allocation exceeds
+/// `isize::MAX` bytes, so that is past the end of any buffer, with room for the
+/// cursor to advance without overflowing.
+fn word_index(offset: u64) -> usize {
+    usize::try_from(offset / u64::from(WSIZE)).unwrap_or(usize::MAX / 2)
+}
+
 #[allow(clippy::cast_possible_truncation)]
 pub(super) fn seek_read_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offset: u64) {
     let n = (offset % u64::from(WSIZE)) as u32;
-    // Clamped to the buffer; C's `stream_rseek` stores the offset unchecked.
-    let limit = stream.words().len();
-    stream.state_mut().word_pos = ((offset / u64::from(WSIZE)) as usize).min(limit);
+    // Kept past the end of the buffer, as C's `stream_rseek` does, so the
+    // cursor never moves backwards; reads there yield zeros.
+    stream.state_mut().word_pos = word_index(offset);
     if n != 0 {
         let word = read_word_raw(stream);
         let state = stream.state_mut();
@@ -246,9 +256,8 @@ pub(super) fn write_bit_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, bi
 #[allow(clippy::cast_possible_truncation)]
 pub(super) fn seek_write_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offset: u64) {
     let n = (offset % u64::from(WSIZE)) as u32;
-    // Clamped, as in `seek_read_impl`.
-    let limit = stream.words().len();
-    stream.state_mut().word_pos = ((offset / u64::from(WSIZE)) as usize).min(limit);
+    // Kept past the end, as in `seek_read_impl`; writes there are dropped.
+    stream.state_mut().word_pos = word_index(offset);
     stream.state_mut().overflowed = false;
     if n != 0 {
         let pos = stream.state().word_pos;
