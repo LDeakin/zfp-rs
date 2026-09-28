@@ -95,7 +95,7 @@ fn rev_inv_cast_f64(iblock: &[i64], fblock: &[f64], emax: i32) -> bool {
 // ---------------------------------------------------------------------------
 
 fn rev_encode_int_block_u32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i32],
     maxbits: u32,
     perm: &[u8],
@@ -115,7 +115,7 @@ fn rev_encode_int_block_u32(
 }
 
 fn rev_encode_int_block_u64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     iblock: &[i64],
     maxbits: u32,
     perm: &[u8],
@@ -155,11 +155,11 @@ fn rev_encode_int_block_u64(
 // ---------------------------------------------------------------------------
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // u32→i32 for reversible encoding
-fn rev_encode_float_block<const N: usize>(
-    bs: &mut dyn ZfpBitStreamMutOps,
+fn rev_encode_float_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
+    bs: &mut B,
     fblock: &[f32; N],
     maxbits: u32,
-    rev_encode_int: impl FnOnce(&mut dyn ZfpBitStreamMutOps, &mut [i32; N], u32) -> usize,
+    rev_encode_int: impl FnOnce(&mut B, &mut [i32; N], u32) -> usize,
 ) -> usize {
     let emax = exponent_block_f32(fblock);
     let e = (emax + EBIAS_F32) as u32;
@@ -203,11 +203,11 @@ fn rev_encode_float_block<const N: usize>(
 }
 
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // u64→i64 for reversible encoding
-fn rev_encode_double_block<const N: usize>(
-    bs: &mut dyn ZfpBitStreamMutOps,
+fn rev_encode_double_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
+    bs: &mut B,
     fblock: &[f64; N],
     maxbits: u32,
-    rev_encode_int: impl FnOnce(&mut dyn ZfpBitStreamMutOps, &mut [i64; N], u32) -> usize,
+    rev_encode_int: impl FnOnce(&mut B, &mut [i64; N], u32) -> usize,
 ) -> usize {
     let emax = exponent_block_f64(fblock);
     let e = (emax + EBIAS_F64) as u32;
@@ -249,7 +249,10 @@ fn rev_encode_double_block<const N: usize>(
 // ---------------------------------------------------------------------------
 
 /// Reversible encode of a 1-D block of `f32` values; return bits written.
-pub fn encode_block_reversible_1d_f32(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32; 4]) -> usize {
+pub fn encode_block_reversible_1d_f32(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f32; 4],
+) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         rev_fwd_xform_1d(iblock);
         rev_encode_int_block_u32(bs, iblock, maxbits, &PERM_1)
@@ -257,7 +260,10 @@ pub fn encode_block_reversible_1d_f32(bs: &mut dyn ZfpBitStreamMutOps, block: &[
 }
 
 /// Reversible encode of a 1-D block of `f64` values; return bits written.
-pub fn encode_block_reversible_1d_f64(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64; 4]) -> usize {
+pub fn encode_block_reversible_1d_f64(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f64; 4],
+) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         rev_fwd_xform_1d_i64(iblock);
         rev_encode_int_block_u64(bs, iblock, maxbits, &PERM_1)
@@ -265,7 +271,10 @@ pub fn encode_block_reversible_1d_f64(bs: &mut dyn ZfpBitStreamMutOps, block: &[
 }
 
 /// Reversible encode of a 2-D block of `f32` values; return bits written.
-pub fn encode_block_reversible_2d_f32(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32; 16]) -> usize {
+pub fn encode_block_reversible_2d_f32(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f32; 16],
+) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         rev_fwd_xform_2d(iblock);
         rev_encode_int_block_u32(bs, iblock, maxbits, &PERM_2)
@@ -273,7 +282,10 @@ pub fn encode_block_reversible_2d_f32(bs: &mut dyn ZfpBitStreamMutOps, block: &[
 }
 
 /// Reversible encode of a 2-D block of `f64` values; return bits written.
-pub fn encode_block_reversible_2d_f64(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64; 16]) -> usize {
+pub fn encode_block_reversible_2d_f64(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f64; 16],
+) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         rev_fwd_xform_2d_i64(iblock);
         rev_encode_int_block_u64(bs, iblock, maxbits, &PERM_2)
@@ -281,7 +293,10 @@ pub fn encode_block_reversible_2d_f64(bs: &mut dyn ZfpBitStreamMutOps, block: &[
 }
 
 /// Reversible encode of a 3-D block of `f32` values; return bits written.
-pub fn encode_block_reversible_3d_f32(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32; 64]) -> usize {
+pub fn encode_block_reversible_3d_f32(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f32; 64],
+) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         rev_fwd_xform_3d(iblock);
         rev_encode_int_block_u32(bs, iblock, maxbits, &PERM_3)
@@ -289,7 +304,10 @@ pub fn encode_block_reversible_3d_f32(bs: &mut dyn ZfpBitStreamMutOps, block: &[
 }
 
 /// Reversible encode of a 3-D block of `f64` values; return bits written.
-pub fn encode_block_reversible_3d_f64(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64; 64]) -> usize {
+pub fn encode_block_reversible_3d_f64(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f64; 64],
+) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         rev_fwd_xform_3d_i64(iblock);
         rev_encode_int_block_u64(bs, iblock, maxbits, &PERM_3)
@@ -298,7 +316,7 @@ pub fn encode_block_reversible_3d_f64(bs: &mut dyn ZfpBitStreamMutOps, block: &[
 
 /// Reversible encode of a 4-D block of `f32` values; return bits written.
 pub fn encode_block_reversible_4d_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f32; 256],
 ) -> usize {
     rev_encode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
@@ -309,7 +327,7 @@ pub fn encode_block_reversible_4d_f32(
 
 /// Reversible encode of a 4-D block of `f64` values; return bits written.
 pub fn encode_block_reversible_4d_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f64; 256],
 ) -> usize {
     rev_encode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
@@ -323,42 +341,60 @@ pub fn encode_block_reversible_4d_f64(
 // ---------------------------------------------------------------------------
 
 /// Reversible encode of a 1-D block of `i32` values; return bits written.
-pub fn encode_block_reversible_1d_i32(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 4]) -> usize {
+pub fn encode_block_reversible_1d_i32(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i32; 4],
+) -> usize {
     let mut b = *block;
     crate::codec::transform::rev_fwd_xform_1d(&mut b);
     rev_encode_int_block_u32(bs, &b, u32::MAX, &PERM_1)
 }
 
 /// Reversible encode of a 1-D block of `i64` values; return bits written.
-pub fn encode_block_reversible_1d_i64(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 4]) -> usize {
+pub fn encode_block_reversible_1d_i64(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i64; 4],
+) -> usize {
     let mut b = *block;
     crate::codec::transform::rev_fwd_xform_1d_i64(&mut b);
     rev_encode_int_block_u64(bs, &b, u32::MAX, &PERM_1)
 }
 
 /// Reversible encode of a 2-D block of `i32` values; return bits written.
-pub fn encode_block_reversible_2d_i32(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 16]) -> usize {
+pub fn encode_block_reversible_2d_i32(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i32; 16],
+) -> usize {
     let mut b = *block;
     crate::codec::transform::rev_fwd_xform_2d(&mut b);
     rev_encode_int_block_u32(bs, &b, u32::MAX, &PERM_2)
 }
 
 /// Reversible encode of a 2-D block of `i64` values; return bits written.
-pub fn encode_block_reversible_2d_i64(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 16]) -> usize {
+pub fn encode_block_reversible_2d_i64(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i64; 16],
+) -> usize {
     let mut b = *block;
     crate::codec::transform::rev_fwd_xform_2d_i64(&mut b);
     rev_encode_int_block_u64(bs, &b, u32::MAX, &PERM_2)
 }
 
 /// Reversible encode of a 3-D block of `i32` values; return bits written.
-pub fn encode_block_reversible_3d_i32(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 64]) -> usize {
+pub fn encode_block_reversible_3d_i32(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i32; 64],
+) -> usize {
     let mut b = *block;
     crate::codec::transform::rev_fwd_xform_3d(&mut b);
     rev_encode_int_block_u32(bs, &b, u32::MAX, &PERM_3)
 }
 
 /// Reversible encode of a 3-D block of `i64` values; return bits written.
-pub fn encode_block_reversible_3d_i64(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 64]) -> usize {
+pub fn encode_block_reversible_3d_i64(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i64; 64],
+) -> usize {
     let mut b = *block;
     crate::codec::transform::rev_fwd_xform_3d_i64(&mut b);
     rev_encode_int_block_u64(bs, &b, u32::MAX, &PERM_3)
@@ -366,7 +402,7 @@ pub fn encode_block_reversible_3d_i64(bs: &mut dyn ZfpBitStreamMutOps, block: &[
 
 /// Reversible encode of a 4-D block of `i32` values; return bits written.
 pub fn encode_block_reversible_4d_i32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[i32; 256],
 ) -> usize {
     let mut b = *block;
@@ -376,7 +412,7 @@ pub fn encode_block_reversible_4d_i32(
 
 /// Reversible encode of a 4-D block of `i64` values; return bits written.
 pub fn encode_block_reversible_4d_i64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[i64; 256],
 ) -> usize {
     let mut b = *block;

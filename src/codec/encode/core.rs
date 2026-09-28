@@ -132,7 +132,7 @@ pub(crate) fn with_maxbits(maxbits: u32, maxprec: u32, size: u32) -> bool {
 /// Returns the number of bits written.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_few_ints_u32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &[u32],
@@ -190,7 +190,7 @@ pub(crate) fn encode_few_ints_u32(
 /// Encode `size ≤ 64` unsigned 64-bit integers with a rate constraint.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_few_ints_u64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &[u64],
@@ -248,7 +248,7 @@ pub(crate) fn encode_few_ints_u64(
 /// Encode `size > 64` unsigned 32-bit integers with a rate constraint.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_many_ints_u32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &[u32],
@@ -309,7 +309,7 @@ pub(crate) fn encode_many_ints_u32(
 /// Encode `size > 64` unsigned 64-bit integers with a rate constraint.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_many_ints_u64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &[u64],
@@ -367,7 +367,7 @@ pub(crate) fn encode_many_ints_u64(
 /// Encode `size ≤ 64` u32 integers with no rate constraint; returns bits written.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_few_ints_prec_u32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxprec: u32,
     data: &[u32],
 ) -> u32 {
@@ -405,7 +405,7 @@ pub(crate) fn encode_few_ints_prec_u32(
 /// Encode `size ≤ 64` u64 integers with no rate constraint; returns bits written.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_few_ints_prec_u64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxprec: u32,
     data: &[u64],
 ) -> u32 {
@@ -441,7 +441,7 @@ pub(crate) fn encode_few_ints_prec_u64(
 /// Encode `size > 64` u32 integers with no rate constraint; returns bits written.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_many_ints_prec_u32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxprec: u32,
     data: &[u32],
 ) -> u32 {
@@ -481,7 +481,7 @@ pub(crate) fn encode_many_ints_prec_u32(
 /// Encode `size > 64` u64 integers with no rate constraint; returns bits written.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn encode_many_ints_prec_u64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxprec: u32,
     data: &[u64],
 ) -> u32 {
@@ -522,7 +522,7 @@ pub(crate) fn encode_many_ints_prec_u64(
 
 /// Encode `data.len()` unsigned 32-bit integers; returns bits written.
 pub(crate) fn encode_ints_u32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &[u32],
@@ -543,7 +543,7 @@ pub(crate) fn encode_ints_u32(
 
 /// Encode `data.len()` unsigned 64-bit integers; returns bits written.
 pub(crate) fn encode_ints_u64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &[u64],
@@ -712,7 +712,7 @@ macro_rules! strided_encode_wrappers {
         /// [`crate::codec::block`].
         #[cfg(feature = "internals")]
         pub unsafe fn $full(
-            bs: &mut dyn ZfpBitStreamMutOps,
+            bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
             data: *const $ty,
             $($s: isize,)+
         ) -> usize {
@@ -727,7 +727,7 @@ macro_rules! strided_encode_wrappers {
         /// [`crate::codec::block`].
         #[cfg(feature = "internals")]
         pub unsafe fn $partial(
-            bs: &mut dyn ZfpBitStreamMutOps,
+            bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
             data: *const $ty,
             $($n: usize,)+
             $($s: isize,)+
@@ -742,7 +742,7 @@ macro_rules! strided_encode_wrappers {
         /// `data` must be valid for every offset the strides generate. See
         /// [`crate::codec::block`].
         pub unsafe fn $full_rate(
-            bs: &mut dyn ZfpBitStreamMutOps,
+            bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
             data: *const $ty,
             $($s: isize,)+
             config: &$crate::config::ZfpConfig,
@@ -757,7 +757,7 @@ macro_rules! strided_encode_wrappers {
         /// `data` must be valid for every offset the strides generate. See
         /// [`crate::codec::block`].
         pub unsafe fn $partial_rate(
-            bs: &mut dyn ZfpBitStreamMutOps,
+            bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
             data: *const $ty,
             $($n: usize,)+
             $($s: isize,)+

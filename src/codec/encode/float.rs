@@ -26,7 +26,7 @@ const EBIAS_F64: i32 = 1023;
 
 /// Generic f32-block encode: exponent header + integer block encode.
 fn encode_float_block<T: Transform32<N>, const N: usize>(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     fblock: &[f32; N],
     config: &ZfpConfig,
 ) -> usize {
@@ -77,7 +77,7 @@ fn encode_float_block<T: Transform32<N>, const N: usize>(
 
 /// Generic f64-block encode: exponent header + integer block encode.
 fn encode_double_block<T: Transform64<N>, const N: usize>(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     fblock: &[f64; N],
     config: &ZfpConfig,
 ) -> usize {
@@ -132,7 +132,7 @@ fn encode_double_block<T: Transform64<N>, const N: usize>(
 
 /// Encode a 1-D block of 4 `f32` values; returns bits written.
 pub fn encode_block_1d_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f32; 4],
     config: &ZfpConfig,
 ) -> usize {
@@ -141,7 +141,7 @@ pub fn encode_block_1d_f32(
 
 /// Encode a 1-D block of 4 `f64` values; returns bits written.
 pub fn encode_block_1d_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f64; 4],
     config: &ZfpConfig,
 ) -> usize {
@@ -150,7 +150,7 @@ pub fn encode_block_1d_f64(
 
 /// Encode a 2-D block of 16 `f32` values; returns bits written.
 pub fn encode_block_2d_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f32; 16],
     config: &ZfpConfig,
 ) -> usize {
@@ -159,7 +159,7 @@ pub fn encode_block_2d_f32(
 
 /// Encode a 2-D block of 16 `f64` values; returns bits written.
 pub fn encode_block_2d_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f64; 16],
     config: &ZfpConfig,
 ) -> usize {
@@ -168,7 +168,7 @@ pub fn encode_block_2d_f64(
 
 /// Encode a 3-D block of 64 `f32` values; returns bits written.
 pub fn encode_block_3d_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f32; 64],
     config: &ZfpConfig,
 ) -> usize {
@@ -177,7 +177,7 @@ pub fn encode_block_3d_f32(
 
 /// Encode a 3-D block of 64 `f64` values; returns bits written.
 pub fn encode_block_3d_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f64; 64],
     config: &ZfpConfig,
 ) -> usize {
@@ -186,7 +186,7 @@ pub fn encode_block_3d_f64(
 
 /// Encode a 4-D block of 256 `f32` values; returns bits written.
 pub fn encode_block_4d_f32(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f32; 256],
     config: &ZfpConfig,
 ) -> usize {
@@ -195,7 +195,7 @@ pub fn encode_block_4d_f32(
 
 /// Encode a 4-D block of 256 `f64` values; returns bits written.
 pub fn encode_block_4d_f64(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     block: &[f64; 256],
     config: &ZfpConfig,
 ) -> usize {

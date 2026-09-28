@@ -64,7 +64,10 @@ unsafe fn gather_partial_2d<T: Copy + Default>(
 // ---------------------------------------------------------------------------
 
 /// Encode a contiguous 2-D block of 16 `i32` values; return bits written.
-pub fn encode_block_2d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32; 16]) -> usize {
+pub fn encode_block_2d_i32_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i32; 16],
+) -> usize {
     encode_block_2d_i32(
         bs,
         block,
@@ -73,7 +76,10 @@ pub fn encode_block_2d_i32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i32
 }
 
 /// Encode a contiguous 2-D block of 16 `i64` values; return bits written.
-pub fn encode_block_2d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64; 16]) -> usize {
+pub fn encode_block_2d_i64_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[i64; 16],
+) -> usize {
     encode_block_2d_i64(
         bs,
         block,
@@ -82,7 +88,10 @@ pub fn encode_block_2d_i64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[i64
 }
 
 /// Encode a contiguous 2-D block of 16 `f32` values; return bits written.
-pub fn encode_block_2d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32; 16]) -> usize {
+pub fn encode_block_2d_f32_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f32; 16],
+) -> usize {
     encode_block_2d_f32(
         bs,
         block,
@@ -91,7 +100,10 @@ pub fn encode_block_2d_f32_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f32
 }
 
 /// Encode a contiguous 2-D block of 16 `f64` values; return bits written.
-pub fn encode_block_2d_f64_default(bs: &mut dyn ZfpBitStreamMutOps, block: &[f64; 16]) -> usize {
+pub fn encode_block_2d_f64_default(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    block: &[f64; 16],
+) -> usize {
     encode_block_2d_f64(
         bs,
         block,

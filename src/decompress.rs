@@ -15,7 +15,7 @@ use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpScalarType};
 
 /// Decompress from the bitstream into the field with the given expert parameters.
 pub(crate) fn decompress(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     field: &mut ZfpFieldMut,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpDecompressionError> {
@@ -69,7 +69,7 @@ impl From<PlanError> for ZfpDecompressionError {
 #[allow(clippy::cast_ptr_alignment)]
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 unsafe fn decompress_block(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     base: *mut u8,
     info: &FieldPlan,
     config: &ZfpConfig,
@@ -174,7 +174,7 @@ unsafe fn decompress_block(
 /// race.
 #[cfg(feature = "rayon")]
 pub(crate) fn decompress_rayon(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     field: &mut ZfpFieldMut,
     config: &ZfpConfig,
     threads: u32,

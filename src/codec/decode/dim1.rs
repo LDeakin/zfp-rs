@@ -39,7 +39,10 @@ unsafe fn scatter_partial_1d<T: Copy>(block: &[T; 4], data: *mut T, nx: usize, s
 // ---------------------------------------------------------------------------
 
 /// Decode a contiguous 1-D block of 4 `i32` values; return bits read.
-pub fn decode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i32; 4]) -> usize {
+pub fn decode_block_1d_i32_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [i32; 4],
+) -> usize {
     let before = bs.read_pos();
     let decoded = decode_block_1d_i32(
         bs,
@@ -50,7 +53,10 @@ pub fn decode_block_1d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i3
 }
 
 /// Decode a contiguous 1-D block of 4 `i64` values; return bits read.
-pub fn decode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i64; 4]) -> usize {
+pub fn decode_block_1d_i64_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [i64; 4],
+) -> usize {
     let before = bs.read_pos();
     let decoded = decode_block_1d_i64(
         bs,
@@ -61,7 +67,10 @@ pub fn decode_block_1d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i6
 }
 
 /// Decode a contiguous 1-D block of 4 `f32` values; return bits read.
-pub fn decode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f32; 4]) -> usize {
+pub fn decode_block_1d_f32_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [f32; 4],
+) -> usize {
     let before = bs.read_pos();
     let decoded = decode_block_1d_f32(
         bs,
@@ -72,7 +81,10 @@ pub fn decode_block_1d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f3
 }
 
 /// Decode a contiguous 1-D block of 4 `f64` values; return bits read.
-pub fn decode_block_1d_f64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f64; 4]) -> usize {
+pub fn decode_block_1d_f64_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [f64; 4],
+) -> usize {
     let before = bs.read_pos();
     let decoded = decode_block_1d_f64(
         bs,

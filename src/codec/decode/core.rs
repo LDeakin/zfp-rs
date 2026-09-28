@@ -84,7 +84,7 @@ inv_round!(inv_round_u64, u64, NBMASK_U64);
 /// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_few_ints_u32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &mut [u32],
@@ -155,7 +155,7 @@ pub(crate) fn decode_few_ints_u32(
 /// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_few_ints_u64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &mut [u64],
@@ -224,7 +224,7 @@ pub(crate) fn decode_few_ints_u64(
 /// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_many_ints_u32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &mut [u32],
@@ -296,7 +296,7 @@ pub(crate) fn decode_many_ints_u32(
 /// Returns `(bits, m, prec)`: bits read, then the `ZFP_ROUND_LAST` state.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_many_ints_u64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &mut [u64],
@@ -364,7 +364,7 @@ pub(crate) fn decode_many_ints_u64(
 /// Decode `size ≤ 64` u32 integers with no rate constraint.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_few_ints_prec_u32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxprec: u32,
     data: &mut [u32],
 ) -> u32 {
@@ -409,7 +409,7 @@ pub(crate) fn decode_few_ints_prec_u32(
 /// Decode `size ≤ 64` u64 integers with no rate constraint.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_few_ints_prec_u64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxprec: u32,
     data: &mut [u64],
 ) -> u32 {
@@ -451,7 +451,7 @@ pub(crate) fn decode_few_ints_prec_u64(
 /// Decode `size > 64` u32 integers with no rate constraint.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_many_ints_prec_u32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxprec: u32,
     data: &mut [u32],
 ) -> u32 {
@@ -492,7 +492,7 @@ pub(crate) fn decode_many_ints_prec_u32(
 /// Decode `size > 64` u64 integers with no rate constraint.
 #[allow(clippy::many_single_char_names)]
 pub(crate) fn decode_many_ints_prec_u64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxprec: u32,
     data: &mut [u64],
 ) -> u32 {
@@ -536,7 +536,7 @@ pub(crate) fn decode_many_ints_prec_u64(
 
 /// Decode `data.len()` u32 integers; returns bits read.
 pub(crate) fn decode_ints_u32(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &mut [u32],
@@ -567,7 +567,7 @@ pub(crate) fn decode_ints_u32(
 
 /// Decode `data.len()` u64 integers; returns bits read.
 pub(crate) fn decode_ints_u64(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     data: &mut [u64],
@@ -601,7 +601,7 @@ pub(crate) fn decode_ints_u64(
 // ---------------------------------------------------------------------------
 
 pub(crate) fn decode_block_1d_i32_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -619,7 +619,7 @@ pub(crate) fn decode_block_1d_i32_core(
 }
 
 pub(crate) fn decode_block_1d_i64_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -637,7 +637,7 @@ pub(crate) fn decode_block_1d_i64_core(
 }
 
 pub(crate) fn decode_block_2d_i32_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -655,7 +655,7 @@ pub(crate) fn decode_block_2d_i32_core(
 }
 
 pub(crate) fn decode_block_2d_i64_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -673,7 +673,7 @@ pub(crate) fn decode_block_2d_i64_core(
 }
 
 pub(crate) fn decode_block_3d_i32_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -691,7 +691,7 @@ pub(crate) fn decode_block_3d_i32_core(
 }
 
 pub(crate) fn decode_block_3d_i64_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -709,7 +709,7 @@ pub(crate) fn decode_block_3d_i64_core(
 }
 
 pub(crate) fn decode_block_4d_i32_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -727,7 +727,7 @@ pub(crate) fn decode_block_4d_i32_core(
 }
 
 pub(crate) fn decode_block_4d_i64_core(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     minbits: u32,
     maxbits: u32,
     maxprec: u32,
@@ -768,7 +768,7 @@ pub(crate) fn inv_cast_f64(iblock: &[i64], fblock: &mut [f64], emax: i32) {
 ///
 /// Returns (decoded values, bits read).
 pub(crate) fn decode_float_block<const N: usize>(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
     dims: ZfpDimensionality,
 ) -> ([f32; N], usize) {
@@ -827,7 +827,7 @@ pub(crate) fn decode_float_block<const N: usize>(
 
 /// Decode a double block: read exponent, then integer block, then `inv_cast`.
 pub(crate) fn decode_double_block<const N: usize>(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
     dims: ZfpDimensionality,
 ) -> ([f64; N], usize) {
@@ -909,7 +909,7 @@ macro_rules! strided_decode_wrappers {
         /// [`crate::codec::block`].
         #[cfg(feature = "internals")]
         pub unsafe fn $full(
-            bs: &mut dyn ZfpBitStreamOps,
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
             data: *mut $ty,
             $($s: isize,)+
         ) -> usize {
@@ -926,7 +926,7 @@ macro_rules! strided_decode_wrappers {
         /// [`crate::codec::block`].
         #[cfg(feature = "internals")]
         pub unsafe fn $partial(
-            bs: &mut dyn ZfpBitStreamOps,
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
             data: *mut $ty,
             $($n: usize,)+
             $($s: isize,)+
@@ -943,7 +943,7 @@ macro_rules! strided_decode_wrappers {
         /// `data` must be valid for every offset the strides generate. See
         /// [`crate::codec::block`].
         pub unsafe fn $full_rate(
-            bs: &mut dyn ZfpBitStreamOps,
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
             data: *mut $ty,
             $($s: isize,)+
             config: &$crate::config::ZfpConfig,
@@ -960,7 +960,7 @@ macro_rules! strided_decode_wrappers {
         /// `data` must be valid for every offset the strides generate. See
         /// [`crate::codec::block`].
         pub unsafe fn $partial_rate(
-            bs: &mut dyn ZfpBitStreamOps,
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
             data: *mut $ty,
             $($n: usize,)+
             $($s: isize,)+

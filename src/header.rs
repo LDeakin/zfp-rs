@@ -61,7 +61,7 @@ const MODE_SHORT_MAX: u64 = (1u64 << ZFP_MODE_SHORT_BITS) - 2;
 /// Write header to `bs`, given the precomputed `mode_bits` for the mode section.
 /// Returns bits written (0 on failure).
 pub(crate) fn write_header_bs(
-    bs: &mut dyn ZfpBitStreamMutOps,
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     field: &ZfpField,
     mask: ZfpHeaderMask,
     mode_bits_val: u64,
@@ -107,7 +107,7 @@ pub(crate) fn write_header_bs(
 
 /// Read header from `bs`.
 pub(crate) fn read_header_bs(
-    bs: &mut dyn ZfpBitStreamOps,
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
     mask: ZfpHeaderMask,
 ) -> Result<ZfpHeader, ZfpHeaderError> {
     let mut bits = 0usize;

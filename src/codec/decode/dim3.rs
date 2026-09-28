@@ -54,7 +54,10 @@ unsafe fn scatter_partial_3d<T: Copy>(
 }
 
 // Contiguous
-pub fn decode_block_3d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i32; 64]) -> usize {
+pub fn decode_block_3d_i32_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [i32; 64],
+) -> usize {
     let before = bs.read_pos();
     *block = decode_block_3d_i32(
         bs,
@@ -62,7 +65,10 @@ pub fn decode_block_3d_i32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i3
     );
     (bs.read_pos() - before) as usize
 }
-pub fn decode_block_3d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i64; 64]) -> usize {
+pub fn decode_block_3d_i64_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [i64; 64],
+) -> usize {
     let before = bs.read_pos();
     *block = decode_block_3d_i64(
         bs,
@@ -70,7 +76,10 @@ pub fn decode_block_3d_i64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [i6
     );
     (bs.read_pos() - before) as usize
 }
-pub fn decode_block_3d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f32; 64]) -> usize {
+pub fn decode_block_3d_f32_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [f32; 64],
+) -> usize {
     let before = bs.read_pos();
     *block = decode_block_3d_f32(
         bs,
@@ -78,7 +87,10 @@ pub fn decode_block_3d_f32_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f3
     );
     (bs.read_pos() - before) as usize
 }
-pub fn decode_block_3d_f64_default(bs: &mut dyn ZfpBitStreamOps, block: &mut [f64; 64]) -> usize {
+pub fn decode_block_3d_f64_default(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    block: &mut [f64; 64],
+) -> usize {
     let before = bs.read_pos();
     *block = decode_block_3d_f64(
         bs,
