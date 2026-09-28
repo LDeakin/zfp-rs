@@ -289,7 +289,8 @@ unsafe fn gather_block<T: ZfpScalar>(
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
-) -> Vec<T> {
+    block: &mut [T],
+) {
     // Map a block index `i` (0..4) with `n` valid elements to the source data index.
     // Mirrors C's `pad_block`: position 3 always comes from position 0; positions
     // n..2 come from position n-1; positions 0..n are the real data.
@@ -303,8 +304,7 @@ unsafe fn gather_block<T: ZfpScalar>(
         }
     }
 
-    let block_size = 4usize.pow(u32::from(dims));
-    let mut block = vec![T::default(); block_size];
+    debug_assert_eq!(block.len(), dims.block_size());
     match dims {
         ZfpDimensionality::D1 => {
             let sx = strides[0];
@@ -380,7 +380,6 @@ unsafe fn gather_block<T: ZfpScalar>(
             }
         }
     }
-    block
 }
 
 /// Scatter a 4^d contiguous block back into strided data.
@@ -494,7 +493,10 @@ pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::encode::reversible as rev;
 
-        let block = gather_block(data, dims, strides, lengths);
+        // A 4-D block's worth of stack, rather than an allocation per block.
+        let mut buf = [T::default(); 256];
+        let block = &mut buf[..dims.block_size()];
+        gather_block(data, dims, strides, lengths, block);
         reversible_dispatch! {
             encode bs, dims, block,
             d1: [
@@ -544,7 +546,9 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::decode::reversible as rev;
 
-        let mut block = vec![T::default(); 4usize.pow(u32::from(dims))];
+        // A 4-D block's worth of stack, rather than an allocation per block.
+        let mut buf = [T::default(); 256];
+        let mut block = &mut buf[..dims.block_size()];
         let bits = reversible_dispatch! {
             decode bs, dims, block, rounding,
             d1: [
@@ -573,7 +577,7 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
             ],
         };
 
-        scatter_block(&block, data, dims, strides, lengths);
+        scatter_block(block, data, dims, strides, lengths);
         bits
     }
 }
