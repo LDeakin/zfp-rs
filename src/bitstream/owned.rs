@@ -1,7 +1,6 @@
 use crate::bitstream::core::{
     BitStreamState, BitStreamStorage, BitStreamStorageMut, bytes_to_words,
 };
-use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::{STREAM_WORD_BYTES, ZfpConfig};
 use crate::field::{ZfpField, ZfpFieldMut};
 use crate::types::{ZfpBitStreamWord, ZfpHeaderMask};
@@ -77,100 +76,6 @@ impl ZfpBitStream {
         std::mem::take(&mut self.words)
     }
 
-    /// Read one full 64-bit word.
-    pub fn read_word(&mut self) -> u64 {
-        ZfpBitStreamOps::read_word(self)
-    }
-
-    /// Write one full 64-bit word; returns the word previously at that position.
-    pub fn write_word(&mut self, word: u64) -> u64 {
-        ZfpBitStreamMutOps::write_word(self, word)
-    }
-
-    /// Read `n` bits (0 <= n <= 64) from the stream, LSB first.
-    pub fn read_bits(&mut self, n: u32) -> u64 {
-        ZfpBitStreamOps::read_bits(self, n)
-    }
-
-    /// Write the low `n` bits of `value`; return the overflow (bits above `n`).
-    pub fn write_bits(&mut self, value: u64, n: u32) -> u64 {
-        ZfpBitStreamMutOps::write_bits(self, value, n)
-    }
-
-    /// Read a single bit (0 or 1).
-    pub fn read_bit(&mut self) -> u32 {
-        ZfpBitStreamOps::read_bit(self)
-    }
-
-    /// Write a single bit (must be 0 or 1); returns the bit written.
-    pub fn write_bit(&mut self, bit: u32) -> u32 {
-        ZfpBitStreamMutOps::write_bit(self, bit)
-    }
-
-    /// Rewind the stream to the beginning (bit position 0).
-    pub fn rewind(&mut self) {
-        ZfpBitStreamOps::rewind(self);
-    }
-
-    /// Position the stream for writing at `offset` bits from the beginning.
-    pub fn seek_write(&mut self, offset: u64) {
-        ZfpBitStreamMutOps::seek_write(self, offset);
-    }
-
-    /// Position the stream for reading at `offset` bits from the beginning.
-    pub fn seek_read(&mut self, offset: u64) {
-        ZfpBitStreamOps::seek_read(self, offset);
-    }
-
-    /// Return the current write bit offset (`stream_wtell`).
-    #[must_use]
-    pub fn write_pos(&self) -> u64 {
-        ZfpBitStreamOps::write_pos(self)
-    }
-
-    /// Return the current read bit offset (`stream_rtell`).
-    #[must_use]
-    pub fn read_pos(&self) -> u64 {
-        ZfpBitStreamOps::read_pos(self)
-    }
-
-    /// Skip `n` bits forward in the read cursor.
-    pub fn skip(&mut self, n: usize) {
-        ZfpBitStreamOps::skip(self, n);
-    }
-
-    /// Append `n` zero-bits to the write stream (`stream_pad`).
-    pub fn pad(&mut self, n: usize) {
-        ZfpBitStreamMutOps::pad(self, n);
-    }
-
-    /// Discard buffered read bits and align to the next word boundary.
-    pub fn align(&mut self) -> u32 {
-        ZfpBitStreamOps::align(self)
-    }
-
-    /// Flush the write buffer to the next word boundary; return padding bits written.
-    pub fn flush(&mut self) -> usize {
-        ZfpBitStreamMutOps::flush(self)
-    }
-
-    /// Copy `n` bits from `src` into `self` (`stream_copy`).
-    pub fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize) {
-        ZfpBitStreamMutOps::copy_from(self, src, n);
-    }
-
-    /// Total number of bits written so far, matching `stream_wtell`.
-    #[must_use]
-    pub fn bits_written(&self) -> usize {
-        ZfpBitStreamOps::bits_written(self)
-    }
-
-    /// Index of the next word to be read/written (equivalent to `ptr - begin`).
-    #[must_use]
-    pub fn word_pos(&self) -> usize {
-        ZfpBitStreamOps::word_pos(self)
-    }
-
     /// The current partial-word buffer value.
     #[cfg(test)]
     #[must_use]
@@ -185,29 +90,11 @@ impl ZfpBitStream {
         self.state.bits
     }
 
-    /// Byte capacity of the stream (`stream_capacity`).
-    #[must_use]
-    pub fn capacity(&self) -> usize {
-        ZfpBitStreamOps::capacity(self)
-    }
-
-    /// Committed byte size (`size` = `word_pos * word_bytes`).
-    #[must_use]
-    pub fn size(&self) -> usize {
-        ZfpBitStreamOps::size(self)
-    }
-
     /// Read the word at a given word index without moving the cursor.
     #[cfg(test)]
     #[must_use]
     pub fn word_at(&self, index: usize) -> u64 {
         self.words[index]
-    }
-
-    /// Return the committed bytes as a byte slice.
-    #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
-        ZfpBitStreamOps::as_bytes(self)
     }
 
     /// Flush and consume the stream, returning the underlying byte buffer.

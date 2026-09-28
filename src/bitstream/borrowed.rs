@@ -12,7 +12,6 @@ pub struct ZfpBitStreamRef<'a> {
 
 impl std::fmt::Debug for ZfpBitStreamRef<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use crate::bitstream::ZfpBitStreamOps;
         f.debug_struct("ZfpBitStreamRef")
             .field("capacity_bytes", &self.capacity())
             .finish()
@@ -55,7 +54,6 @@ impl BitStreamStorage for ZfpBitStreamRef<'_> {
 
 impl std::fmt::Debug for ZfpBitStreamRefMut<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        use crate::bitstream::ZfpBitStreamOps;
         f.debug_struct("ZfpBitStreamRefMut")
             .field("capacity_bytes", &self.capacity())
             .finish()
