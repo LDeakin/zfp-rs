@@ -4,8 +4,6 @@
 //! [`ZfpBitStream::compress`][crate::ZfpBitStream::compress].
 
 use crate::bitstream::ZfpBitStreamMutOps;
-#[cfg(feature = "rayon")]
-use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpField;
 use crate::field_plan::{FieldPlan, PlanError};

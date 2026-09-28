@@ -1,9 +1,9 @@
 use crate::bitstream::core::{
-    BitStreamStorage, BitStreamStorageMut, WSIZE, align_impl, as_committed_bytes, backing_bytes,
-    flush_impl, pad_impl, read_bit_impl, read_bits_impl, read_pos_impl, read_word_impl,
-    rewind_impl, seek_read_impl, seek_write_impl, skip_impl, write_bit_impl, write_bits_impl,
-    write_pos_impl, write_word_impl,
+    BitStreamStorage, WSIZE, align_impl, as_committed_bytes, backing_bytes, flush_impl, pad_impl,
+    read_bit_impl, read_bits_impl, read_pos_impl, read_word_impl, rewind_impl, seek_read_impl,
+    seek_write_impl, skip_impl, write_bit_impl, write_bits_impl, write_pos_impl, write_word_impl,
 };
+use crate::bitstream::{ZfpBitStream, ZfpBitStreamRef, ZfpBitStreamRefMut};
 use crate::config::STREAM_WORD_BYTES;
 use crate::types::ZfpBitStreamWord;
 
@@ -64,120 +64,135 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize);
 }
 
-impl<T: BitStreamStorage + ?Sized> ZfpBitStreamOps for T {
-    fn read_word(&mut self) -> u64 {
-        read_word_impl(self)
-    }
+/// Implement [`ZfpBitStreamOps`] for each type, and make its methods inherent.
+macro_rules! impl_bitstream_ops {
+    ($($ty:ty),* $(,)?) => {$(
+        #[inherent::inherent]
+        impl ZfpBitStreamOps for $ty {
+            pub fn read_word(&mut self) -> u64 {
+                read_word_impl(self)
+            }
 
-    fn read_bits(&mut self, n: u32) -> u64 {
-        read_bits_impl(self, n)
-    }
+            pub fn read_bits(&mut self, n: u32) -> u64 {
+                read_bits_impl(self, n)
+            }
 
-    fn read_bit(&mut self) -> u32 {
-        read_bit_impl(self)
-    }
+            pub fn read_bit(&mut self) -> u32 {
+                read_bit_impl(self)
+            }
 
-    fn rewind(&mut self) {
-        rewind_impl(self);
-    }
+            pub fn rewind(&mut self) {
+                rewind_impl(self);
+            }
 
-    fn seek_read(&mut self, offset: u64) {
-        seek_read_impl(self, offset);
-    }
+            pub fn seek_read(&mut self, offset: u64) {
+                seek_read_impl(self, offset);
+            }
 
-    fn read_pos(&self) -> u64 {
-        read_pos_impl(self)
-    }
+            pub fn read_pos(&self) -> u64 {
+                read_pos_impl(self)
+            }
 
-    fn write_pos(&self) -> u64 {
-        write_pos_impl(self)
-    }
+            pub fn write_pos(&self) -> u64 {
+                write_pos_impl(self)
+            }
 
-    fn words(&self) -> &[ZfpBitStreamWord] {
-        <Self as BitStreamStorage>::words(self)
-    }
+            pub fn words(&self) -> &[ZfpBitStreamWord] {
+                <Self as BitStreamStorage>::words(self)
+            }
 
-    fn skip(&mut self, n: usize) {
-        skip_impl(self, n);
-    }
+            pub fn skip(&mut self, n: usize) {
+                skip_impl(self, n);
+            }
 
-    fn align(&mut self) -> u32 {
-        align_impl(self)
-    }
+            pub fn align(&mut self) -> u32 {
+                align_impl(self)
+            }
 
-    #[allow(
-        clippy::cast_possible_truncation,
-        reason = "bitstream capacities are addressable as usize on supported targets"
-    )]
-    fn bits_written(&self) -> usize {
-        self.write_pos() as usize
-    }
+            #[allow(
+                clippy::cast_possible_truncation,
+                reason = "bitstream capacities are addressable as usize on supported targets"
+            )]
+            pub fn bits_written(&self) -> usize {
+                self.write_pos() as usize
+            }
 
-    fn word_pos(&self) -> usize {
-        self.state().word_pos
-    }
+            pub fn word_pos(&self) -> usize {
+                self.state().word_pos
+            }
 
-    fn capacity(&self) -> usize {
-        self.words().len() * STREAM_WORD_BYTES
-    }
+            pub fn capacity(&self) -> usize {
+                self.words().len() * STREAM_WORD_BYTES
+            }
 
-    fn size(&self) -> usize {
-        self.state().word_pos * STREAM_WORD_BYTES
-    }
+            pub fn size(&self) -> usize {
+                self.state().word_pos * STREAM_WORD_BYTES
+            }
 
-    fn as_bytes(&self) -> &[u8] {
-        as_committed_bytes(self)
-    }
+            pub fn as_bytes(&self) -> &[u8] {
+                as_committed_bytes(self)
+            }
 
-    fn backing_bytes(&self) -> &[u8] {
-        backing_bytes(self)
-    }
+            pub fn backing_bytes(&self) -> &[u8] {
+                backing_bytes(self)
+            }
 
-    #[cfg(feature = "ffi")]
-    fn data_ptr(&self) -> *mut std::os::raw::c_void {
-        self.words()
-            .as_ptr()
-            .cast_mut()
-            .cast::<std::os::raw::c_void>()
-    }
+            #[cfg(feature = "ffi")]
+            pub fn data_ptr(&self) -> *mut std::os::raw::c_void {
+                self.words()
+                    .as_ptr()
+                    .cast_mut()
+                    .cast::<std::os::raw::c_void>()
+            }
+        }
+    )*};
 }
 
-impl<T: BitStreamStorageMut + ?Sized> ZfpBitStreamMutOps for T {
-    fn write_word(&mut self, word: u64) -> u64 {
-        write_word_impl(self, word)
-    }
+/// Implement [`ZfpBitStreamMutOps`] for each type, and make its methods inherent.
+macro_rules! impl_bitstream_mut_ops {
+    ($($ty:ty),* $(,)?) => {$(
+        #[inherent::inherent]
+        impl ZfpBitStreamMutOps for $ty {
+            pub fn write_word(&mut self, word: u64) -> u64 {
+                write_word_impl(self, word)
+            }
 
-    fn write_bits(&mut self, value: u64, n: u32) -> u64 {
-        write_bits_impl(self, value, n)
-    }
+            pub fn write_bits(&mut self, value: u64, n: u32) -> u64 {
+                write_bits_impl(self, value, n)
+            }
 
-    fn write_bit(&mut self, bit: u32) -> u32 {
-        write_bit_impl(self, bit)
-    }
+            pub fn write_bit(&mut self, bit: u32) -> u32 {
+                write_bit_impl(self, bit)
+            }
 
-    fn seek_write(&mut self, offset: u64) {
-        seek_write_impl(self, offset);
-    }
+            pub fn seek_write(&mut self, offset: u64) {
+                seek_write_impl(self, offset);
+            }
 
-    fn pad(&mut self, n: usize) {
-        pad_impl(self, n);
-    }
+            pub fn pad(&mut self, n: usize) {
+                pad_impl(self, n);
+            }
 
-    fn flush(&mut self) -> usize {
-        flush_impl(self)
-    }
+            pub fn flush(&mut self) -> usize {
+                flush_impl(self)
+            }
 
-    #[allow(clippy::cast_possible_truncation)]
-    fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize) {
-        let mut remaining = n;
-        while remaining > WSIZE as usize {
-            let w = src.read_bits(WSIZE);
-            write_bits_impl(self, w, WSIZE);
-            remaining -= WSIZE as usize;
+            #[allow(clippy::cast_possible_truncation)]
+            pub fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize) {
+                let mut remaining = n;
+                while remaining > WSIZE as usize {
+                    let w = src.read_bits(WSIZE);
+                    write_bits_impl(self, w, WSIZE);
+                    remaining -= WSIZE as usize;
+                }
+                if remaining > 0 {
+                    let w = src.read_bits(remaining as u32);
+                    write_bits_impl(self, w, remaining as u32);
+                }
+            }
         }
-        if remaining > 0 {
-            let w = src.read_bits(remaining as u32);
-            write_bits_impl(self, w, remaining as u32);
-        }
-    }
+    )*};
 }
+
+impl_bitstream_ops!(ZfpBitStream, ZfpBitStreamRef<'_>, ZfpBitStreamRefMut<'_>);
+impl_bitstream_mut_ops!(ZfpBitStream, ZfpBitStreamRefMut<'_>);
