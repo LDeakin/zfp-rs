@@ -8,7 +8,9 @@ use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::decode::core::strided_decode_wrappers;
 use crate::codec::decode::float::{decode_block_4d_f32, decode_block_4d_f64};
 use crate::codec::decode::integer::{decode_block_4d_i32, decode_block_4d_i64};
+#[cfg(feature = "internals")]
 use crate::config::ZfpConfig;
+#[cfg(feature = "internals")]
 use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 /// # Safety
@@ -70,6 +72,7 @@ unsafe fn scatter_partial_4d<T: Copy>(
 }
 
 // Contiguous
+#[cfg(feature = "internals")]
 pub fn decode_block_4d_i32_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i32; 256],
@@ -81,6 +84,7 @@ pub fn decode_block_4d_i32_default(
     );
     (bs.read_pos() - before) as usize
 }
+#[cfg(feature = "internals")]
 pub fn decode_block_4d_i64_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i64; 256],
@@ -92,6 +96,7 @@ pub fn decode_block_4d_i64_default(
     );
     (bs.read_pos() - before) as usize
 }
+#[cfg(feature = "internals")]
 pub fn decode_block_4d_f32_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f32; 256],
@@ -103,6 +108,7 @@ pub fn decode_block_4d_f32_default(
     );
     (bs.read_pos() - before) as usize
 }
+#[cfg(feature = "internals")]
 pub fn decode_block_4d_f64_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f64; 256],

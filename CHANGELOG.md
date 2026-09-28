@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `bits_written`, `word_pos` and `size` are removed from the stream API; use `write_pos` or `as_bytes().len()`. `size` remains behind `ffi`. `words` is renamed `backing_words`.
 - **Breaking**: `ZfpBitStream::from_buffer` is renamed `from_words`, and `into_vec` is renamed `into_bytes`. `into_words` returns only the words written, like `into_bytes`. `from_bytes` zero-pads a trailing partial word instead of dropping it.
 - **Breaking**: `ZfpBitStreamRefMut::{from_words_mut, from_bytes_mut}` are renamed `from_words` and `from_bytes`.
+- **Breaking**: `codec::block::{encode_block, decode_block}` take a `&ZfpConfig` after the stream, so every mode is available for block coding, not just unconstrained full precision. A reversible config selects lossless coding for every scalar type, and the output matches field compression. `encode_block_reversible_{f32,f64}` and `decode_block_reversible_{f32,f64}` are removed.
 
 ### Fixed
 

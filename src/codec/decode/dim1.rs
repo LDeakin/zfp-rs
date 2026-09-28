@@ -8,7 +8,9 @@ use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::decode::core::strided_decode_wrappers;
 use crate::codec::decode::float::{decode_block_1d_f32, decode_block_1d_f64};
 use crate::codec::decode::integer::{decode_block_1d_i32, decode_block_1d_i64};
+#[cfg(feature = "internals")]
 use crate::config::ZfpConfig;
+#[cfg(feature = "internals")]
 use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 // ---------------------------------------------------------------------------
@@ -39,6 +41,7 @@ unsafe fn scatter_partial_1d<T: Copy>(block: &[T; 4], data: *mut T, nx: usize, s
 // ---------------------------------------------------------------------------
 
 /// Decode a contiguous 1-D block of 4 `i32` values; return bits read.
+#[cfg(feature = "internals")]
 pub fn decode_block_1d_i32_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i32; 4],
@@ -53,6 +56,7 @@ pub fn decode_block_1d_i32_default(
 }
 
 /// Decode a contiguous 1-D block of 4 `i64` values; return bits read.
+#[cfg(feature = "internals")]
 pub fn decode_block_1d_i64_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [i64; 4],
@@ -67,6 +71,7 @@ pub fn decode_block_1d_i64_default(
 }
 
 /// Decode a contiguous 1-D block of 4 `f32` values; return bits read.
+#[cfg(feature = "internals")]
 pub fn decode_block_1d_f32_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f32; 4],
@@ -81,6 +86,7 @@ pub fn decode_block_1d_f32_default(
 }
 
 /// Decode a contiguous 1-D block of 4 `f64` values; return bits read.
+#[cfg(feature = "internals")]
 pub fn decode_block_1d_f64_default(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     block: &mut [f64; 4],
