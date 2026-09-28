@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ZfpFieldError`, returned by the field constructors and setters.
 - `ZfpField::from_raw_unchecked` and `ZfpFieldMut::from_raw_unchecked`, and `field::index_span`, behind `ffi`.
 - `ZfpFieldMut::set_strides`.
+- `ZfpBlockError`, `ZfpFieldError` and the documented `ZFP_*` constants are re-exported at the crate root without `ffi`.
 - `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}` provided methods. `ZfpBitStreamRef` and `ZfpBitStreamRefMut` now have the same codec methods as `ZfpBitStream`, so borrowed buffers can be encoded and decoded without copying.
 
 ### Changed
@@ -29,7 +30,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpField{,Mut}::begin` is removed; use `data().as_ptr()`.
 - **Breaking**: `ZfpScalar::scalar_type()` is replaced by the associated const `ZfpScalar::SCALAR_TYPE`.
 - **Breaking**: `ZfpMetadataError::Null` is renamed `InvalidDims` and also covers malformed dimensions such as `[0, 5, 0, 0]`. `ZfpMetadataError` and `ZfpHeaderError` are now `#[non_exhaustive]`.
-- **Breaking**: `ZfpConfig::maximum_size` returns `Option<usize>` instead of `0` for unsupported dimensionality or overflow.
+- **Breaking**: `ZfpConfig::maximum_size` returns `Option<usize>` instead of `0` for malformed dimensions or overflow, and takes `impl ZfpDims` instead of `&[usize]`. The zero-padded `[usize; 4]` from `ZfpField::dims` now gives the right size rather than just the header size.
+- **Breaking**: `ZfpConfig::{rate, precision, accuracy}` return `Option` instead of `0` when the config is in another mode.
+- **Breaking**: `ZfpConfig::from_mode` is renamed `from_mode_bits`, and `ZfpConfig::compression_mode` is renamed `mode`.
+- **Breaking**: `ZfpDims::dimensionality` and `ZfpStrides::dimensionality` are removed.
+- **Breaking**: The `*_from_params` functions are no longer public without `ffi`.
 
 ### Fixed
 

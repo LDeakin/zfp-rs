@@ -53,7 +53,7 @@ impl ZfpFieldMetadata {
 
 /// Whether `dims` has a nonzero first dimension and no nonzero dimension after
 /// a zero one.
-fn valid_dims(dims: &[usize; 4]) -> bool {
+pub(crate) fn valid_dims(dims: &[usize; 4]) -> bool {
     let active = dims.iter().take_while(|&&n| n != 0).count();
     active > 0 && dims[active..].iter().all(|&n| n == 0)
 }
@@ -893,7 +893,7 @@ mod tests {
         let config = ZfpConfig::reversible();
         let mut bs = ZfpBitStream::new(
             config
-                .maximum_size(ZfpScalarType::Double, &[4, 4, 4])
+                .maximum_size(ZfpScalarType::Double, [4usize, 4, 4])
                 .unwrap(),
         );
 

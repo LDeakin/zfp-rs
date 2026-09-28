@@ -42,7 +42,6 @@ pub fn run(data: &[u8]) {
 fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     let shape = input.shape;
     let dims = shape.dims();
-    let rank = shape.rank();
     let n = shape.elements();
     let ty = T::SCALAR_TYPE;
 
@@ -54,7 +53,7 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     // the allocation and the runtime. Sizing the stream to exactly this value
     // also turns any violation of the documented upper bound into an immediate
     // crash rather than a silent over-allocation.
-    let Some(cap) = config.maximum_size(ty, &dims[..rank]) else {
+    let Some(cap) = config.maximum_size(ty, dims) else {
         return;
     };
     if cap > MAX_STREAM_BYTES {
@@ -124,7 +123,7 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     // determinism check and ASan coverage above all apply. Reversible mode is
     // the exact correctness oracle, and it is unaffected: it is lossless for
     // every bit pattern, including NaN, infinities and subnormals.
-    if config.compression_mode() == ZfpMode::Reversible {
+    if config.mode() == ZfpMode::Reversible {
         for i in 0..n {
             assert_eq!(
                 src[i].to_bits_u64(),

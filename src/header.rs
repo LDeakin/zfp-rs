@@ -151,7 +151,7 @@ pub(crate) fn read_header_bs(
             mode |= bs.read_bits(extra) << ZFP_MODE_SHORT_BITS;
             bits += extra as usize;
         }
-        config = Some(ZfpConfig::from_mode(mode).ok_or(ZfpHeaderError::InvalidMode)?);
+        config = Some(ZfpConfig::from_mode_bits(mode).ok_or(ZfpHeaderError::InvalidMode)?);
     }
 
     Ok(ZfpHeader {

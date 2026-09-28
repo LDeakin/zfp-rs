@@ -246,14 +246,24 @@ impl std::error::Error for ZfpDecompressionError {
 // Numeric constants (mirror zfp.h macros)
 // ---------------------------------------------------------------------------
 
+/// Smallest `min_bits` for [`ZfpConfig::expert`][crate::ZfpConfig::expert] (`ZFP_MIN_BITS`).
 pub const ZFP_MIN_BITS: u32 = 1;
+/// Largest bits per block any config needs (`ZFP_MAX_BITS`).
 pub const ZFP_MAX_BITS: u32 = 16658;
+/// Largest `max_prec` for [`ZfpConfig::expert`][crate::ZfpConfig::expert] (`ZFP_MAX_PREC`).
 pub const ZFP_MAX_PREC: u32 = 64;
+/// Smallest meaningful `min_exp` for [`ZfpConfig::expert`][crate::ZfpConfig::expert]
+/// (`ZFP_MIN_EXP`); a smaller value selects reversible mode.
 pub const ZFP_MIN_EXP: i32 = -1074;
+/// Bits in the header magic section (`ZFP_MAGIC_BITS`).
 pub const ZFP_MAGIC_BITS: u32 = 32;
+/// Bits in the header field-metadata section (`ZFP_META_BITS`).
 pub const ZFP_META_BITS: u32 = 52;
+/// Bits in a short header mode section (`ZFP_MODE_SHORT_BITS`).
 pub const ZFP_MODE_SHORT_BITS: u32 = 12;
+/// Bits in a long header mode section (`ZFP_MODE_LONG_BITS`).
 pub const ZFP_MODE_LONG_BITS: u32 = 64;
+/// Largest possible header, in bits (`ZFP_HEADER_MAX_BITS`).
 pub const ZFP_HEADER_MAX_BITS: u32 = 148;
 
 // ---------------------------------------------------------------------------

@@ -24,7 +24,7 @@ fn setup() -> ZfpConfig {
 fn given_opened_zfp_stream_when_zfp_stream_compression_mode_expect_returns_expert_enum() {
     let config = setup();
     // default values imply expert mode
-    assert_eq!(config.compression_mode(), ZfpMode::Expert);
+    assert_eq!(config.mode(), ZfpMode::Expert);
 }
 
 #[cfg(feature = "ffi")]
@@ -43,7 +43,7 @@ fn given_zfp_stream_set_with_invalid_params_when_zfp_stream_compression_mode_exp
         setup.min_exp(),
     );
     // Since min_bits > max_bits, compression_mode returns Null
-    assert_eq!(config.compression_mode(), ZfpMode::Null);
+    assert_eq!(config.mode(), ZfpMode::Null);
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn given_zfp_stream_set_with_fixed_rate_when_zfp_stream_compression_mode_expect_
             for rate in 1..=max_rate {
                 for align in [ZfpStreamAlignment::None, ZfpStreamAlignment::WordAligned] {
                     let config = ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align);
-                    let mode = config.compression_mode();
+                    let mode = config.mode();
                     assert_eq!(
                         mode,
                         ZfpMode::FixedRate,
@@ -86,7 +86,7 @@ fn given_zfp_stream_set_with_fixed_precision_when_zfp_stream_compression_mode_ex
     // ZFP_MAX_PREC is treated as expert mode; test 1..ZFP_MAX_PREC-1
     for prec in 1..ZFP_MAX_PREC {
         let config = ZfpConfig::fixed_precision(prec);
-        let mode = config.compression_mode();
+        let mode = config.mode();
         assert_eq!(mode, ZfpMode::FixedPrecision, "prec={prec} → {mode:?}");
     }
 }
@@ -103,7 +103,7 @@ fn given_zfp_stream_set_with_fixed_accuracy_when_zfp_stream_compression_mode_exp
             continue;
         }
         let config = ZfpConfig::fixed_accuracy(tol);
-        let mode = config.compression_mode();
+        let mode = config.mode();
         assert_eq!(mode, ZfpMode::FixedAccuracy, "acc_exp={acc_exp} → {mode:?}");
         acc_exp -= 1;
     }
@@ -113,7 +113,7 @@ fn given_zfp_stream_set_with_fixed_accuracy_when_zfp_stream_compression_mode_exp
 fn given_zfp_stream_set_with_reversible_when_zfp_stream_compression_mode_expect_returns_reversible_enum()
  {
     let config = ZfpConfig::reversible();
-    let mode = config.compression_mode();
+    let mode = config.mode();
     assert_eq!(mode, ZfpMode::Reversible, "→ {mode:?}");
 }
 
@@ -129,10 +129,10 @@ fn given_zfp_stream_in_expert_mode_when_set_mode_with_expert_mode_bits_expect_pa
 
     // set a non-expert mode, then restore via from_mode
     let non_expert = ZfpConfig::fixed_precision(ZFP_MAX_PREC - 2);
-    assert_ne!(non_expert.compression_mode(), ZfpMode::Expert);
+    assert_ne!(non_expert.mode(), ZfpMode::Expert);
 
-    let restored = ZfpConfig::from_mode(mode_bits).unwrap();
-    assert_eq!(restored.compression_mode(), ZfpMode::Expert);
+    let restored = ZfpConfig::from_mode_bits(mode_bits).unwrap();
+    assert_eq!(restored.mode(), ZfpMode::Expert);
     assert_eq!(restored, config);
 }
 
@@ -157,16 +157,16 @@ fn given_zfp_stream_set_fixed_rate_when_set_mode_with_those_bits_expect_fixed_ra
             for rate in 1..=max_rate {
                 for align in [ZfpStreamAlignment::None, ZfpStreamAlignment::WordAligned] {
                     let config = ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align);
-                    assert_eq!(config.compression_mode(), ZfpMode::FixedRate);
+                    assert_eq!(config.mode(), ZfpMode::FixedRate);
 
                     let mode_bits = config.mode_bits();
 
-                    let restored = ZfpConfig::from_mode(mode_bits).unwrap();
+                    let restored = ZfpConfig::from_mode_bits(mode_bits).unwrap();
                     assert_eq!(
-                        restored.compression_mode(),
+                        restored.mode(),
                         ZfpMode::FixedRate,
                         "type={zfp_type:?} rate={rate} align={align:?} dims={dims:?} → {:?}",
-                        restored.compression_mode()
+                        restored.mode()
                     );
                     assert_eq!(restored, config);
                 }
@@ -180,16 +180,16 @@ fn given_zfp_stream_set_fixed_precision_when_set_mode_with_those_bits_expect_fix
  {
     for prec in 1..ZFP_MAX_PREC {
         let config = ZfpConfig::fixed_precision(prec);
-        assert_eq!(config.compression_mode(), ZfpMode::FixedPrecision);
+        assert_eq!(config.mode(), ZfpMode::FixedPrecision);
 
         let mode_bits = config.mode_bits();
 
-        let restored = ZfpConfig::from_mode(mode_bits).unwrap();
+        let restored = ZfpConfig::from_mode_bits(mode_bits).unwrap();
         assert_eq!(
-            restored.compression_mode(),
+            restored.mode(),
             ZfpMode::FixedPrecision,
             "prec={prec} → {:?}",
-            restored.compression_mode()
+            restored.mode()
         );
         assert_eq!(restored, config);
     }
@@ -206,16 +206,16 @@ fn given_zfp_stream_set_fixed_accuracy_when_set_mode_with_those_bits_expect_fixe
             continue;
         }
         let config = ZfpConfig::fixed_accuracy(tol);
-        assert_eq!(config.compression_mode(), ZfpMode::FixedAccuracy);
+        assert_eq!(config.mode(), ZfpMode::FixedAccuracy);
 
         let mode_bits = config.mode_bits();
 
-        let restored = ZfpConfig::from_mode(mode_bits).unwrap();
+        let restored = ZfpConfig::from_mode_bits(mode_bits).unwrap();
         assert_eq!(
-            restored.compression_mode(),
+            restored.mode(),
             ZfpMode::FixedAccuracy,
             "acc_exp={acc_exp} → {:?}",
-            restored.compression_mode()
+            restored.mode()
         );
         assert_eq!(restored, config);
         acc_exp -= 1;
@@ -225,16 +225,16 @@ fn given_zfp_stream_set_fixed_accuracy_when_set_mode_with_those_bits_expect_fixe
 #[test]
 fn given_zfp_stream_set_reversible_when_set_mode_with_those_bits_expect_reversible_mode_set() {
     let config = ZfpConfig::reversible();
-    assert_eq!(config.compression_mode(), ZfpMode::Reversible);
+    assert_eq!(config.mode(), ZfpMode::Reversible);
 
     let mode_bits = config.mode_bits();
 
-    let restored = ZfpConfig::from_mode(mode_bits).unwrap();
+    let restored = ZfpConfig::from_mode_bits(mode_bits).unwrap();
     assert_eq!(
-        restored.compression_mode(),
+        restored.mode(),
         ZfpMode::Reversible,
         "→ {:?}",
-        restored.compression_mode()
+        restored.mode()
     );
     assert_eq!(restored, config);
 }
@@ -245,13 +245,8 @@ fn given_zfp_stream_with_expert_params_when_set_mode_with_those_bits_expect_expe
 
     let mode_bits = config.mode_bits();
 
-    let restored = ZfpConfig::from_mode(mode_bits).unwrap();
-    assert_eq!(
-        restored.compression_mode(),
-        ZfpMode::Expert,
-        "→ {:?}",
-        restored.compression_mode()
-    );
+    let restored = ZfpConfig::from_mode_bits(mode_bits).unwrap();
+    assert_eq!(restored.mode(), ZfpMode::Expert, "→ {:?}", restored.mode());
     assert_eq!(restored, config);
 }
 
@@ -263,14 +258,14 @@ fn given_zfp_stream_with_expert_params_when_set_mode_with_those_bits_expect_expe
 fn given_zfp_stream_when_set_params_with_valid_params_expect_returns_true() {
     // Valid params create a stream without error
     let config = ZfpConfig::expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP);
-    assert_eq!(config.compression_mode(), ZfpMode::Expert);
+    assert_eq!(config.mode(), ZfpMode::Expert);
 }
 
 #[test]
 fn given_zfp_stream_when_set_params_with_invalid_params_expect_returns_false() {
     // Invalid params (min_bits > max_bits) create a stream with Null mode
     let config = ZfpConfig::expert(MAX_BITS + 1, MAX_BITS, MAX_PREC, MIN_EXP);
-    assert_eq!(config.compression_mode(), ZfpMode::Null);
+    assert_eq!(config.mode(), ZfpMode::Null);
 }
 
 #[test]
@@ -314,7 +309,7 @@ fn given_zfp_stream_when_zfp_stream_rate_expect_rate_returned() {
                 let rate = scalar_bits as f64 * i as f64 / 4.0;
                 for align in [ZfpStreamAlignment::None, ZfpStreamAlignment::WordAligned] {
                     let config = ZfpConfig::fixed_rate(rate, zfp_type, dims, align);
-                    let actual = config.rate(dims);
+                    let actual = config.rate(dims).expect("fixed rate");
                     // When align=WordAligned, fixed_rate rounds up to the next word boundary (64 bits),
                     // so the actual rate may differ from the requested rate.
                     let expected =
@@ -333,7 +328,7 @@ fn given_zfp_stream_when_zfp_stream_rate_expect_rate_returned() {
 fn given_zfp_stream_when_zfp_stream_precision_expect_precision_returned() {
     for prec in 1..ZFP_MAX_PREC {
         let config = ZfpConfig::fixed_precision(prec);
-        let actual = config.precision();
+        let actual = config.precision().expect("fixed precision");
         assert_eq!(actual, prec, "prec={prec}: got {actual}");
     }
 }
@@ -348,7 +343,7 @@ fn given_zfp_stream_when_zfp_stream_accuracy_expect_accuracy_returned() {
             continue;
         }
         let config = ZfpConfig::fixed_accuracy(tol);
-        let actual = config.accuracy();
+        let actual = config.accuracy().expect("fixed accuracy");
         assert_eq!(actual, tol, "acc_exp={acc_exp}: got {actual}, want {tol}");
         acc_exp -= 1;
     }
@@ -357,7 +352,7 @@ fn given_zfp_stream_when_zfp_stream_accuracy_expect_accuracy_returned() {
 #[test]
 fn given_zfp_stream_when_maximum_size_expect_nonzero_size_returned() {
     // use a non-trivial field shape to confirm a real calculation
-    let size = ZfpConfig::new().maximum_size(ZfpScalarType::Double, &[33, 401]);
+    let size = ZfpConfig::new().maximum_size(ZfpScalarType::Double, [33usize, 401]);
     assert!(
         size.is_some_and(|size| size > 0),
         "maximum_size returned {size:?}"
@@ -367,13 +362,16 @@ fn given_zfp_stream_when_maximum_size_expect_nonzero_size_returned() {
 #[test]
 fn given_zfp_stream_when_maximum_size_with_invalid_dims_expect_none_returned() {
     let config = ZfpConfig::new();
-    assert_eq!(config.maximum_size(ZfpScalarType::Double, &[]), None);
     assert_eq!(
-        config.maximum_size(ZfpScalarType::Double, &[1, 1, 1, 1, 1]),
+        config.maximum_size(ZfpScalarType::Double, [0usize; 4]),
         None
     );
     assert_eq!(
-        config.maximum_size(ZfpScalarType::Double, &[usize::MAX, usize::MAX]),
+        config.maximum_size(ZfpScalarType::Double, [0usize, 1]),
+        None
+    );
+    assert_eq!(
+        config.maximum_size(ZfpScalarType::Double, [usize::MAX, usize::MAX]),
         None
     );
 }

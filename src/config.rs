@@ -10,7 +10,7 @@
 //! that take `&ZfpConfig`.
 
 use crate::types::{
-    ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_BITS, ZFP_MIN_EXP, ZfpDimensionality, ZfpMode,
+    ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_BITS, ZFP_MIN_EXP, ZfpDimensionality, ZfpDims, ZfpMode,
     ZfpScalarType,
 };
 
@@ -115,16 +115,8 @@ pub struct ZfpConfig {
 // Free functions: compute results from (min_bits, max_bits, max_prec, min_exp)
 // ---------------------------------------------------------------------------
 
-/// Compute the compression mode from expert parameters without a `ZfpConfig`.
-///
-/// This is the parameter-less version of [`ZfpConfig::compression_mode`].
-#[must_use]
-pub fn compression_mode_from_params(
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
-) -> ZfpMode {
+/// Compute the compression mode from expert parameters.
+fn mode_of(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> ZfpMode {
     if min_bits > max_bits || !(0 < max_prec && max_prec <= 64) {
         return ZfpMode::Null;
     }
@@ -177,50 +169,10 @@ pub fn compression_mode_from_params(
     ZfpMode::Expert
 }
 
-/// Compute the effective rate for a dimensionality from expert parameters.
-#[must_use]
-pub fn rate_from_params(
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
-    dims: ZfpDimensionality,
-) -> f64 {
-    if compression_mode_from_params(min_bits, max_bits, max_prec, min_exp) == ZfpMode::FixedRate {
-        f64::from(max_bits) / f64::from(1u32 << (2 * u32::from(dims)))
-    } else {
-        0.0
-    }
-}
-
-/// Compute the effective precision from expert parameters.
-#[must_use]
-pub fn precision_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u32 {
-    if compression_mode_from_params(min_bits, max_bits, max_prec, min_exp)
-        == ZfpMode::FixedPrecision
-    {
-        max_prec
-    } else {
-        0
-    }
-}
-
-/// Compute the effective accuracy tolerance from expert parameters.
-#[must_use]
-pub fn accuracy_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> f64 {
-    if compression_mode_from_params(min_bits, max_bits, max_prec, min_exp) == ZfpMode::FixedAccuracy
-    {
-        libm::ldexp(1.0, min_exp)
-    } else {
-        0.0
-    }
-}
-
 /// Compute the compact mode encoding from expert parameters.
-#[must_use]
 #[allow(clippy::cast_sign_loss)] // i32→u64 for mode encoding
-pub fn mode_bits_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u64 {
-    match compression_mode_from_params(min_bits, max_bits, max_prec, min_exp) {
+fn mode_bits_of(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u64 {
+    match mode_of(min_bits, max_bits, max_prec, min_exp) {
         ZfpMode::FixedRate if max_bits <= 2048 => u64::from(max_bits - 1),
         ZfpMode::FixedPrecision if max_prec <= 128 => u64::from(max_prec - 1) + 2048,
         ZfpMode::Reversible => 2048 + 128,
@@ -238,6 +190,58 @@ pub fn mode_bits_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_ex
             encode_expert_mode(min_bits, max_bits, max_prec, min_exp)
         }
     }
+}
+
+/// [`ZfpConfig::mode`] of the expert parameters, for the C ABI.
+#[cfg(feature = "ffi")]
+#[must_use]
+pub fn compression_mode_from_params(
+    min_bits: u32,
+    max_bits: u32,
+    max_prec: u32,
+    min_exp: i32,
+) -> ZfpMode {
+    mode_of(min_bits, max_bits, max_prec, min_exp)
+}
+
+/// [`ZfpConfig::rate`] of the expert parameters, or `0.0` as in C.
+#[cfg(feature = "ffi")]
+#[must_use]
+pub fn rate_from_params(
+    min_bits: u32,
+    max_bits: u32,
+    max_prec: u32,
+    min_exp: i32,
+    dims: ZfpDimensionality,
+) -> f64 {
+    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+        .rate(dims)
+        .unwrap_or(0.0)
+}
+
+/// [`ZfpConfig::precision`] of the expert parameters, or `0` as in C.
+#[cfg(feature = "ffi")]
+#[must_use]
+pub fn precision_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u32 {
+    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+        .precision()
+        .unwrap_or(0)
+}
+
+/// [`ZfpConfig::accuracy`] of the expert parameters, or `0.0` as in C.
+#[cfg(feature = "ffi")]
+#[must_use]
+pub fn accuracy_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> f64 {
+    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+        .accuracy()
+        .unwrap_or(0.0)
+}
+
+/// [`ZfpConfig::mode_bits`] of the expert parameters, for the C ABI.
+#[cfg(feature = "ffi")]
+#[must_use]
+pub fn mode_bits_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u64 {
+    mode_bits_of(min_bits, max_bits, max_prec, min_exp)
 }
 
 /// Encode expert-mode parameters into the 64-bit long-form mode word.
@@ -264,14 +268,14 @@ fn encode_expert_mode(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32)
 impl ZfpConfig {
     /// Decode a mode value back into a `ZfpConfig`.
     ///
-    /// This is the inverse of [`mode_bits_from_params`].
+    /// This is the inverse of [`mode_bits`][Self::mode_bits].
     /// Returns `None` if the mode is invalid (e.g., precision out of range).
     ///
     /// Rounding is not encoded in the mode word; the result uses
     /// [`ZfpRounding::Never`].
     #[must_use]
     #[allow(clippy::cast_possible_truncation)] // encoded bounded by prior branch conditions
-    pub fn from_mode(encoded: u64) -> Option<Self> {
+    pub fn from_mode_bits(encoded: u64) -> Option<Self> {
         let (min_bits, max_bits, max_prec, min_exp) = if encoded <= MODE_SHORT_MAX {
             if encoded < 2048 {
                 // fixed rate
@@ -316,10 +320,10 @@ impl ZfpConfig {
 
     /// Fixed-rate mode.
     ///
-    /// Configures the stream for fixed-rate compression with the given
-    /// rate (bits per scalar), data type, and dimensionality.
-    ///
-    /// Returns the computed rate, rounded to the nearest integer bit count.
+    /// Configures fixed-rate compression with the given rate (compressed bits
+    /// per scalar) for the given data type and dimensionality. The bits per
+    /// block are rounded to the nearest integer, and raised to the minimum
+    /// the type needs; [`rate`][Self::rate] returns the resulting rate.
     ///
     /// Pass [`ZfpStreamAlignment::WordAligned`] to pad each block to the next
     /// 64-bit word boundary; pass [`ZfpStreamAlignment::None`] for exact bit packing.
@@ -416,7 +420,7 @@ impl ZfpConfig {
     /// Expert mode with explicit parameters.
     ///
     /// The parameters are not validated, so an invalid combination yields a config whose
-    /// [`compression_mode`][Self::compression_mode] is [`ZfpMode::Null`]. Use [`try_expert`][Self::try_expert] to
+    /// [`mode`][Self::mode] is [`ZfpMode::Null`]. Use [`try_expert`][Self::try_expert] to
     /// reject invalid parameters.
     #[must_use]
     pub const fn expert(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> Self {
@@ -524,52 +528,62 @@ impl ZfpConfig {
 
     // --- Inspectors ---
 
-    /// Return the current compression mode.
+    /// Return the compression mode these parameters select.
     #[must_use]
-    pub fn compression_mode(&self) -> ZfpMode {
-        compression_mode_from_params(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+    pub fn mode(&self) -> ZfpMode {
+        mode_of(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
     }
 
-    /// Return the effective rate for the given dimensionality.
+    /// Return the rate (compressed bits per scalar) for the given
+    /// dimensionality, or [`None`] if this is not a fixed-rate config.
     #[must_use]
-    pub fn rate(&self, dims: ZfpDimensionality) -> f64 {
-        rate_from_params(
-            self.min_bits,
-            self.max_bits,
-            self.max_prec,
-            self.min_exp,
-            dims,
-        )
+    pub fn rate(&self, dims: ZfpDimensionality) -> Option<f64> {
+        (self.mode() == ZfpMode::FixedRate)
+            .then(|| f64::from(self.max_bits) / f64::from(1u32 << (2 * u32::from(dims))))
     }
 
-    /// Return the current precision.
+    /// Return the precision (uncompressed bits per scalar), or [`None`] if
+    /// this is not a fixed-precision config.
     #[must_use]
-    pub fn precision(&self) -> u32 {
-        precision_from_params(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+    pub fn precision(&self) -> Option<u32> {
+        (self.mode() == ZfpMode::FixedPrecision).then_some(self.max_prec)
     }
 
-    /// Return the current accuracy tolerance.
+    /// Return the absolute error tolerance, or [`None`] if this is not a
+    /// fixed-accuracy config.
     #[must_use]
-    pub fn accuracy(&self) -> f64 {
-        accuracy_from_params(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+    pub fn accuracy(&self) -> Option<f64> {
+        (self.mode() == ZfpMode::FixedAccuracy).then(|| libm::ldexp(1.0, self.min_exp))
     }
 
     /// Return the compact 12- or 64-bit mode encoding.
     #[must_use]
     pub fn mode_bits(&self) -> u64 {
-        mode_bits_from_params(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+        mode_bits_of(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
     }
 
-    /// Return the maximum compressed size in bytes for a field with the given type and dims.
+    /// Return the maximum compressed size in bytes, header included, for a
+    /// field with the given type and dimensions.
     ///
-    /// Returns [`None`] if `dims` is not 1-4 dimensional or the size overflows `usize`.
+    /// `dims` takes the same forms as [`ZfpField::new`][crate::ZfpField::new],
+    /// including the zero-padded `[usize; 4]` from
+    /// [`ZfpField::dims`][crate::ZfpField::dims]. A stream this large always
+    /// holds the output of [`write_header`][crate::ZfpBitStreamMutOps::write_header]
+    /// with [`ZfpHeaderMask::FULL`][crate::ZfpHeaderMask::FULL] followed by
+    /// [`compress`][crate::ZfpBitStreamMutOps::compress].
+    ///
+    /// Returns [`None`] if the dimensions are malformed (as for
+    /// [`ZfpFieldError::InvalidDims`][crate::ZfpFieldError::InvalidDims]) or
+    /// the size overflows `usize`.
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)] // zfp only supports up to 4 dimensions
-    pub fn maximum_size(&self, ty: ZfpScalarType, dims: &[usize]) -> Option<usize> {
-        let d = dims.len() as u32;
-        if d == 0 || d > 4 {
+    pub fn maximum_size(&self, ty: ZfpScalarType, dims: impl ZfpDims) -> Option<usize> {
+        let dims = dims.to_array();
+        if !crate::field::valid_dims(&dims) {
             return None;
         }
+        let dimensionality = crate::field::dimensionality(&dims);
+        let dims = &dims[..usize::from(dimensionality)];
+        let d = u32::from(dimensionality);
         let reversible = self.min_exp < ZFP_MIN_EXP;
         let values = 1u32 << (2 * d);
         let type_prec = match ty {
@@ -639,7 +653,7 @@ mod tests {
         assert_eq!(rounded.min_exp(), config.min_exp());
         // ...and is not recovered from the mode word.
         assert_eq!(
-            ZfpConfig::from_mode(rounded.mode_bits())
+            ZfpConfig::from_mode_bits(rounded.mode_bits())
                 .unwrap()
                 .rounding(),
             ZfpRounding::Never
@@ -649,7 +663,7 @@ mod tests {
     #[test]
     fn new_is_expert_mode() {
         let config = ZfpConfig::new();
-        assert_eq!(config.compression_mode(), ZfpMode::Expert);
+        assert_eq!(config.mode(), ZfpMode::Expert);
         assert_eq!(
             config,
             ZfpConfig::expert(
@@ -677,7 +691,7 @@ mod tests {
             ] {
                 let config = ZfpConfig::fixed_rate(8.0, zfp_type, dims, ZfpStreamAlignment::None);
                 assert_eq!(
-                    config.compression_mode(),
+                    config.mode(),
                     ZfpMode::FixedRate,
                     "type={zfp_type:?} dims={dims:?}"
                 );
@@ -729,12 +743,8 @@ mod tests {
     fn fixed_precision_creates_fixed_precision_stream() {
         for prec in 1..ZFP_MAX_PREC {
             let config = ZfpConfig::fixed_precision(prec);
-            assert_eq!(
-                config.compression_mode(),
-                ZfpMode::FixedPrecision,
-                "prec={prec}"
-            );
-            assert_eq!(config.precision(), prec);
+            assert_eq!(config.mode(), ZfpMode::FixedPrecision, "prec={prec}");
+            assert_eq!(config.precision(), Some(prec));
         }
     }
 
@@ -743,25 +753,21 @@ mod tests {
         for acc_exp in -20..0 {
             let tol = libm::ldexp(1.0, acc_exp);
             let config = ZfpConfig::fixed_accuracy(tol);
-            assert_eq!(
-                config.compression_mode(),
-                ZfpMode::FixedAccuracy,
-                "acc_exp={acc_exp}"
-            );
-            assert_eq!(config.accuracy().to_bits(), tol.to_bits());
+            assert_eq!(config.mode(), ZfpMode::FixedAccuracy, "acc_exp={acc_exp}");
+            assert_eq!(config.accuracy().map(f64::to_bits), Some(tol.to_bits()));
         }
     }
 
     #[test]
     fn reversible_creates_reversible_stream() {
         let config = ZfpConfig::reversible();
-        assert_eq!(config.compression_mode(), ZfpMode::Reversible);
+        assert_eq!(config.mode(), ZfpMode::Reversible);
     }
 
     #[test]
     fn expert_sets_custom_params() {
         let config = ZfpConfig::expert(10, 100, 50, -500);
-        assert_eq!(config.compression_mode(), ZfpMode::Expert);
+        assert_eq!(config.mode(), ZfpMode::Expert);
     }
 
     #[test]
