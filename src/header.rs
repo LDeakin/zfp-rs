@@ -59,24 +59,21 @@ const MODE_SHORT_MAX: u64 = (1u64 << ZFP_MODE_SHORT_BITS) - 2;
 // ---------------------------------------------------------------------------
 
 /// Write header to `bs`, given the precomputed `mode_bits` for the mode section.
-/// Returns bits written (0 on failure).
+/// Returns bits written.
+///
+/// Metadata is validated before anything is written, so nothing is written on failure.
 pub(crate) fn write_header_bs(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     field: &ZfpField,
     mask: ZfpHeaderMask,
     mode_bits_val: u64,
-) -> usize {
+) -> Result<usize, ZfpMetadataError> {
+    let meta = if mask.contains(ZfpHeaderMask::META) {
+        Some(field.metadata()?)
+    } else {
+        None
+    };
     let mut bits = 0usize;
-
-    // Pre-validate metadata if needed
-    if mask.contains(ZfpHeaderMask::META)
-        && matches!(
-            field.metadata(),
-            Err(ZfpMetadataError::Null | ZfpMetadataError::DimensionTooLarge)
-        )
-    {
-        return 0;
-    }
 
     if mask.contains(ZfpHeaderMask::MAGIC) {
         bs.write_bits(u64::from(b'z'), 8);
@@ -86,8 +83,7 @@ pub(crate) fn write_header_bs(
         bits += ZFP_MAGIC_BITS as usize;
     }
 
-    if mask.contains(ZfpHeaderMask::META) {
-        let Ok(meta) = field.metadata() else { return 0 };
+    if let Some(meta) = meta {
         bs.write_bits(meta, ZFP_META_BITS);
         bits += ZFP_META_BITS as usize;
     }
@@ -102,7 +98,7 @@ pub(crate) fn write_header_bs(
         bits += size as usize;
     }
 
-    bits
+    Ok(bits)
 }
 
 /// Read header from `bs`.
