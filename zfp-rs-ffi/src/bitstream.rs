@@ -40,7 +40,10 @@ impl ZfpBitStreamHandleInner {
         config: &ZfpConfig,
         field: &ZfpField,
     ) -> Result<usize, zfp_rs::ZfpCompressionError> {
-        zfp_rs::compress_bitstream(self.as_ops_mut(), field, config)
+        match self {
+            Self::Owned(bs) => bs.compress(config, field),
+            Self::BorrowedMut(bs) => bs.compress(config, field),
+        }
     }
 
     pub(crate) fn decompress(
@@ -48,7 +51,10 @@ impl ZfpBitStreamHandleInner {
         config: &ZfpConfig,
         field: &mut ZfpFieldMut,
     ) -> Result<usize, zfp_rs::ZfpDecompressionError> {
-        zfp_rs::decompress_bitstream(self.as_ops_mut(), field, config)
+        match self {
+            Self::Owned(bs) => bs.decompress(config, field),
+            Self::BorrowedMut(bs) => bs.decompress(config, field),
+        }
     }
 
     pub(crate) fn compress_with_execution(
@@ -76,7 +82,10 @@ impl ZfpBitStreamHandleInner {
     }
 
     pub(crate) fn read_header(&mut self, mask: ZfpHeaderMask) -> Result<ZfpHeader, ZfpHeaderError> {
-        zfp_rs::read_header_bitstream(self.as_ops_mut(), mask)
+        match self {
+            Self::Owned(bs) => bs.read_header(mask),
+            Self::BorrowedMut(bs) => bs.read_header(mask),
+        }
     }
 
     fn clone_copy(&self) -> Self {

@@ -4,8 +4,9 @@ use crate::bitstream::core::{
     seek_write_impl, skip_impl, write_bit_impl, write_bits_impl, write_pos_impl, write_word_impl,
 };
 use crate::bitstream::{ZfpBitStream, ZfpBitStreamRef, ZfpBitStreamRefMut};
-use crate::config::STREAM_WORD_BYTES;
-use crate::types::ZfpBitStreamWord;
+use crate::config::{STREAM_WORD_BYTES, ZfpConfig};
+use crate::field::{ZfpField, ZfpFieldMut};
+use crate::types::{ZfpBitStreamWord, ZfpHeaderMask};
 
 /// Common read/cursor/inspection operations for ZFP bitstreams.
 pub trait ZfpBitStreamOps {
@@ -44,6 +45,70 @@ pub trait ZfpBitStreamOps {
     /// The backing buffer's start pointer.
     #[cfg(feature = "ffi")]
     fn data_ptr(&self) -> *mut std::os::raw::c_void;
+
+    /// Read the header sections indicated by `mask` from this bitstream.
+    ///
+    /// The returned header contains metadata only when `mask` includes
+    /// [`ZfpHeaderMask::META`], and a compression config only when `mask`
+    /// includes [`ZfpHeaderMask::MODE`]. That config never carries the
+    /// encoder's rounding; see [`ZfpHeader::config`][crate::header::ZfpHeader::config].
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpHeaderError`][crate::header::ZfpHeaderError] if a requested
+    /// header section is invalid.
+    fn read_header(
+        &mut self,
+        mask: ZfpHeaderMask,
+    ) -> Result<crate::header::ZfpHeader, crate::header::ZfpHeaderError> {
+        crate::header::read_header_bs(self, mask)
+    }
+
+    /// Decompress from this bitstream into the field.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if the target
+    /// field type or dimensions are unsupported for the selected configuration.
+    fn decompress(
+        &mut self,
+        config: &ZfpConfig,
+        field: &mut ZfpFieldMut,
+    ) -> Result<usize, crate::types::ZfpDecompressionError> {
+        crate::decompress::decompress(self, field, config)
+    }
+
+    /// Decompress from this bitstream into the field using the given execution policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if the target
+    /// field type or dimensions are unsupported for the selected configuration.
+    ///
+    /// Note: Parallel decompression is only available for fixed-rate streams.
+    /// Other modes fall back to serial decompression.
+    fn decompress_with_execution(
+        &mut self,
+        config: &ZfpConfig,
+        field: &mut ZfpFieldMut,
+        execution: crate::execution::ZfpExecution,
+    ) -> Result<usize, crate::types::ZfpDecompressionError> {
+        match execution {
+            crate::execution::ZfpExecution::Serial => {
+                crate::decompress::decompress(self, field, config)
+            }
+            #[cfg(feature = "rayon")]
+            crate::execution::ZfpExecution::Rayon {
+                threads,
+                chunk_size,
+            } => crate::decompress::decompress_rayon(self, field, config, threads, chunk_size),
+            #[cfg(not(feature = "rayon"))]
+            crate::execution::ZfpExecution::Rayon { .. } => {
+                // Rayon feature not compiled; fall back to serial.
+                crate::decompress::decompress(self, field, config)
+            }
+        }
+    }
 }
 
 /// Mutating operations for writable ZFP bitstreams.
@@ -62,6 +127,55 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps {
     fn flush(&mut self) -> usize;
     /// Copy `n` bits from `src` into `self` (`stream_copy`).
     fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: usize);
+
+    /// Write the header section indicated by `mask` into this bitstream.
+    fn write_header(&mut self, config: &ZfpConfig, field: &ZfpField, mask: ZfpHeaderMask) -> usize {
+        let mode = config.mode_bits();
+        crate::header::write_header_bs(self, field, mask, mode)
+    }
+
+    /// Compress the field into this bitstream using the stream's parameters.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
+    /// type or dimensions are unsupported for the selected configuration.
+    fn compress(
+        &mut self,
+        config: &ZfpConfig,
+        field: &ZfpField,
+    ) -> Result<usize, crate::types::ZfpCompressionError> {
+        crate::compress::compress(self, field, config)
+    }
+
+    /// Compress the field into this bitstream using the given execution policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
+    /// type or dimensions are unsupported for the selected configuration.
+    fn compress_with_execution(
+        &mut self,
+        config: &ZfpConfig,
+        field: &ZfpField,
+        execution: crate::execution::ZfpExecution,
+    ) -> Result<usize, crate::types::ZfpCompressionError> {
+        match execution {
+            crate::execution::ZfpExecution::Serial => {
+                crate::compress::compress(self, field, config)
+            }
+            #[cfg(feature = "rayon")]
+            crate::execution::ZfpExecution::Rayon {
+                threads,
+                chunk_size,
+            } => crate::compress::compress_rayon(self, field, config, threads, chunk_size),
+            #[cfg(not(feature = "rayon"))]
+            crate::execution::ZfpExecution::Rayon { .. } => {
+                // Rayon feature not compiled; fall back to serial.
+                crate::compress::compress(self, field, config)
+            }
+        }
+    }
 }
 
 /// Implement [`ZfpBitStreamOps`] for each type, and make its methods inherent.
@@ -144,6 +258,27 @@ macro_rules! impl_bitstream_ops {
                     .cast_mut()
                     .cast::<std::os::raw::c_void>()
             }
+
+        #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
+        pub fn read_header(
+            &mut self,
+            mask: ZfpHeaderMask,
+        ) -> Result<crate::header::ZfpHeader, crate::header::ZfpHeaderError>;
+
+        #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
+        pub fn decompress(
+            &mut self,
+            config: &ZfpConfig,
+            field: &mut ZfpFieldMut,
+        ) -> Result<usize, crate::types::ZfpDecompressionError>;
+
+        #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
+        pub fn decompress_with_execution(
+            &mut self,
+            config: &ZfpConfig,
+            field: &mut ZfpFieldMut,
+            execution: crate::execution::ZfpExecution,
+        ) -> Result<usize, crate::types::ZfpDecompressionError>;
         }
     )*};
 }
@@ -190,6 +325,28 @@ macro_rules! impl_bitstream_mut_ops {
                     write_bits_impl(self, w, remaining as u32);
                 }
             }
+
+        pub fn write_header(
+            &mut self,
+            config: &ZfpConfig,
+            field: &ZfpField,
+            mask: ZfpHeaderMask,
+        ) -> usize;
+
+        #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
+        pub fn compress(
+            &mut self,
+            config: &ZfpConfig,
+            field: &ZfpField,
+        ) -> Result<usize, crate::types::ZfpCompressionError>;
+
+        #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]
+        pub fn compress_with_execution(
+            &mut self,
+            config: &ZfpConfig,
+            field: &ZfpField,
+            execution: crate::execution::ZfpExecution,
+        ) -> Result<usize, crate::types::ZfpCompressionError>;
         }
     )*};
 }

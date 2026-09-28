@@ -1,9 +1,8 @@
 use crate::bitstream::core::{
     BitStreamState, BitStreamStorage, BitStreamStorageMut, bytes_to_words,
 };
-use crate::config::{STREAM_WORD_BYTES, ZfpConfig};
-use crate::field::{ZfpField, ZfpFieldMut};
-use crate::types::{ZfpBitStreamWord, ZfpHeaderMask};
+use crate::config::STREAM_WORD_BYTES;
+use crate::types::ZfpBitStreamWord;
 
 /// Owns a byte buffer and tracks a read/write bit cursor.
 ///
@@ -102,123 +101,5 @@ impl ZfpBitStream {
     pub fn into_vec(mut self) -> Vec<u8> {
         self.flush();
         self.as_bytes().to_vec()
-    }
-
-    /// Compress the field into this bitstream using the stream's parameters.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
-    /// type or dimensions are unsupported for the selected configuration.
-    pub fn compress(
-        &mut self,
-        config: &ZfpConfig,
-        field: &ZfpField,
-    ) -> Result<usize, crate::types::ZfpCompressionError> {
-        crate::compress::compress(self, field, config)
-    }
-
-    /// Decompress from this bitstream into the field.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if the target
-    /// field type or dimensions are unsupported for the selected configuration.
-    pub fn decompress(
-        &mut self,
-        config: &ZfpConfig,
-        field: &mut ZfpFieldMut,
-    ) -> Result<usize, crate::types::ZfpDecompressionError> {
-        crate::decompress::decompress(self, field, config)
-    }
-
-    /// Write the header section indicated by `mask` into this bitstream.
-    pub fn write_header(
-        &mut self,
-        config: &ZfpConfig,
-        field: &ZfpField,
-        mask: ZfpHeaderMask,
-    ) -> usize {
-        let mode = config.mode_bits();
-        crate::header::write_header_bs(self, field, mask, mode)
-    }
-
-    /// Read the header sections indicated by `mask` from this bitstream.
-    ///
-    /// The returned header contains metadata only when `mask` includes
-    /// [`ZfpHeaderMask::META`], and a compression config only when `mask`
-    /// includes [`ZfpHeaderMask::MODE`]. That config never carries the
-    /// encoder's rounding; see [`ZfpHeader::config`][crate::header::ZfpHeader::config].
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpHeaderError`][crate::header::ZfpHeaderError] if a requested
-    /// header section is invalid.
-    pub fn read_header(
-        &mut self,
-        mask: ZfpHeaderMask,
-    ) -> Result<crate::header::ZfpHeader, crate::header::ZfpHeaderError> {
-        crate::header::read_header_bs(self, mask)
-    }
-
-    /// Compress the field into this bitstream using the given execution policy.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpCompressionError`][crate::types::ZfpCompressionError] if the field
-    /// type or dimensions are unsupported for the selected configuration.
-    pub fn compress_with_execution(
-        &mut self,
-        config: &ZfpConfig,
-        field: &ZfpField,
-        execution: crate::execution::ZfpExecution,
-    ) -> Result<usize, crate::types::ZfpCompressionError> {
-        match execution {
-            crate::execution::ZfpExecution::Serial => {
-                crate::compress::compress(self, field, config)
-            }
-            #[cfg(feature = "rayon")]
-            crate::execution::ZfpExecution::Rayon {
-                threads,
-                chunk_size,
-            } => crate::compress::compress_rayon(self, field, config, threads, chunk_size),
-            #[cfg(not(feature = "rayon"))]
-            crate::execution::ZfpExecution::Rayon { .. } => {
-                // Rayon feature not compiled; fall back to serial.
-                crate::compress::compress(self, field, config)
-            }
-        }
-    }
-
-    /// Decompress from this bitstream into the field using the given execution policy.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if the target
-    /// field type or dimensions are unsupported for the selected configuration.
-    ///
-    /// Note: Parallel decompression is only available for fixed-rate streams.
-    /// Other modes fall back to serial decompression.
-    pub fn decompress_with_execution(
-        &mut self,
-        config: &ZfpConfig,
-        field: &mut ZfpFieldMut,
-        execution: crate::execution::ZfpExecution,
-    ) -> Result<usize, crate::types::ZfpDecompressionError> {
-        match execution {
-            crate::execution::ZfpExecution::Serial => {
-                crate::decompress::decompress(self, field, config)
-            }
-            #[cfg(feature = "rayon")]
-            crate::execution::ZfpExecution::Rayon {
-                threads,
-                chunk_size,
-            } => crate::decompress::decompress_rayon(self, field, config, threads, chunk_size),
-            #[cfg(not(feature = "rayon"))]
-            crate::execution::ZfpExecution::Rayon { .. } => {
-                // Rayon feature not compiled; fall back to serial.
-                crate::decompress::decompress(self, field, config)
-            }
-        }
     }
 }
