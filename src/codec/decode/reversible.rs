@@ -10,10 +10,7 @@ use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::decode::core::{decode_ints_u32, decode_ints_u64, inv_order_i32, inv_order_i64};
 use crate::codec::decode::core::{inv_cast_f32, inv_cast_f64};
 use crate::codec::encode::core::{PERM_1, PERM_2, PERM_3, PERM_4};
-use crate::codec::transform::{
-    rev_inv_xform_1d, rev_inv_xform_1d_i64, rev_inv_xform_2d, rev_inv_xform_2d_i64,
-    rev_inv_xform_3d, rev_inv_xform_3d_i64, rev_inv_xform_4d, rev_inv_xform_4d_i64,
-};
+use crate::codec::transform::rev_inv_xform;
 use crate::config::ZfpRounding;
 
 // ---------------------------------------------------------------------------
@@ -208,7 +205,7 @@ pub fn decode_block_reversible_1d_f32(
 ) -> usize {
     rev_decode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_1, rounding);
-        rev_inv_xform_1d(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -221,7 +218,7 @@ pub fn decode_block_reversible_1d_f64(
 ) -> usize {
     rev_decode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_1, rounding);
-        rev_inv_xform_1d_i64(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -234,7 +231,7 @@ pub fn decode_block_reversible_2d_f32(
 ) -> usize {
     rev_decode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_2, rounding);
-        rev_inv_xform_2d(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -247,7 +244,7 @@ pub fn decode_block_reversible_2d_f64(
 ) -> usize {
     rev_decode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_2, rounding);
-        rev_inv_xform_2d_i64(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -260,7 +257,7 @@ pub fn decode_block_reversible_3d_f32(
 ) -> usize {
     rev_decode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_3, rounding);
-        rev_inv_xform_3d(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -273,7 +270,7 @@ pub fn decode_block_reversible_3d_f64(
 ) -> usize {
     rev_decode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_3, rounding);
-        rev_inv_xform_3d_i64(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -286,7 +283,7 @@ pub fn decode_block_reversible_4d_f32(
 ) -> usize {
     rev_decode_float_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_4, rounding);
-        rev_inv_xform_4d(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -299,7 +296,7 @@ pub fn decode_block_reversible_4d_f64(
 ) -> usize {
     rev_decode_double_block(bs, block, u32::MAX, |bs, iblock, maxbits| {
         let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_4, rounding);
-        rev_inv_xform_4d_i64(iblock);
+        rev_inv_xform(iblock);
         bits
     })
 }
@@ -316,7 +313,7 @@ pub fn decode_block_reversible_1d_i32(
 ) -> usize {
     let mut iblock: [i32; 4] = [0; 4];
     let bits = rev_decode_int_block_u32(bs, u32::MAX, &mut iblock, &PERM_1, rounding);
-    crate::codec::transform::rev_inv_xform_1d(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }
@@ -329,7 +326,7 @@ pub fn decode_block_reversible_1d_i64(
 ) -> usize {
     let mut iblock: [i64; 4] = [0; 4];
     let bits = rev_decode_int_block_u64(bs, u32::MAX, &mut iblock, &PERM_1, rounding);
-    crate::codec::transform::rev_inv_xform_1d_i64(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }
@@ -342,7 +339,7 @@ pub fn decode_block_reversible_2d_i32(
 ) -> usize {
     let mut iblock: [i32; 16] = [0; 16];
     let bits = rev_decode_int_block_u32(bs, u32::MAX, &mut iblock, &PERM_2, rounding);
-    crate::codec::transform::rev_inv_xform_2d(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }
@@ -355,7 +352,7 @@ pub fn decode_block_reversible_2d_i64(
 ) -> usize {
     let mut iblock: [i64; 16] = [0; 16];
     let bits = rev_decode_int_block_u64(bs, u32::MAX, &mut iblock, &PERM_2, rounding);
-    crate::codec::transform::rev_inv_xform_2d_i64(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }
@@ -368,7 +365,7 @@ pub fn decode_block_reversible_3d_i32(
 ) -> usize {
     let mut iblock: [i32; 64] = [0; 64];
     let bits = rev_decode_int_block_u32(bs, u32::MAX, &mut iblock, &PERM_3, rounding);
-    crate::codec::transform::rev_inv_xform_3d(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }
@@ -381,7 +378,7 @@ pub fn decode_block_reversible_3d_i64(
 ) -> usize {
     let mut iblock: [i64; 64] = [0; 64];
     let bits = rev_decode_int_block_u64(bs, u32::MAX, &mut iblock, &PERM_3, rounding);
-    crate::codec::transform::rev_inv_xform_3d_i64(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }
@@ -394,7 +391,7 @@ pub fn decode_block_reversible_4d_i32(
 ) -> usize {
     let mut iblock: [i32; 256] = [0; 256];
     let bits = rev_decode_int_block_u32(bs, u32::MAX, &mut iblock, &PERM_4, rounding);
-    crate::codec::transform::rev_inv_xform_4d(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }
@@ -407,7 +404,7 @@ pub fn decode_block_reversible_4d_i64(
 ) -> usize {
     let mut iblock: [i64; 256] = [0; 256];
     let bits = rev_decode_int_block_u64(bs, u32::MAX, &mut iblock, &PERM_4, rounding);
-    crate::codec::transform::rev_inv_xform_4d_i64(&mut iblock);
+    crate::codec::transform::rev_inv_xform(&mut iblock);
     *block = iblock;
     bits
 }

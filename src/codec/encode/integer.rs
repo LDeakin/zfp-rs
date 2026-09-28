@@ -6,10 +6,7 @@ use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::encode::core::{
     encode_ints_u32, encode_ints_u64, fwd_order_i32, fwd_order_i64, fwd_round_i32, fwd_round_i64,
 };
-use crate::codec::transform::{
-    fwd_xform_1d, fwd_xform_1d_i64, fwd_xform_2d, fwd_xform_2d_i64, fwd_xform_3d, fwd_xform_3d_i64,
-    fwd_xform_4d, fwd_xform_4d_i64,
-};
+use crate::codec::transform::fwd_xform;
 use crate::config::{ZfpConfig, ZfpRounding};
 
 // ---------------------------------------------------------------------------
@@ -33,7 +30,7 @@ pub(crate) trait Transform64<const N: usize> {
 pub(crate) struct Dim1i32;
 impl Transform32<4> for Dim1i32 {
     fn transform(block: &mut [i32; 4]) {
-        fwd_xform_1d(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 4] {
         &crate::codec::encode::core::PERM_1
@@ -43,7 +40,7 @@ impl Transform32<4> for Dim1i32 {
 pub(crate) struct Dim1i64;
 impl Transform64<4> for Dim1i64 {
     fn transform(block: &mut [i64; 4]) {
-        fwd_xform_1d_i64(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 4] {
         &crate::codec::encode::core::PERM_1
@@ -55,7 +52,7 @@ impl Transform64<4> for Dim1i64 {
 pub(crate) struct Dim2i32;
 impl Transform32<16> for Dim2i32 {
     fn transform(block: &mut [i32; 16]) {
-        fwd_xform_2d(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 16] {
         &crate::codec::encode::core::PERM_2
@@ -65,7 +62,7 @@ impl Transform32<16> for Dim2i32 {
 pub(crate) struct Dim2i64;
 impl Transform64<16> for Dim2i64 {
     fn transform(block: &mut [i64; 16]) {
-        fwd_xform_2d_i64(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 16] {
         &crate::codec::encode::core::PERM_2
@@ -77,7 +74,7 @@ impl Transform64<16> for Dim2i64 {
 pub(crate) struct Dim3i32;
 impl Transform32<64> for Dim3i32 {
     fn transform(block: &mut [i32; 64]) {
-        fwd_xform_3d(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 64] {
         &crate::codec::encode::core::PERM_3
@@ -87,7 +84,7 @@ impl Transform32<64> for Dim3i32 {
 pub(crate) struct Dim3i64;
 impl Transform64<64> for Dim3i64 {
     fn transform(block: &mut [i64; 64]) {
-        fwd_xform_3d_i64(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 64] {
         &crate::codec::encode::core::PERM_3
@@ -99,7 +96,7 @@ impl Transform64<64> for Dim3i64 {
 pub(crate) struct Dim4i32;
 impl Transform32<256> for Dim4i32 {
     fn transform(block: &mut [i32; 256]) {
-        fwd_xform_4d(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 256] {
         &crate::codec::encode::core::PERM_4
@@ -109,7 +106,7 @@ impl Transform32<256> for Dim4i32 {
 pub(crate) struct Dim4i64;
 impl Transform64<256> for Dim4i64 {
     fn transform(block: &mut [i64; 256]) {
-        fwd_xform_4d_i64(block);
+        fwd_xform(block);
     }
     fn perm() -> &'static [u8; 256] {
         &crate::codec::encode::core::PERM_4
