@@ -505,15 +505,24 @@ fn mode_strategy() -> impl Strategy<Value = Mode> {
     ]
 }
 
-fn normal_f32() -> impl Strategy<Value = f32> {
-    any::<f32>().prop_filter("must be finite normal or zero", |v| {
-        v.is_finite() && !v.is_subnormal()
+// C's scale factor overflows for a block whose largest magnitude is below
+// 2^-98 (`f32`) or 2^-962 (`f64`), so every value casts to the minimum
+// integer. zfp-rs scales such blocks exactly, and its bytes differ. Nonzero
+// values are at least that large here, subnormals included, so no block is
+// below it.
+fn comparable_f32() -> impl Strategy<Value = f32> {
+    // 2^-98
+    let min = f32::from_bits(29 << 23);
+    any::<f32>().prop_filter("finite, and zero or at least 2^-98", move |v| {
+        v.is_finite() && (*v == 0.0 || v.abs() >= min)
     })
 }
 
-fn normal_f64() -> impl Strategy<Value = f64> {
-    any::<f64>().prop_filter("must be finite normal or zero", |v| {
-        v.is_finite() && !v.is_subnormal()
+fn comparable_f64() -> impl Strategy<Value = f64> {
+    // 2^-962
+    let min = f64::from_bits(61 << 52);
+    any::<f64>().prop_filter("finite, and zero or at least 2^-962", move |v| {
+        v.is_finite() && (*v == 0.0 || v.abs() >= min)
     })
 }
 
@@ -1071,13 +1080,13 @@ prop_header_and_full_field_compat!(
 prop_header_and_full_field_compat!(
     f32_compat,
     f32,
-    normal_f32(),
+    comparable_f32(),
     zfp_sys::zfp_type_zfp_type_float
 );
 prop_header_and_full_field_compat!(
     f64_compat,
     f64,
-    normal_f64(),
+    comparable_f64(),
     zfp_sys::zfp_type_zfp_type_double
 );
 
@@ -1513,7 +1522,7 @@ partial_decode_1d!(
 partial_decode_1d!(
     partial_decode_strided_f32_1d,
     f32,
-    normal_f32(),
+    comparable_f32(),
     zfp_sys::zfp_encode_block_float_1,
     zfp_sys::zfp_decode_partial_block_strided_float_1,
     ffi::zfp_decode_partial_block_strided_float_1
@@ -1521,7 +1530,7 @@ partial_decode_1d!(
 partial_decode_1d!(
     partial_decode_strided_f64_1d,
     f64,
-    normal_f64(),
+    comparable_f64(),
     zfp_sys::zfp_encode_block_double_1,
     zfp_sys::zfp_decode_partial_block_strided_double_1,
     ffi::zfp_decode_partial_block_strided_double_1
@@ -1546,7 +1555,7 @@ partial_decode_2d!(
 partial_decode_2d!(
     partial_decode_strided_f32_2d,
     f32,
-    normal_f32(),
+    comparable_f32(),
     zfp_sys::zfp_encode_block_float_2,
     zfp_sys::zfp_decode_partial_block_strided_float_2,
     ffi::zfp_decode_partial_block_strided_float_2
@@ -1554,7 +1563,7 @@ partial_decode_2d!(
 partial_decode_2d!(
     partial_decode_strided_f64_2d,
     f64,
-    normal_f64(),
+    comparable_f64(),
     zfp_sys::zfp_encode_block_double_2,
     zfp_sys::zfp_decode_partial_block_strided_double_2,
     ffi::zfp_decode_partial_block_strided_double_2
@@ -1579,7 +1588,7 @@ partial_decode_3d!(
 partial_decode_3d!(
     partial_decode_strided_f32_3d,
     f32,
-    normal_f32(),
+    comparable_f32(),
     zfp_sys::zfp_encode_block_float_3,
     zfp_sys::zfp_decode_partial_block_strided_float_3,
     ffi::zfp_decode_partial_block_strided_float_3
@@ -1587,7 +1596,7 @@ partial_decode_3d!(
 partial_decode_3d!(
     partial_decode_strided_f64_3d,
     f64,
-    normal_f64(),
+    comparable_f64(),
     zfp_sys::zfp_encode_block_double_3,
     zfp_sys::zfp_decode_partial_block_strided_double_3,
     ffi::zfp_decode_partial_block_strided_double_3
@@ -1612,7 +1621,7 @@ partial_decode_4d!(
 partial_decode_4d!(
     partial_decode_strided_f32_4d,
     f32,
-    normal_f32(),
+    comparable_f32(),
     zfp_sys::zfp_encode_block_float_4,
     zfp_sys::zfp_decode_partial_block_strided_float_4,
     ffi::zfp_decode_partial_block_strided_float_4
@@ -1620,7 +1629,7 @@ partial_decode_4d!(
 partial_decode_4d!(
     partial_decode_strided_f64_4d,
     f64,
-    normal_f64(),
+    comparable_f64(),
     zfp_sys::zfp_encode_block_double_4,
     zfp_sys::zfp_decode_partial_block_strided_double_4,
     ffi::zfp_decode_partial_block_strided_double_4

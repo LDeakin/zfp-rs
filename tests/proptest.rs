@@ -16,3 +16,5 @@ mod decompress_compat;
 mod header_compat;
 #[path = "proptest/rounding.rs"]
 mod rounding;
+#[path = "proptest/tiny_blocks.rs"]
+mod tiny_blocks;

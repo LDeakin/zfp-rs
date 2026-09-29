@@ -270,37 +270,88 @@ pub(crate) fn exponent_block_f64<const N: usize>(data: &[f64; N]) -> i32 {
     }
 }
 
+/// The smallest `emax` whose scale `2^(30 - emax)` is finite as an `f32`.
+pub(crate) const MIN_CAST_EMAX_F32: i32 = -97;
+/// The smallest `emax` whose scale `2^(62 - emax)` is finite as an `f64`.
+pub(crate) const MIN_CAST_EMAX_F64: i32 = -961;
+
 /// Forward block-floating-point transform: quantize f32 → i32 relative to exponent `emax`.
+///
+/// C computes the scale `2^(30 - emax)` as an `f32`, which overflows to
+/// infinity below [`MIN_CAST_EMAX_F32`], so every value of a block smaller
+/// than `2^-98` casts to `i32::MIN` (zfp issue #119). Such blocks are scaled
+/// in two steps instead, which is exact, so their integers are what C's
+/// would be if its scale did not overflow.
 pub(crate) fn fwd_cast_f32(iblock: &mut [i32], fblock: &[f32], emax: i32) {
-    // s = 2^(30 - emax).  When emax < -97, s overflows f32 to +inf,
-    // causing `v = s * f` to be ±inf even for small finite f.
-    // In C on x86, (int32_t)(±inf) uses CVTTSS2SI, which returns
-    // INT32_MIN (0x80000000) for any out-of-range value; replicate here.
+    if emax < MIN_CAST_EMAX_F32 {
+        fwd_cast_tiny_f32(iblock, fblock, emax);
+        return;
+    }
     let s = libm::ldexpf(1.0f32, 30 - emax);
     for (i, f) in iblock.iter_mut().zip(fblock.iter()) {
-        let v = s * f;
-        // NaN and ±inf fail the range test too.
-        *i = if (-2_147_483_648.0_f32..2_147_483_648.0_f32).contains(&v) {
-            // SAFETY: `v` is in range, so this truncates exactly as `as`
-            // would, without the saturation that keeps `as` from vectorizing.
-            unsafe { v.to_int_unchecked() }
-        } else {
-            i32::MIN
-        };
+        *i = truncate_f32(s * f);
+    }
+}
+
+/// [`fwd_cast_f32`] for `emax < MIN_CAST_EMAX_F32`.
+///
+/// `f * 2^64` is normal, even for a subnormal `f`, and the second factor is
+/// at most `2^93`, so neither product rounds or overflows.
+#[cold]
+#[inline(never)]
+fn fwd_cast_tiny_f32(iblock: &mut [i32], fblock: &[f32], emax: i32) {
+    let s = libm::ldexpf(1.0f32, 30 - 64 - emax);
+    for (i, f) in iblock.iter_mut().zip(fblock.iter()) {
+        *i = truncate_f32(f * TWO_POW_64_F32 * s);
     }
 }
 
 /// Forward block-floating-point transform: quantize f64 → i64 relative to exponent `emax`.
+///
+/// As [`fwd_cast_f32`], with blocks smaller than `2^-962` scaled in two steps.
 pub(crate) fn fwd_cast_f64(iblock: &mut [i64], fblock: &[f64], emax: i32) {
-    // Same as fwd_cast_f32: when emax < -961, s overflows f64 to +inf.
-    // In C on x86, (int64_t)(±inf) returns INT64_MIN; replicate here.
+    if emax < MIN_CAST_EMAX_F64 {
+        fwd_cast_tiny_f64(iblock, fblock, emax);
+        return;
+    }
     let s = libm::ldexp(1.0f64, 62 - emax);
     for (i, f) in iblock.iter_mut().zip(fblock.iter()) {
         *i = truncate_f64(s * f);
     }
 }
 
+/// [`fwd_cast_f64`] for `emax < MIN_CAST_EMAX_F64`; as [`fwd_cast_tiny_f32`].
+#[cold]
+#[inline(never)]
+fn fwd_cast_tiny_f64(iblock: &mut [i64], fblock: &[f64], emax: i32) {
+    let s = libm::ldexp(1.0f64, 62 - 64 - emax);
+    for (i, f) in iblock.iter_mut().zip(fblock.iter()) {
+        *i = truncate_f64(f * TWO_POW_64_F64 * s);
+    }
+}
+
+const TWO_POW_64_F32: f32 = 18_446_744_073_709_551_616.0;
+const TWO_POW_64_F64: f64 = 18_446_744_073_709_551_616.0;
+
+/// `v` truncated to `i32`, or `i32::MIN` if out of range, as x86's `cvttss2si`.
+///
+/// Only blocks with NaNs or infinities, which the lossy modes do not support,
+/// give values out of range. C's cast of them is undefined; this gives
+/// x86-64's result.
+#[inline]
+fn truncate_f32(v: f32) -> i32 {
+    if (-2_147_483_648.0_f32..2_147_483_648.0_f32).contains(&v) {
+        // SAFETY: `v` is in range, so this truncates exactly as `as`
+        // would, without the saturation that keeps `as` from vectorizing.
+        unsafe { v.to_int_unchecked() }
+    } else {
+        i32::MIN
+    }
+}
+
 /// `v` truncated to `i64`, or `i64::MIN` if out of range, as x86's `cvttsd2si`.
+///
+/// As [`truncate_f32`].
 #[inline]
 fn truncate_f64(v: f64) -> i64 {
     // The instruction itself, since SSE2 cannot convert `f64` lanes to `i64`
@@ -314,7 +365,7 @@ fn truncate_f64(v: f64) -> i64 {
     #[cfg(not(target_arch = "x86_64"))]
     {
         if (-9_223_372_036_854_775_808.0_f64..9_223_372_036_854_775_808.0_f64).contains(&v) {
-            // SAFETY: as in `fwd_cast_f32`.
+            // SAFETY: as in `truncate_f32`.
             unsafe { v.to_int_unchecked() }
         } else {
             i64::MIN
@@ -414,8 +465,8 @@ pub(crate) use strided_encode_wrappers;
 #[cfg(test)]
 mod tests {
     use super::{
-        exponent_block_f32, exponent_block_f64, fwd_round_i32, fwd_round_i64, precision_f,
-        truncate_f64,
+        MIN_CAST_EMAX_F32, MIN_CAST_EMAX_F64, exponent_block_f32, exponent_block_f64, fwd_cast_f32,
+        fwd_cast_f64, fwd_round_i32, fwd_round_i64, precision_f, truncate_f64,
     };
 
     #[test]
@@ -501,6 +552,91 @@ mod tests {
             let block: [f64; 4] = std::array::from_fn(|_| f64::from_bits(next()));
             assert_eq!(exponent_block_f64(&block), frexp_exponent_f64(&block));
         }
+    }
+
+    /// Biased exponents of a block, each at most `top`, or `None` for zeros.
+    /// Exponent zero gives subnormals.
+    fn block_below<const N: usize>(next: &mut impl FnMut() -> u64, top: u64) -> [Option<u64>; N] {
+        std::array::from_fn(|_| {
+            let r = next();
+            (r >> 61 != 0).then(|| (r >> 16) % (top + 1))
+        })
+    }
+
+    /// `fwd_cast` truncates `f * 2^(30 - emax)` (`2^(62 - emax)` for `f64`)
+    /// computed exactly, including for blocks too small for C's scale.
+    #[test]
+    fn fwd_cast_scales_exactly() {
+        let mut x = 0x9e37_79b9_7f4a_7c15u64;
+        let mut next = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        let mut tiny = [0usize; 2];
+        for top in 0..0xff {
+            for _ in 0..200 {
+                let exps = block_below::<4>(&mut next, top);
+                let block = exps.map(|e| {
+                    e.map_or(0.0, |e| {
+                        f32::from_bits((next() as u32 & 0x807f_ffff) | ((e as u32) << 23))
+                    })
+                });
+                let emax = exponent_block_f32(&block);
+                if emax == -127 {
+                    continue;
+                }
+                tiny[0] += usize::from(emax < MIN_CAST_EMAX_F32);
+                let mut got = [0i32; 4];
+                fwd_cast_f32(&mut got, &block, emax);
+                let want = block.map(|f| (f64::from(f) * libm::ldexp(1.0, 30 - emax)) as i32);
+                assert_eq!(got, want, "{block:?}");
+            }
+        }
+        for top in 0..0x7ff {
+            for _ in 0..20 {
+                let exps = block_below::<4>(&mut next, top);
+                let block = exps.map(|e| {
+                    e.map_or(0.0, |e| {
+                        f64::from_bits((next() & 0x800f_ffff_ffff_ffff) | (e << 52))
+                    })
+                });
+                let emax = exponent_block_f64(&block);
+                if emax == -1023 {
+                    continue;
+                }
+                tiny[1] += usize::from(emax < MIN_CAST_EMAX_F64);
+                let mut got = [0i64; 4];
+                fwd_cast_f64(&mut got, &block, emax);
+                let want = block.map(|f| truncate_f64(libm::ldexp(f, 62 - emax)));
+                assert_eq!(got, want, "{block:?}");
+            }
+        }
+        assert!(tiny.iter().all(|&n| n > 1000), "{tiny:?}");
+    }
+
+    /// Below `MIN_CAST_EMAX_*`, C's scale overflows. The boundary is where it
+    /// does.
+    #[test]
+    fn min_cast_emax_is_where_the_scale_overflows() {
+        assert!(libm::ldexpf(1.0, 30 - MIN_CAST_EMAX_F32).is_finite());
+        assert!(libm::ldexpf(1.0, 30 - (MIN_CAST_EMAX_F32 - 1)).is_infinite());
+        assert!(libm::ldexp(1.0, 62 - MIN_CAST_EMAX_F64).is_finite());
+        assert!(libm::ldexp(1.0, 62 - (MIN_CAST_EMAX_F64 - 1)).is_infinite());
+    }
+
+    /// NaN still casts to the minimum integer in a tiny block, as with C's
+    /// overflowing scale.
+    #[test]
+    fn fwd_cast_of_nan_in_a_tiny_block() {
+        let block = [3.0e-31f32, f32::NAN, 0.0, -3.0e-31];
+        let mut got = [0i32; 4];
+        fwd_cast_f32(&mut got, &block, exponent_block_f32(&block));
+        assert_eq!(got[1], i32::MIN);
+        assert_eq!(got[2], 0);
+        assert_eq!(got[0], -got[3]);
+        assert!(got[0] > 0);
     }
 
     #[test]

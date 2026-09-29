@@ -9,9 +9,8 @@
 //!    `zfp_decode_block_*` function.
 //! 3. Assert the decoded arrays are identical.
 //!
-//! Subnormal floats are excluded for the same reason as in block_encode_compat:
-//! the fwd_cast scale-factor overflow produces implementation-defined behaviour
-//! in C and Rust's saturating `as` cast produces a different bit pattern.
+//! Floats include blocks too small for C's encoder, whose scale factor
+//! overflows, so zfp-rs must decode C's broken blocks as C does.
 
 #![cfg(feature = "ffi")]
 
@@ -30,18 +29,6 @@ const ZFP_MAX_PREC: u32 = 64;
 const ZFP_MIN_EXP: i32 = -1074;
 const ZFP_MAX_BITS: u32 = 16658;
 const ZFP_RATE_PARAM_BITS: u32 = 19;
-
-// ---------------------------------------------------------------------------
-// Strategies for normal floats
-// ---------------------------------------------------------------------------
-
-fn normal_f32() -> impl Strategy<Value = f32> {
-    any::<f32>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
-}
-
-fn normal_f64() -> impl Strategy<Value = f64> {
-    any::<f64>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
-}
 
 // ---------------------------------------------------------------------------
 // C helper: zfp_stream + bitstream
@@ -222,7 +209,7 @@ block_decode_compat_float!(
     decode_block_1d_f32,
     f32,
     4,
-    normal_f32(),
+    any::<f32>(),
     dfloat::decode_block_1d_f32,
     zfp_sys::zfp_encode_block_float_1,
     zfp_sys::zfp_decode_block_float_1
@@ -231,7 +218,7 @@ block_decode_compat_float!(
     decode_block_1d_f64,
     f64,
     4,
-    normal_f64(),
+    any::<f64>(),
     dfloat::decode_block_1d_f64,
     zfp_sys::zfp_encode_block_double_1,
     zfp_sys::zfp_decode_block_double_1
@@ -263,7 +250,7 @@ block_decode_compat_float!(
     decode_block_2d_f32,
     f32,
     16,
-    normal_f32(),
+    any::<f32>(),
     dfloat::decode_block_2d_f32,
     zfp_sys::zfp_encode_block_float_2,
     zfp_sys::zfp_decode_block_float_2
@@ -272,7 +259,7 @@ block_decode_compat_float!(
     decode_block_2d_f64,
     f64,
     16,
-    normal_f64(),
+    any::<f64>(),
     dfloat::decode_block_2d_f64,
     zfp_sys::zfp_encode_block_double_2,
     zfp_sys::zfp_decode_block_double_2
@@ -304,7 +291,7 @@ block_decode_compat_float!(
     decode_block_3d_f32,
     f32,
     64,
-    normal_f32(),
+    any::<f32>(),
     dfloat::decode_block_3d_f32,
     zfp_sys::zfp_encode_block_float_3,
     zfp_sys::zfp_decode_block_float_3
@@ -313,7 +300,7 @@ block_decode_compat_float!(
     decode_block_3d_f64,
     f64,
     64,
-    normal_f64(),
+    any::<f64>(),
     dfloat::decode_block_3d_f64,
     zfp_sys::zfp_encode_block_double_3,
     zfp_sys::zfp_decode_block_double_3
@@ -345,7 +332,7 @@ block_decode_compat_float!(
     decode_block_4d_f32,
     f32,
     256,
-    normal_f32(),
+    any::<f32>(),
     dfloat::decode_block_4d_f32,
     zfp_sys::zfp_encode_block_float_4,
     zfp_sys::zfp_decode_block_float_4
@@ -354,7 +341,7 @@ block_decode_compat_float!(
     decode_block_4d_f64,
     f64,
     256,
-    normal_f64(),
+    any::<f64>(),
     dfloat::decode_block_4d_f64,
     zfp_sys::zfp_encode_block_double_4,
     zfp_sys::zfp_decode_block_double_4
@@ -437,7 +424,7 @@ reversible_block_decode_compat!(
 reversible_block_decode_compat!(
     reversible_decode_block_3d_f32,
     f32,
-    normal_f32(),
+    any::<f32>(),
     ZfpDimensionality::D3,
     [1, 4, 16],
     zfp_sys::zfp_encode_block_float_3,
@@ -446,7 +433,7 @@ reversible_block_decode_compat!(
 reversible_block_decode_compat!(
     reversible_decode_block_4d_f64,
     f64,
-    normal_f64(),
+    any::<f64>(),
     ZfpDimensionality::D4,
     [1, 4, 16, 64],
     zfp_sys::zfp_encode_block_double_4,
