@@ -842,6 +842,21 @@ mod tests {
         assert_eq!(field.effective_strides(), [1, 4, 16, 0]);
     }
 
+    #[test]
+    fn constructors_reject_misaligned_data() {
+        let mut data = [0f64; 3];
+        let expected = ZfpFieldError::MisalignedData { align: 8 };
+        let ptr = data.as_mut_ptr().cast::<u8>().wrapping_add(4);
+        // SAFETY: the 16 bytes at `ptr` are within `data`.
+        let field =
+            unsafe { ZfpField::from_raw(ptr, 16, ZfpScalarType::F64, [2, 0, 0, 0], [0; 4]) };
+        assert_eq!(field.unwrap_err(), expected);
+        // SAFETY: as above.
+        let field =
+            unsafe { ZfpFieldMut::from_raw(ptr, 16, ZfpScalarType::F64, [2, 0, 0, 0], [0; 4]) };
+        assert_eq!(field.unwrap_err(), expected);
+    }
+
     #[cfg(feature = "ffi")]
     #[test]
     fn codec_rejects_an_unchecked_field_larger_than_its_buffer() {
@@ -875,6 +890,32 @@ mod tests {
                 [1000, 0, 0, 0],
                 [0; 4],
             )
+        };
+        assert_eq!(
+            bs.decompress(&config, &mut field),
+            Err(ZfpDecompressionError::Field(expected))
+        );
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn codec_rejects_an_unchecked_misaligned_field() {
+        let mut data = [0f64; 3];
+        let expected = ZfpFieldError::MisalignedData { align: 8 };
+        let ptr = data.as_mut_ptr().cast::<u8>().wrapping_add(4);
+        let config = ZfpConfig::reversible();
+        let mut bs = ZfpBitStream::new(4096);
+        // SAFETY: the 16 bytes at `ptr` are within `data`.
+        let field = unsafe {
+            ZfpField::from_raw_unchecked(ptr, 16, ZfpScalarType::F64, [2, 0, 0, 0], [0; 4])
+        };
+        assert_eq!(
+            bs.compress(&config, &field),
+            Err(ZfpCompressionError::Field(expected))
+        );
+        // SAFETY: as above.
+        let mut field = unsafe {
+            ZfpFieldMut::from_raw_unchecked(ptr, 16, ZfpScalarType::F64, [2, 0, 0, 0], [0; 4])
         };
         assert_eq!(
             bs.decompress(&config, &mut field),

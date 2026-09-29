@@ -12,6 +12,8 @@ mod budget;
 mod compress_compat;
 #[path = "proptest/decompress_compat.rs"]
 mod decompress_compat;
+#[path = "proptest/differences.rs"]
+mod differences;
 #[path = "proptest/header_compat.rs"]
 mod header_compat;
 #[path = "proptest/rounding.rs"]

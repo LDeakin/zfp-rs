@@ -6,7 +6,7 @@
 //! its own workspace, outside the root one that holds the stock-zfp suites.
 //!
 //! `zfp-sys` exposes only the coupled build, so this covers `First` alone.
-//! `Last` has no C cross-check; see `tests/proptest/rounding.rs`.
+//! `zfp-rs-ffi/tests/c_rounding_builds.rs` cross-checks the other settings.
 #![expect(unsafe_op_in_unsafe_fn)]
 
 use proptest::prelude::*;

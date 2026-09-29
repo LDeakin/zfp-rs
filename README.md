@@ -10,7 +10,7 @@ Produces bit-for-bit identical compressed output to the original C implementatio
 ## Differences from the C implementation
 
 `zfp-rs` is a ground-up Rust rewrite, not a binding or wrapper.
-Where it differs:
+Where it differs (see [docs/differences-from-c.md](docs/differences-from-c.md) for every known difference in behaviour, including C bugs it does not reproduce):
 
 - **Idiomatic and Safe API**: Safe public API with lifetime-checked borrows.
 - **Performance**: 2–4x faster than the serial C reference across all modes and types.

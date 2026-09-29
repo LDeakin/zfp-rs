@@ -488,6 +488,20 @@ fn block_maximum_size_matches_c_for_every_input() {
     }
 }
 
+/// Blocks can outgrow a `max_bits` below their header, which the size allows
+/// for, where C's `zfp_stream_maximum_size` gives 24 bytes.
+#[test]
+fn stream_maximum_size_holds_blocks_longer_than_max_bits() {
+    unsafe {
+        let zfp = ffi::zfp_stream_open(std::ptr::null_mut());
+        assert_ne!(ffi::zfp_stream_set_params(zfp, 1, 11, 64, -1074), 0);
+        let field = ffi::zfp_field_1d(std::ptr::null_mut(), ffi::zfp_type_zfp_type_double, 16);
+        assert_eq!(ffi::zfp_stream_maximum_size(zfp, field), 32);
+        ffi::zfp_field_free(field);
+        ffi::zfp_stream_close(zfp);
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Mode {
     FixedRate(u32),

@@ -546,6 +546,9 @@ mod tests {
                 assert_eq!(exponent_block_f64(&block), frexp_exponent_f64(&block));
             }
         }
+        // As glibc's `frexp` gives, and musl's does not.
+        assert_eq!(exponent_block_f32(&[f32::INFINITY, 1.0, 0.0, -2.0]), 0);
+        assert_eq!(exponent_block_f64(&[f64::NEG_INFINITY, 1.0, 0.0, -2.0]), 0);
         for _ in 0..10_000 {
             let block: [f32; 4] = std::array::from_fn(|_| f32::from_bits(next() as u32));
             assert_eq!(exponent_block_f32(&block), frexp_exponent_f32(&block));

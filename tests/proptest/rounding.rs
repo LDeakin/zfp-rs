@@ -4,8 +4,8 @@
 //! `ZFP_WITH_TIGHT_ERROR` build. These assert the relationships the modes are
 //! defined by instead. Byte-equality with C is covered by
 //! `zfp-round-tests/tests/c_rounding.rs` (encode) and `zfp-rs-ffi`'s `ffi_compat`
-//! with `round-tight-error` (encode and decode). `ZfpRounding::Last` has no C
-//! cross-check.
+//! with `round-tight-error` (encode and decode), and the other settings by
+//! `zfp-rs-ffi/tests/c_rounding_builds.rs`.
 
 use proptest::prelude::*;
 use zfp_rs::codec::block::decode_block;
