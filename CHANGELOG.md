@@ -15,16 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ZfpFieldError`, returned by the field constructors and setters.
 - `ZfpField::from_raw_unchecked` and `ZfpFieldMut::from_raw_unchecked`, and `field::index_span`, behind `ffi`.
 - `ZfpFieldMut::set_strides`.
-- `ZfpBitStreamOps::{as_words, backing_words}`.
+- `ZfpBitStreamOps::as_words`.
 - `ZfpBlockError`, `ZfpFieldError` and the documented `ZFP_*` constants are re-exported at the crate root without `ffi`.
-- `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}` provided methods. `ZfpBitStreamRef` and `ZfpBitStreamRefMut` now have the same codec methods as `ZfpBitStream`, so borrowed buffers can be encoded and decoded without copying.
+- `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}` provided methods. `ZfpBitStreamRef` gains `read_header` and `decompress{,_with_execution}`, and `ZfpBitStreamRefMut` gains `read_header`, `write_header`, `compress` and `decompress`, so both have the same codec methods as `ZfpBitStream`.
+- `docs/differences-from-c.md`, which lists every known difference from the C library, including the C bugs zfp-rs does not reproduce.
 
 ### Changed
 
-- Serial compression is 2–10x faster and decompression 1.4–22x faster across the `api_compare` benchmark cases, with byte-identical output. The embedded coder transposes each block into bit planes and codes a whole group test at a time, the transforms are lifted as vectors, and all-zero planes and blocks take shortcuts.
-- **Breaking**: `ZfpBitStreamMutOps::write_header` (and so `write_header` on every stream type) takes `&ZfpFieldMetadata` instead of `&ZfpField`, returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, and writes nothing on failure.
+- Serial compression is 2–10x faster and decompression 1.4–22x faster across the `api_compare` benchmark cases. The optimisations do not change the output. The embedded coder transposes each block into bit planes and codes a whole group test at a time, the transforms are lifted as vectors, and all-zero planes and blocks take shortcuts.
+- **Breaking**: `ZfpBitStream::write_header` takes `&ZfpFieldMetadata` instead of `&ZfpField`, returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, and writes nothing on failure.
 - **Breaking**: `ZfpField::{new, new_strided, from_raw}` and `ZfpFieldMut::{new, new_strided, from_raw}` validate the dimensions and buffer and return `Result<Self, ZfpFieldError>`. A valid field no longer fails at compression time.
-- **Breaking**: `ZfpCompressionError` is now `Field(ZfpFieldError)`, `BufferTooSmall` or `Metadata(ZfpMetadataError)`; `ZfpDecompressionError` is now `Field(ZfpFieldError)`. Both implement `Error::source`.
+- **Breaking**: `ZfpCompressionError` is now `Field(ZfpFieldError)`, `BufferTooSmall` or `Metadata(ZfpMetadataError)`; `ZfpDecompressionError` is now `Field(ZfpFieldError)`. Both implement `Error::source` and `From` their inner errors.
 - **Breaking**: `ZfpField{,Mut}::metadata` returns `ZfpFieldMetadata`; encode it with `ZfpFieldMetadata::to_bits`.
 - **Breaking**: `ZfpField{,Mut}::set_metadata` takes `ZfpFieldMetadata` and returns `Result<(), ZfpFieldError>` instead of `bool`.
 - **Breaking**: `ZfpField::set_stride` is renamed `set_strides` and returns `Result<(), ZfpFieldError>`.
@@ -53,11 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ZfpFieldMetadata::to_bits` no longer panics (or wraps) for a zero leading dimension.
 - Rayon decompression leaves the stream cursor where serial decompression does, and returns the same size, truncated streams included.
-- Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it to the buffer: reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made `codec::block::decode_block` return a wrapped bit count.
+- Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it to the buffer: reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made the strided `codec::block` decoders, and so the C ABI's `zfp_decode_block_*`, return a wrapped bit count.
 - Writing past the end of a bitstream no longer panics. The write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
-- Reversible expert configurations (`min_exp < ZFP_MIN_EXP`) honour `min_bits`, `max_bits` and `max_prec`, as in C, and produce the same stream. They were ignored, so every block was coded losslessly. One C bug is not reproduced: C's encoder does not pad an all-zero float block to `min_bits`, though its decoder skips the padding. zfp-rs pads it, so such streams round-trip.
+- Reversible expert configurations (`min_exp < ZFP_MIN_EXP`) honour `min_bits`, `max_bits` and `max_prec`, as in C, and produce the same stream. They were ignored, so every block was coded losslessly. Two C bugs are not reproduced: C's encoder does not pad an all-zero float block to `min_bits`, though its decoder skips the padding, and a `max_bits` below the block header wraps C's bit budget around. zfp-rs pads such blocks, so the streams round-trip, and gives such configurations no budget beyond the header, as in lossy mode.
 - The strided `codec::block` functions, and so the C ABI's `zfp_encode_block_*` and `zfp_decode_block_*`, use the reversible coder for a reversible config, as C does, instead of the lossy coder.
-- `ZfpConfig::maximum_size`, and so the C ABI's `zfp_stream_maximum_size`, is never less than the block headers. Expert configurations whose `max_bits` is below the header write it anyway, so compressing into a stream of that size could fail with `BufferTooSmall`. C under-reports these configurations too.
+- `ZfpConfig::maximum_size`, and so the C ABI's `zfp_stream_maximum_size`, is never less than the block headers. Expert configurations whose `max_bits` is below the header write it anyway, so a stream of that size could not hold their output. C under-reports these configurations too.
+- The C ABI's `zfp_stream_maximum_size` ignores the dimensions from the first zero one on, as C does. A field with dimensions such as `[4, 0, 4, 0]` was sized for no blocks, only the header.
 - Rayon compression no longer loses bits when blocks are larger than `max_bits`: each chunk's buffer is sized with the same bound as `maximum_size`.
 - Lossy compression no longer destroys float blocks whose largest magnitude is below 2^-98 (`f32`) or 2^-962 (`f64`). Their scale factor overflowed, as in C (zfp issue #119), and the block decoded to values unrelated to its input. Such blocks are now scaled exactly. Their bytes differ from C's, but the stream format is unchanged, so C decodes them. Reversible mode was unaffected, and still matches C.
 - `ZfpRounding::Last` no longer biases reversible decoding, which made it lossy, as in a C build with `ZFP_ROUND_LAST`. Streams are unchanged.
