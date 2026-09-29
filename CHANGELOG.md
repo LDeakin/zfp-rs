@@ -10,58 +10,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `ZfpConfig::try_expert`, which rejects invalid expert-mode parameters.
-- `ZfpBitStreamOps` and `ZfpBitStreamMutOps` methods are inherent on `ZfpBitStream`, `ZfpBitStreamRef` and `ZfpBitStreamRefMut`, so the traits no longer need to be in scope. This adds a dependency on `inherent`.
-- `ZfpBitStreamOps::overflowed`, which reports writes dropped past the end of the buffer.
-- `ZfpFieldError`, returned by the field constructors and setters.
-- `ZfpField::from_raw_unchecked` and `ZfpFieldMut::from_raw_unchecked`, and `field::index_span`, behind `ffi`.
-- `ZfpFieldMut::set_strides`.
-- `ZfpBitStreamOps::as_words`.
-- `ZfpBlockError`, `ZfpFieldError` and the documented `ZFP_*` constants are re-exported at the crate root without `ffi`.
-- `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}` provided methods. `ZfpBitStreamRef` gains `read_header` and `decompress{,_with_execution}`, and `ZfpBitStreamRefMut` gains `read_header`, `write_header`, `compress` and `decompress`, so both have the same codec methods as `ZfpBitStream`.
-- `docs/differences-from-c.md`, which lists every known difference from the C library, including the C bugs zfp-rs does not reproduce.
+- `ZfpFieldError`, returned by the field constructors and setters, and `ZfpFieldMut::set_strides`.
+- `ZfpField::from_raw_unchecked`, `ZfpFieldMut::from_raw_unchecked` and `field::index_span`, behind `ffi`.
+- The bitstream trait methods are inherent on `ZfpBitStream`, `ZfpBitStreamRef` and `ZfpBitStreamRefMut`, so the traits need not be in scope. This adds a dependency on `inherent`.
+- `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}`, so `ZfpBitStreamRef` gains the decoding methods and `ZfpBitStreamRefMut` has all of them.
+- `ZfpBitStreamOps::overflowed`, which reports writes dropped past the end of the buffer, and `ZfpBitStreamOps::as_words`.
+- `ZfpBlockError` and the `ZFP_*` constants are re-exported at the crate root without `ffi`.
+- `docs/differences-from-c.md`, which lists every known difference from the C library.
 
 ### Changed
 
-- Serial compression is 2–10x faster and decompression 1.4–22x faster across the `api_compare` benchmark cases. The optimisations do not change the output. The embedded coder transposes each block into bit planes and codes a whole group test at a time, the transforms are lifted as vectors, and all-zero planes and blocks take shortcuts.
-- **Breaking**: `ZfpBitStream::write_header` takes `&ZfpFieldMetadata` instead of `&ZfpField`, returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, and writes nothing on failure.
-- **Breaking**: `ZfpField::{new, new_strided, from_raw}` and `ZfpFieldMut::{new, new_strided, from_raw}` validate the dimensions and buffer and return `Result<Self, ZfpFieldError>`. A valid field no longer fails at compression time.
-- **Breaking**: `ZfpCompressionError` is now `Field(ZfpFieldError)`, `BufferTooSmall` or `Metadata(ZfpMetadataError)`; `ZfpDecompressionError` is now `Field(ZfpFieldError)`. Both implement `Error::source` and `From` their inner errors.
-- **Breaking**: `ZfpField{,Mut}::metadata` returns `ZfpFieldMetadata`; encode it with `ZfpFieldMetadata::to_bits`.
-- **Breaking**: `ZfpField{,Mut}::set_metadata` takes `ZfpFieldMetadata` and returns `Result<(), ZfpFieldError>` instead of `bool`.
-- **Breaking**: `ZfpField::set_stride` is renamed `set_strides` and returns `Result<(), ZfpFieldError>`.
-- **Breaking**: `ZfpField{,Mut}::field_index_span` is renamed `index_span`. `ZfpField::field_index_span_static` is removed; use `field::index_span` (`ffi`).
-- **Breaking**: `ZfpField{,Mut}::begin` is removed; use `data().as_ptr()`.
-- **Breaking**: `ZfpScalar::scalar_type()` is replaced by the associated const `ZfpScalar::SCALAR_TYPE`.
-- **Breaking**: `ZfpMetadataError::Null` is renamed `InvalidDims` and also covers malformed dimensions such as `[0, 5, 0, 0]`. `ZfpMetadataError` and `ZfpHeaderError` are now `#[non_exhaustive]`.
-- **Breaking**: `ZfpConfig::maximum_size` returns `Option<usize>` instead of `0` for malformed dimensions or overflow, and takes `impl ZfpDims` instead of `&[usize]`. The zero-padded `[usize; 4]` from `ZfpField::dims` now gives the right size rather than just the header size.
-- **Breaking**: `ZfpConfig::{rate, precision, accuracy}` return `Option` instead of `0` when the config is in another mode.
-- **Breaking**: `ZfpConfig::from_mode` is renamed `from_mode_bits`, and `ZfpConfig::compression_mode` is renamed `mode`.
-- **Breaking**: `ZfpDims::dimensionality` and `ZfpStrides::dimensionality` are removed.
-- **Breaking**: The `*_from_params` functions are no longer public without `ffi`.
-- **Breaking**: `ZfpScalarType` variants are renamed `I32`, `I64`, `F32` and `F64`, and its `size`, `align`, `precision` and `is_aligned` methods take `self` by value.
-- **Breaking**: `ZfpStreamAlignment::None` is renamed `Unaligned`, so it cannot be confused with `Option::None`.
-- **Breaking**: `ZfpHeaderMask::NONE` is removed; use `ZfpHeaderMask::empty()`.
+- **Breaking**: `ZfpField::{new, new_strided, from_raw}` and `ZfpFieldMut::{new, new_strided, from_raw}` validate the dimensions and buffer and return `Result<Self, ZfpFieldError>`, so a valid field no longer fails at compression time.
+- **Breaking**: `ZfpField{,Mut}::metadata` returns `ZfpFieldMetadata` (encode it with `to_bits`), and `set_metadata` takes one and returns `Result<(), ZfpFieldError>` instead of `bool`. `ZfpField::set_stride` is renamed `set_strides` and returns `Result<(), ZfpFieldError>`.
+- **Breaking**: `ZfpField{,Mut}::field_index_span` is renamed `index_span`, and `ZfpField::field_index_span_static` is replaced by `field::index_span` (`ffi`). `ZfpField{,Mut}::begin` is removed; use `data().as_ptr()`.
+- **Breaking**: `ZfpCompressionError` is now `Field(ZfpFieldError)`, `BufferTooSmall` or `Metadata(ZfpMetadataError)`, and `ZfpDecompressionError` is `Field(ZfpFieldError)`. Both implement `Error::source` and `From` their inner errors.
+- **Breaking**: `ZfpMetadataError::Null` is renamed `InvalidDims` and also covers malformed dimensions such as `[0, 5, 0, 0]`. `ZfpMetadataError` and `ZfpHeaderError` are `#[non_exhaustive]`.
+- **Breaking**: `ZfpConfig::maximum_size` takes `impl ZfpDims` instead of `&[usize]` and returns `None` instead of `0` for malformed dimensions or overflow. The zero-padded `[usize; 4]` from `ZfpField::dims` now gives the right size rather than just the header's.
+- **Breaking**: `ZfpConfig::{rate, precision, accuracy}` return `None` instead of `0` in other modes. `ZfpConfig::from_mode` is renamed `from_mode_bits` and `compression_mode` is renamed `mode`. The `*_from_params` functions require `ffi`.
+- **Breaking**: `ZfpScalar::scalar_type()` is replaced by the associated const `SCALAR_TYPE`. `ZfpScalarType` variants are renamed `I32`, `I64`, `F32` and `F64`, and its methods take `self` by value.
+- **Breaking**: `ZfpStreamAlignment::None` is renamed `Unaligned`, to avoid confusion with `Option::None`. `ZfpHeaderMask::NONE` is removed in favour of `empty()`, and `ZfpDims::dimensionality` and `ZfpStrides::dimensionality` are removed.
 - **Breaking**: `ZfpBitStreamOps` and `ZfpBitStreamMutOps` are sealed.
-- **Breaking**: `read_bit` returns `bool`, and `write_bit` takes `bool` and returns nothing. `write_word` returns nothing.
-- **Breaking**: Bit counts are `u64`: `skip`, `pad` and `copy_from` take `u64`. `flush` returns `u32`, like `align`.
-- **Breaking**: `bits_written`, `word_pos` and `size` are removed from the stream API; use `write_pos` or `as_bytes().len()`. `size` remains behind `ffi`. `words` is renamed `backing_words`.
-- **Breaking**: `ZfpBitStream::from_buffer` is renamed `from_words`, and `into_vec` is renamed `into_bytes`. `into_words` returns only the words written, like `into_bytes`. `from_bytes` zero-pads a trailing partial word instead of dropping it.
-- **Breaking**: `ZfpBitStreamRefMut::{from_words_mut, from_bytes_mut}` are renamed `from_words` and `from_bytes`.
-- **Breaking**: `codec::block::{encode_block, decode_block}` take a `&ZfpConfig` after the stream, so every mode is available for block coding, not just unconstrained full precision. A reversible config selects lossless coding for every scalar type, and the output matches field compression. `encode_block_reversible_{f32,f64}` and `decode_block_reversible_{f32,f64}` are removed.
-- **Breaking**: `codec::block::encode_block_strided_reversible` (`ffi`) takes a `&ZfpConfig`, and the block functions in `codec::encode::reversible` and `codec::decode::reversible` (`internals`) take a `&ZfpConfig` instead of nothing or a `ZfpRounding`, so they can honour its limits.
+- **Breaking**: `read_bit` returns `bool`, `write_bit` takes `bool`, and `write_bit` and `write_word` return nothing. `skip`, `pad` and `copy_from` take `u64` bit counts, and `flush` returns `u32`, like `align`.
+- **Breaking**: `bits_written`, `word_pos` and `size` are removed; use `write_pos` or `as_bytes().len()` (`size` remains behind `ffi`). `words` is renamed `backing_words`.
+- **Breaking**: `ZfpBitStream::from_buffer` is renamed `from_words` and `into_vec` is renamed `into_bytes`. `into_words` returns only the words written, and `from_bytes` zero-pads a trailing partial word instead of dropping it. `ZfpBitStreamRefMut::{from_words_mut, from_bytes_mut}` are renamed `from_words` and `from_bytes`.
+- **Breaking**: `ZfpBitStream::write_header` takes `&ZfpFieldMetadata` instead of `&ZfpField`, and returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, writing nothing.
+- **Breaking**: `codec::block::{encode_block, decode_block}` take a `&ZfpConfig` after the stream, so blocks can be coded in any mode, not just unconstrained full precision. A reversible config codes every scalar type losslessly, and matches field compression. `{encode,decode}_block_reversible_{f32,f64}` are removed.
+- **Breaking**: `codec::block::encode_block_strided_reversible` (`ffi`) and the block functions in `codec::{encode,decode}::reversible` (`internals`) take a `&ZfpConfig` instead of nothing or a `ZfpRounding`, so they can honour its limits.
 
 ### Fixed
 
 - `ZfpFieldMetadata::to_bits` no longer panics (or wraps) for a zero leading dimension.
-- Rayon decompression leaves the stream cursor where serial decompression does, and returns the same size, truncated streams included.
-- Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it to the buffer: reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made the strided `codec::block` decoders, and so the C ABI's `zfp_decode_block_*`, return a wrapped bit count.
-- Writing past the end of a bitstream no longer panics. The write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
-- Reversible expert configurations (`min_exp < ZFP_MIN_EXP`) honour `min_bits`, `max_bits` and `max_prec`, as in C, and produce the same stream. They were ignored, so every block was coded losslessly. Two C bugs are not reproduced: C's encoder does not pad an all-zero float block to `min_bits`, though its decoder skips the padding, and a `max_bits` below the block header wraps C's bit budget around. zfp-rs pads such blocks, so the streams round-trip, and gives such configurations no budget beyond the header, as in lossy mode.
+- Writing past the end of a bitstream no longer panics: the write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
+- Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it; reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made the strided `codec::block` decoders, and so the C ABI's `zfp_decode_block_*`, return a wrapped bit count.
+- Rayon decompression leaves the cursor where serial decompression does, and returns the same size, truncated streams included.
+- Reversible expert configurations (`min_exp < ZFP_MIN_EXP`) honour `min_bits`, `max_bits` and `max_prec`, as in C, instead of coding every block losslessly. Unlike C, an all-zero float block is padded to `min_bits`, which C's decoder expects but its encoder skips, and a `max_bits` below the block header leaves no budget instead of wrapping around.
 - The strided `codec::block` functions, and so the C ABI's `zfp_encode_block_*` and `zfp_decode_block_*`, use the reversible coder for a reversible config, as C does, instead of the lossy coder.
-- `ZfpConfig::maximum_size`, and so the C ABI's `zfp_stream_maximum_size`, is never less than the block headers. Expert configurations whose `max_bits` is below the header write it anyway, so a stream of that size could not hold their output. C under-reports these configurations too.
-- The C ABI's `zfp_stream_maximum_size` ignores the dimensions from the first zero one on, as C does. A field with dimensions such as `[4, 0, 4, 0]` was sized for no blocks, only the header.
-- Rayon compression no longer loses bits when blocks are larger than `max_bits`: each chunk's buffer is sized with the same bound as `maximum_size`.
-- Lossy compression no longer destroys float blocks whose largest magnitude is below 2^-98 (`f32`) or 2^-962 (`f64`). Their scale factor overflowed, as in C (zfp issue #119), and the block decoded to values unrelated to its input. Such blocks are now scaled exactly. Their bytes differ from C's, but the stream format is unchanged, so C decodes them. Reversible mode was unaffected, and still matches C.
+- `ZfpConfig::maximum_size`, and so `zfp_stream_maximum_size`, is never less than the block headers, which a block writes even when `max_bits` is smaller; C under-reports these configurations too. Rayon compression sizes its chunks with the same bound, so it no longer loses bits when blocks exceed `max_bits`.
+- `zfp_stream_maximum_size` ignores the dimensions from the first zero one on, as C does. A field such as `[4, 0, 4, 0]` was sized for the header alone.
+- Lossy compression no longer destroys float blocks whose largest magnitude is below 2^-98 (`f32`) or 2^-962 (`f64`): their scale factor overflowed, as in C (zfp issue #119). They are now scaled exactly; their bytes differ from C's, but C decodes them.
 - `ZfpRounding::Last` no longer biases reversible decoding, which made it lossy, as in a C build with `ZFP_ROUND_LAST`. Streams are unchanged.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28
