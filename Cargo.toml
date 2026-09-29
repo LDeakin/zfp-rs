@@ -68,3 +68,6 @@ required-features = ["internals"]
 [workspace.dependencies.zfp-rs]
 version = "0.3.0"
 path = "."
+
+[profile.dev.package.zfp-test-utils]
+opt-level = 3
