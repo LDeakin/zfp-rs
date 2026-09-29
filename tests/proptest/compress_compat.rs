@@ -62,6 +62,23 @@ enum Mode {
     FixedPrecision(u32), // precision (1..=64)
     FixedAccuracy(i32),  // min_exp (-1074..=843)
     Reversible,
+    Expert {
+        min_bits: u32,
+        max_bits: u32,
+        max_prec: u32,
+        min_exp: i32,
+    },
+}
+
+impl Mode {
+    /// Whether an all-zero float block is padded to `min_bits`.
+    ///
+    /// C's reversible encoder writes such a block as one bit, although its
+    /// decoder skips to `min_bits`, so C cannot decode its own stream. zfp-rs
+    /// pads, and so differs from C there.
+    fn pads_zero_blocks(&self) -> bool {
+        matches!(*self, Mode::Expert { min_bits, min_exp, .. } if min_bits > 1 && min_exp < -1074)
+    }
 }
 
 fn mode_strategy() -> impl Strategy<Value = Mode> {
@@ -70,7 +87,29 @@ fn mode_strategy() -> impl Strategy<Value = Mode> {
         (1u32..=64u32).prop_map(Mode::FixedPrecision),
         (-1074i32..=843i32).prop_map(Mode::FixedAccuracy),
         Just(Mode::Reversible),
+        expert_strategy(),
     ]
+}
+
+/// Expert parameters, reversible or not, on which C and zfp-rs agree.
+///
+/// `max_bits` is at least 19, the longest block header (reversible `f64`).
+/// Below a header, C's unsigned budget wraps around and leaves the block
+/// unbounded, where zfp-rs gives it no budget.
+fn expert_strategy() -> impl Strategy<Value = Mode> {
+    (
+        prop_oneof![19u32..=600u32, 19u32..=16658u32],
+        1u32..=64u32,
+        prop_oneof![Just(-1075i32), -1074i32..=843i32],
+    )
+        .prop_flat_map(|(max_bits, max_prec, min_exp)| {
+            (1u32..=max_bits).prop_map(move |min_bits| Mode::Expert {
+                min_bits,
+                max_bits,
+                max_prec,
+                min_exp,
+            })
+        })
 }
 
 fn apply_mode_rust(
@@ -96,6 +135,15 @@ fn apply_mode_rust(
         }
         Mode::Reversible => {
             *config = ZfpConfig::reversible();
+        }
+        Mode::Expert {
+            min_bits,
+            max_bits,
+            max_prec,
+            min_exp,
+        } => {
+            *config = ZfpConfig::try_expert(min_bits, max_bits, max_prec, min_exp)
+                .expect("the strategy generates valid parameters");
         }
     }
 }
@@ -124,6 +172,17 @@ unsafe fn apply_mode_c(
         }
         Mode::Reversible => {
             zfp_sys::zfp_stream_set_reversible(zfp);
+        }
+        Mode::Expert {
+            min_bits,
+            max_bits,
+            max_prec,
+            min_exp,
+        } => {
+            assert_ne!(
+                zfp_sys::zfp_stream_set_params(zfp, min_bits, max_bits, max_prec, min_exp),
+                0
+            );
         }
     }
 }
@@ -245,6 +304,7 @@ macro_rules! compress_compat_1d_float {
                 let nx = nx.min(data.len());
                 let data = &data[..nx];
 
+                prop_assume!(!mode.pads_zero_blocks() || data.iter().all(|v| v.to_bits() != 0));
                 let field = ZfpField::new(data, [nx]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D1);
@@ -365,6 +425,7 @@ macro_rules! compress_compat_2d_float {
                 let ny = if n / nx == 0 { 1 } else { n / nx };
                 let data = &data[..nx * ny];
 
+                prop_assume!(!mode.pads_zero_blocks() || data.iter().all(|v| v.to_bits() != 0));
                 let field = ZfpField::new(data, [nx, ny]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D2);
@@ -489,6 +550,7 @@ macro_rules! compress_compat_3d_float {
                 let nz = if n / (nx * ny) == 0 { 1 } else { n / (nx * ny) };
                 let data = &data[..nx * ny * nz];
 
+                prop_assume!(!mode.pads_zero_blocks() || data.iter().all(|v| v.to_bits() != 0));
                 let field = ZfpField::new(data, [nx, ny, nz]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D3);
@@ -617,6 +679,7 @@ macro_rules! compress_compat_4d_float {
                 let nw = if n / (nx * ny * nz) == 0 { 1 } else { n / (nx * ny * nz) };
                 let data = &data[..nx * ny * nz * nw];
 
+                prop_assume!(!mode.pads_zero_blocks() || data.iter().all(|v| v.to_bits() != 0));
                 let field = ZfpField::new(data, [nx, ny, nz, nw]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D4);

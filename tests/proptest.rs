@@ -6,6 +6,8 @@
 
 #[path = "proptest/bitstream_compat.rs"]
 mod bitstream_compat;
+#[path = "proptest/budget.rs"]
+mod budget;
 #[path = "proptest/compress_compat.rs"]
 mod compress_compat;
 #[path = "proptest/decompress_compat.rs"]

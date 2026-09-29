@@ -152,7 +152,7 @@ where
     let mut ublock = [0u32; N];
     #[allow(clippy::cast_sign_loss)] // i32→u32 for negabinary encoding
     fwd_order_i32(&mut ublock, &block, T::perm());
-    let bits = encode_ints(bs, maxbits, maxprec, &ublock);
+    let bits = encode_ints::<_, true>(bs, maxbits, maxprec, &ublock);
     let bits = if bits < minbits {
         bs.pad(u64::from(minbits - bits));
         minbits
@@ -181,7 +181,7 @@ where
     }
     let mut ublock = [0u64; N];
     fwd_order_i64(&mut ublock, &block, T::perm());
-    let bits = encode_ints(bs, maxbits, maxprec, &ublock);
+    let bits = encode_ints::<_, true>(bs, maxbits, maxprec, &ublock);
     let bits = if bits < minbits {
         bs.pad(u64::from(minbits - bits));
         minbits

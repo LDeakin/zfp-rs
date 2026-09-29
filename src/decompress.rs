@@ -103,6 +103,7 @@ unsafe fn decompress_typed<T: ZfpScalar>(
 
     let dims = info.dims_enum;
     let strides = &info.strides;
+    // The strided decoders check this per block; hoisting it is faster.
     let reversible = config.min_exp() < ZFP_MIN_EXP;
     for (block_idx, coords) in range.clone().zip(info.blocks(range)) {
         if let Some((start, bits)) = seek {

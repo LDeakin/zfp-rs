@@ -22,8 +22,7 @@ use zfp_rs::{
         decode_block_strided, decode_partial_block_strided, encode_block_strided,
         encode_partial_block_strided,
     },
-    types::ZFP_MIN_EXP,
-    types::ZfpDimensionality,
+    types::{ZfpDimensionality, ZfpMode},
 };
 
 use crate::input::dimensionality_of;
@@ -64,15 +63,6 @@ pub fn run(data: &[u8]) {
         2 => ZfpRounding::Last { tight_error },
         _ => ZfpRounding::Never,
     });
-    // Reversible mode is signalled by `min_exp < ZFP_MIN_EXP`, and
-    // `src/compress.rs` routes it to `encode_block_strided_reversible` rather
-    // than the parameterised entry points this target drives. Passing
-    // reversible parameters to those runs the ordinary lossy codec, so
-    // the config would not mean what it says. Skip those inputs.
-    if config.min_exp() < ZFP_MIN_EXP {
-        return;
-    }
-
     match kind {
         ScalarKind::I32 => typed::<i32>(dims, rank, &strides, &lengths, partial, config, payload),
         ScalarKind::I64 => typed::<i64>(dims, rank, &strides, &lengths, partial, config, payload),
@@ -177,6 +167,7 @@ fn typed<T: FuzzScalar>(
     // so `encode(decode(x)) != encode(x)` for lossy modes and asserting it
     // produces false crashes.
     let mut dst: Vec<T> = vec![T::default(); span];
+    bs.flush();
     bs.rewind();
     unsafe {
         let block = dst.as_mut_ptr().add(origin);
@@ -208,6 +199,22 @@ fn typed<T: FuzzScalar>(
             "block decode wrote to buffer index {at}, which no stride offset covers \
              (dims={dims:?}, strides={strides:?}, lengths={effective:?})"
         );
+    }
+
+    // Reversible mode is lossless, except that `ZfpRounding::Last` biases the
+    // decoded coefficients, as C's `ZFP_ROUND_LAST` does.
+    if config.mode() == ZfpMode::Reversible
+        && !matches!(config.rounding(), ZfpRounding::Last { .. })
+    {
+        for index in block_offsets(rank, strides, effective) {
+            let at = (origin.cast_signed() + index).cast_unsigned();
+            assert_eq!(
+                src[at].to_bits_u64(),
+                dst[at].to_bits_u64(),
+                "reversible block decode is lossy at buffer index {at} \
+                 (dims={dims:?}, strides={strides:?}, lengths={effective:?})"
+            );
+        }
     }
 }
 

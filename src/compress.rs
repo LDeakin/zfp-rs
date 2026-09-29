@@ -96,6 +96,7 @@ unsafe fn compress_typed<T: ZfpScalar>(
 
     let dims = info.dims_enum;
     let strides = &info.strides;
+    // The strided encoders check this per block; hoisting it is faster.
     let reversible = config.min_exp() < ZFP_MIN_EXP;
     for coords in info.blocks(range) {
         let (offset, lengths) = info.block_geometry(coords);
@@ -106,7 +107,7 @@ unsafe fn compress_typed<T: ZfpScalar>(
         unsafe {
             let block = base.add(offset);
             if reversible {
-                encode_block_strided_reversible(bs, block, dims, strides, lengths);
+                encode_block_strided_reversible(bs, block, dims, strides, lengths, config);
             } else if info.is_full(lengths) {
                 encode_block_strided(bs, block, dims, strides, config);
             } else {

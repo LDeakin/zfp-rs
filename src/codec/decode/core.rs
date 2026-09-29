@@ -92,7 +92,7 @@ pub(crate) fn decode_block_1d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 4] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 4]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u32; 4], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -113,7 +113,7 @@ pub(crate) fn decode_block_1d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 4] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 4]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u64; 4], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -134,7 +134,7 @@ pub(crate) fn decode_block_2d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 16] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 16]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u32; 16], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -155,7 +155,7 @@ pub(crate) fn decode_block_2d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 16] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 16]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u64; 16], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -176,7 +176,7 @@ pub(crate) fn decode_block_3d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 64] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 64]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u32; 64], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -197,7 +197,7 @@ pub(crate) fn decode_block_3d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 64] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 64]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u64; 64], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -217,7 +217,7 @@ pub(crate) fn decode_block_4d_i32_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i32; 256] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 256]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u32; 256], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }
@@ -237,7 +237,7 @@ pub(crate) fn decode_block_4d_i64_core(
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> [i64; 256] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 256]>(bs, maxbits, maxprec, rounding);
+    let (ublock, bits, zero) = decode_ints::<[u64; 256], true>(bs, maxbits, maxprec, rounding);
     if bits < minbits {
         bs.skip(u64::from(minbits - bits));
     }

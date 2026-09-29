@@ -18,6 +18,8 @@
 use proptest::prelude::*;
 use zfp_rs::ZfpBitStream;
 use zfp_rs::ZfpConfig;
+use zfp_rs::ZfpDimensionality;
+use zfp_rs::codec::block::decode_block_strided;
 use zfp_rs::codec::decode::{float as dfloat, integer as dinteger};
 
 // ---------------------------------------------------------------------------
@@ -26,6 +28,7 @@ use zfp_rs::codec::decode::{float as dfloat, integer as dinteger};
 
 const ZFP_MAX_PREC: u32 = 64;
 const ZFP_MIN_EXP: i32 = -1074;
+const ZFP_MAX_BITS: u32 = 16658;
 const ZFP_RATE_PARAM_BITS: u32 = 19;
 
 // ---------------------------------------------------------------------------
@@ -355,4 +358,97 @@ block_decode_compat_float!(
     dfloat::decode_block_4d_f64,
     zfp_sys::zfp_encode_block_double_4,
     zfp_sys::zfp_decode_block_double_4
+);
+
+// ---------------------------------------------------------------------------
+// Reversible streams through the strided dispatcher, which zfp-rs-ffi's
+// `zfp_decode_block_*` call: as in C, a reversible config selects the
+// lossless coder, so a block C encoded decodes exactly.
+// ---------------------------------------------------------------------------
+
+macro_rules! reversible_block_decode_compat {
+    (
+        $test_name:ident,
+        $scalar:ty,
+        $strategy:expr,
+        $dims:expr,
+        $strides:expr,
+        $c_encode:path,
+        $c_decode:path $(,)?
+    ) => {
+        proptest! {
+            #[test]
+            fn $test_name(data in prop::collection::vec(
+                $strategy,
+                $dims.block_size()..=$dims.block_size(),
+            )) {
+                let mut c = CZfpBlock::new(ZFP_MAX_BITS);
+                unsafe { zfp_sys::zfp_stream_set_reversible(c.zfp) };
+                unsafe { $c_encode(c.zfp, data.as_ptr()) };
+                c.flush();
+                c.rewind();
+                let mut c_out = vec![<$scalar>::default(); $dims.block_size()];
+                let c_bits = unsafe { $c_decode(c.zfp, c_out.as_mut_ptr()) };
+
+                let mut rs_bs = ZfpBitStream::from_bytes(c.encoded_bytes());
+                let mut rs_out = vec![<$scalar>::default(); $dims.block_size()];
+                let rs_bits = unsafe {
+                    decode_block_strided::<$scalar>(
+                        &mut rs_bs,
+                        rs_out.as_mut_ptr(),
+                        $dims,
+                        &$strides,
+                        &ZfpConfig::reversible(),
+                    )
+                };
+
+                prop_assert_eq!(rs_bits, c_bits);
+                prop_assert_eq!(
+                    bytemuck::cast_slice::<$scalar, u8>(&rs_out),
+                    bytemuck::cast_slice::<$scalar, u8>(&data)
+                );
+                prop_assert_eq!(
+                    bytemuck::cast_slice::<$scalar, u8>(&rs_out),
+                    bytemuck::cast_slice::<$scalar, u8>(&c_out)
+                );
+            }
+        }
+    };
+}
+
+reversible_block_decode_compat!(
+    reversible_decode_block_1d_i32,
+    i32,
+    any::<i32>(),
+    ZfpDimensionality::D1,
+    [1],
+    zfp_sys::zfp_encode_block_int32_1,
+    zfp_sys::zfp_decode_block_int32_1,
+);
+reversible_block_decode_compat!(
+    reversible_decode_block_2d_i64,
+    i64,
+    any::<i64>(),
+    ZfpDimensionality::D2,
+    [1, 4],
+    zfp_sys::zfp_encode_block_int64_2,
+    zfp_sys::zfp_decode_block_int64_2,
+);
+reversible_block_decode_compat!(
+    reversible_decode_block_3d_f32,
+    f32,
+    normal_f32(),
+    ZfpDimensionality::D3,
+    [1, 4, 16],
+    zfp_sys::zfp_encode_block_float_3,
+    zfp_sys::zfp_decode_block_float_3,
+);
+reversible_block_decode_compat!(
+    reversible_decode_block_4d_f64,
+    f64,
+    normal_f64(),
+    ZfpDimensionality::D4,
+    [1, 4, 16, 64],
+    zfp_sys::zfp_encode_block_double_4,
+    zfp_sys::zfp_decode_block_double_4,
 );
