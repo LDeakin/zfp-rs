@@ -85,11 +85,12 @@ Getting these wrong wedges a fuzzer on false crashes, so each exclusion is load-
 - **`read_pos` staying in range.** `bits` is shared between the read and write buffers, so querying
   the read position on a write-only stream wraps. C's `stream_rtell` does the same and the
   differential tests assert against it.
-- **Anything about `ZfpConfig::expert` with out-of-range parameters.** Unlike
-  `ZfpConfig::try_expert`, it performs no validation,
+- **Anything about `ZfpConfig::from_raw_params` with out-of-range parameters.** Unlike
+  `ZfpConfig::expert`, it performs no validation,
   so it will build configs with `min_bits = 0` or `max_bits` above `ZFP_MAX_BITS`; those get
   misclassified into a short mode form and the encoding is then not idempotent. `config_mode`
-  asserts only that such configs do not *panic*.
+  asserts only that such configs do not *panic*, and that `expert` rejects exactly the null-mode
+  ones.
 
 ## Known-open findings
 

@@ -120,7 +120,10 @@ macro_rules! decode_block_strided_tests_1d {
             const PX: usize = 1;
             const DUMMY_VAL: $scalar = 99 as $scalar;
             const MAXBITS: u32 = (BLOCK_SIDE_LEN as u32) * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
@@ -340,7 +343,10 @@ macro_rules! decode_block_strided_tests_2d {
             const DUMMY_VAL: $scalar = 99 as $scalar;
             const MAXBITS: u32 =
                 (BLOCK_SIDE_LEN as u32 * BLOCK_SIDE_LEN as u32) * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
@@ -607,7 +613,10 @@ macro_rules! decode_block_strided_tests_3d {
                 * BLOCK_SIDE_LEN as u32
                 * BLOCK_SIDE_LEN as u32)
                 * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;
@@ -906,7 +915,10 @@ macro_rules! decode_block_strided_tests_4d {
                 * BLOCK_SIDE_LEN as u32
                 * BLOCK_SIDE_LEN as u32)
                 * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn make_strided_array(dummy: $scalar) -> Vec<$scalar> {
                 let count_x = BLOCK_SIDE_LEN * SX as usize;

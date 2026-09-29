@@ -214,7 +214,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D1,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         let mut bs = ZfpBitStream::new(config.maximum_size(ZfpScalarType::F64, 300usize).unwrap());
         let written = bs.compress(&config, &field).unwrap();
 
@@ -252,7 +253,8 @@ mod tests {
             ZfpScalarType::F32,
             ZfpDimensionality::D1,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         let execution = ZfpExecution::Rayon {
             threads: 2,
             chunk_size: 2,

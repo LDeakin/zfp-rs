@@ -35,7 +35,7 @@ fn write_params(stream: &mut zfp_stream, zfp: &ZfpConfig) {
 }
 
 fn stream_with_c_state(stream: &zfp_stream) -> ZfpConfig {
-    ZfpConfig::expert(
+    ZfpConfig::from_raw_params(
         stream.minbits,
         stream.maxbits,
         stream.maxprec,
@@ -440,9 +440,9 @@ pub unsafe extern "C" fn zfp_stream_set_rate(
     let Some(bits) = c_rate_bits(rate, rust_ty, n, align == zfp_true) else {
         return 0.0;
     };
-    // C sets the budget unvalidated, which `ZfpConfig::try_fixed_rate` would
+    // C sets the budget unvalidated, which `ZfpConfig::fixed_rate` would
     // reject for integer types that round to no bits, or above `ZFP_MAX_BITS`.
-    let zfp = ZfpConfig::expert(bits, bits, ZFP_MAX_PREC, ZFP_MIN_EXP);
+    let zfp = ZfpConfig::from_raw_params(bits, bits, ZFP_MAX_PREC, ZFP_MIN_EXP);
     let stream = unsafe { &mut *stream };
     write_params(stream, &zfp);
     f64::from(bits) / f64::from(n)
@@ -522,10 +522,9 @@ pub unsafe extern "C" fn zfp_stream_set_params(
     if stream.is_null() {
         return zfp_false;
     }
-    if minbits > maxbits || !(0 < maxprec && maxprec <= 64) {
+    let Ok(zfp) = ZfpConfig::expert(minbits, maxbits, maxprec, minexp) else {
         return zfp_false;
-    }
-    let zfp = ZfpConfig::expert(minbits, maxbits, maxprec, minexp);
+    };
     write_params(unsafe { &mut *stream }, &zfp);
     zfp_true
 }

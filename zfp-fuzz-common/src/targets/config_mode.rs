@@ -50,21 +50,24 @@ pub fn run(data: &[u8]) {
     // `min_bits > max_bits`.
     if data.len() >= 24 {
         let raw = &data[12..24];
-        let expert = ZfpConfig::expert(
+        let params = (
             u32::from_le_bytes([raw[0], raw[1], raw[2], 0]),
             u32::from_le_bytes([raw[3], raw[4], raw[5], 0]),
             u32::from(raw[6]),
             i32::from_le_bytes([raw[7], raw[8], raw[9], raw[10]]),
         );
-        // Only the no-panic property is asserted here. `ZfpConfig::expert`
+        let expert = ZfpConfig::from_raw_params(params.0, params.1, params.2, params.3);
+        // `expert` accepts exactly the parameters that do not select null mode.
+        let checked = ZfpConfig::expert(params.0, params.1, params.2, params.3);
+        assert_eq!(checked.is_ok(), expert.mode() != ZfpMode::Null);
+        // Only the no-panic property is asserted here. `from_raw_params`
         // performs no validation, so it will happily build configs with
         // `min_bits = 0` or `max_bits` far above `ZFP_MAX_BITS`; those get
         // misclassified into a short mode form and the encoding is then not
-        // idempotent. That is a real wart, but it is a property of an
-        // unvalidated constructor rather than a codec defect, so asserting on
-        // it here would just wedge the fuzzer on a known issue. Configs built
-        // through `ModeSpec` above are normalised and *are* held to the
-        // idempotence bar.
+        // idempotent. That is a property of unvalidated C parameters rather
+        // than a codec defect, so asserting on it here would just wedge the
+        // fuzzer on a known issue. Configs built through `ModeSpec` above are
+        // normalised and *are* held to the idempotence bar.
         check_queries(expert);
         if expert.mode() != ZfpMode::Null
             && expert.min_bits() >= 1

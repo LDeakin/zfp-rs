@@ -49,7 +49,7 @@ fn decode_two<T: ZfpScalar>(
 }
 
 fn exercise<T: ZfpScalar>(first: &[T], second: &[T], budget: u32, rounding: ZfpRounding) {
-    let config = ZfpConfig::try_expert(budget, budget, 64, -1074)
+    let config = ZfpConfig::expert(budget, budget, 64, -1074)
         .unwrap()
         .with_rounding(rounding);
     let mut encoded = ZfpBitStream::new(4096);

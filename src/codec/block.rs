@@ -229,11 +229,12 @@ mod tests {
             ZfpDimensionality::D4,
         ] {
             for config in [
-                ZfpConfig::fixed_rate(9.0, T::SCALAR_TYPE, dims, ZfpStreamAlignment::Unaligned),
+                ZfpConfig::fixed_rate(9.0, T::SCALAR_TYPE, dims, ZfpStreamAlignment::Unaligned)
+                    .unwrap(),
                 ZfpConfig::fixed_precision(19),
                 ZfpConfig::fixed_accuracy(1e-3),
                 ZfpConfig::reversible(),
-                ZfpConfig::expert(100, 2000, 40, -30),
+                ZfpConfig::expert(100, 2000, 40, -30).unwrap(),
                 ZfpConfig::fixed_accuracy(1e-3)
                     .with_rounding(ZfpRounding::First { tight_error: true }),
             ] {
@@ -267,7 +268,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D2,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         let data: Vec<f64> = (0..64).map(f64::from).collect();
         let mut bs = ZfpBitStream::new(1024);
         bs.compress(&config, &ZfpField::new(&data, [8usize, 8]).unwrap())

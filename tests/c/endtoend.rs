@@ -392,7 +392,8 @@ fn run_compress_decompress<T: ZfpScalar>(
                 T::SCALAR_TYPE,
                 ZfpDimensionality::try_from(dims).unwrap(),
                 ZfpStreamAlignment::Unaligned,
-            ),
+            )
+            .unwrap(),
             CompressionMode::FixedAccuracy => {
                 ZfpConfig::fixed_accuracy(fixed_accuracy_param(param_num))
             }
@@ -615,13 +616,15 @@ fn test_set_rate_align<T: ZfpScalar>(dims: u32) {
         T::SCALAR_TYPE,
         zfp_dims,
         ZfpStreamAlignment::Unaligned,
-    );
+    )
+    .unwrap();
     let params_align = ZfpConfig::fixed_rate(
         rate,
         T::SCALAR_TYPE,
         zfp_dims,
         ZfpStreamAlignment::WordAligned,
-    );
+    )
+    .unwrap();
     let rate_without_align = params_no_align.rate(zfp_dims).expect("fixed rate");
     let rate_with_align = params_align.rate(zfp_dims).expect("fixed rate");
     assert!(
@@ -648,7 +651,8 @@ fn test_bitrate<T: ZfpScalar>(dims: u32, n: [usize; 4], src: &[T]) {
             T::SCALAR_TYPE,
             ZfpDimensionality::try_from(dims).unwrap(),
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         let buf_size = config
             .maximum_size(T::SCALAR_TYPE, n)
             .expect("maximum size");

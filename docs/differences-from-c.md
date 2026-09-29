@@ -73,8 +73,8 @@ zfp-rs always gives the x86-64 glibc results: the minimum integer ([`truncate_f6
 C converts a rate to a block budget with `(uint)floor(n * rate + 0.5)` ([`zfp.c`](../zfp/src/zfp.c) line 806), which is undefined behaviour for a NaN rate, or one that rounds outside `0..=UINT_MAX` bits per block.
 It rounds a word-aligned budget up in `uint` arithmetic (line 821), which wraps a budget above `UINT_MAX - 63` around to zero.
 For these rates, the C ABI's `zfp_stream_set_rate` returns 0 and leaves the stream unchanged ([`invalid_ffi_rates_return_zero_without_changing_stream`](../zfp-rs-ffi/tests/rate_boundaries.rs)).
-For every other rate it sets the same budget as C and returns the same rate, including rates that round to no bits and budgets above `ZFP_MAX_BITS` ([`set_rate_matches_c_where_c_is_defined`](../zfp-rs-ffi/tests/ffi_compat.rs)), which compress as in C ([`set_rate_budgets_outside_try_fixed_rate_compress_as_c`](../zfp-rs-ffi/tests/ffi_compat.rs)).
-`ZfpConfig::try_fixed_rate` also rejects negative rates, and budgets of zero bits or above `ZFP_MAX_BITS` ([`fixed_rate_rejects_invalid_and_unrepresentable_rates`](../src/config.rs)).
+For every other rate it sets the same budget as C and returns the same rate, including rates that round to no bits and budgets above `ZFP_MAX_BITS` ([`set_rate_matches_c_where_c_is_defined`](../zfp-rs-ffi/tests/ffi_compat.rs)), which compress as in C ([`set_rate_budgets_outside_fixed_rate_compress_as_c`](../zfp-rs-ffi/tests/ffi_compat.rs)).
+`ZfpConfig::fixed_rate` also rejects negative rates, and budgets of zero bits or above `ZFP_MAX_BITS` ([`fixed_rate_rejects_invalid_and_unrepresentable_rates`](../src/config.rs)).
 Like C, it raises a zero rate to the block header for float types ([`fixed_rate_raises_a_zero_rate_to_the_float_header`](../src/config.rs)).
 
 ### Unsupported build configurations

@@ -2,7 +2,7 @@ use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut, ZfpScalarType};
 
 fn encode_and_decode(min_exp: i32) -> (Vec<u8>, [f64; 4]) {
     let input = [1e-100f64; 4];
-    let config = ZfpConfig::try_expert(1, 16658, 64, min_exp).unwrap();
+    let config = ZfpConfig::expert(1, 16658, 64, min_exp).unwrap();
     let field = ZfpField::new(&input, [4usize]).unwrap();
     let capacity = config.maximum_size(ZfpScalarType::F64, [4usize]).unwrap();
     let mut stream = ZfpBitStream::new(capacity);

@@ -172,7 +172,10 @@ macro_rules! decode_block_tests {
             use super::*;
 
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn dim_lens() -> [usize; 4] {
                 let mut n = [0usize; 4];
@@ -280,7 +283,10 @@ macro_rules! decode_block_tests_float {
             use zfp_rs::codec::block::{decode_block, encode_block};
 
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn dim_lens() -> [usize; 4] {
                 let mut n = [0usize; 4];

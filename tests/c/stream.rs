@@ -3,7 +3,9 @@
 //! Port of `zfp/tests/src/misc/testZfpParameters.c`.
 
 use zfp_rs::types::{ZFP_MAX_PREC, ZFP_MIN_EXP};
-use zfp_rs::{ZfpConfig, ZfpDimensionality, ZfpMode, ZfpScalarType, ZfpStreamAlignment};
+use zfp_rs::{
+    ZfpConfig, ZfpConfigError, ZfpDimensionality, ZfpMode, ZfpScalarType, ZfpStreamAlignment,
+};
 
 // expert mode compression parameters (from testZfpParameters.c)
 const MIN_BITS: u32 = 11;
@@ -31,12 +33,11 @@ fn given_opened_zfp_stream_when_zfp_stream_compression_mode_expect_returns_exper
 #[test]
 fn given_zfp_stream_set_with_invalid_params_when_zfp_stream_compression_mode_expect_returns_null_enum()
  {
-    // With immutable ZfpConfig, we can't force invalid config.
-    // The expert constructor accepts any values, but compression_mode() will
-    // return Null for truly invalid configs.
+    // `expert` rejects invalid parameters, but a C `zfp_stream` can hold them,
+    // and their compression mode is null.
     let setup = setup();
     // Invalid: min_bits > max_bits
-    let config = ZfpConfig::expert(
+    let config = ZfpConfig::from_raw_params(
         setup.max_bits() + 1,
         setup.max_bits(),
         setup.max_prec(),
@@ -70,7 +71,8 @@ fn given_zfp_stream_set_with_fixed_rate_when_zfp_stream_compression_mode_expect_
                     ZfpStreamAlignment::Unaligned,
                     ZfpStreamAlignment::WordAligned,
                 ] {
-                    let config = ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align);
+                    let config =
+                        ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align).unwrap();
                     let mode = config.mode();
                     assert_eq!(
                         mode,
@@ -162,7 +164,8 @@ fn given_zfp_stream_set_fixed_rate_when_set_mode_with_those_bits_expect_fixed_ra
                     ZfpStreamAlignment::Unaligned,
                     ZfpStreamAlignment::WordAligned,
                 ] {
-                    let config = ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align);
+                    let config =
+                        ZfpConfig::fixed_rate(f64::from(rate), zfp_type, dims, align).unwrap();
                     assert_eq!(config.mode(), ZfpMode::FixedRate);
 
                     let mode_bits = config.mode_bits();
@@ -247,7 +250,7 @@ fn given_zfp_stream_set_reversible_when_set_mode_with_those_bits_expect_reversib
 
 #[test]
 fn given_zfp_stream_with_expert_params_when_set_mode_with_those_bits_expect_expert_params_set() {
-    let config = ZfpConfig::expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP);
+    let config = ZfpConfig::expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP).unwrap();
 
     let mode_bits = config.mode_bits();
 
@@ -263,34 +266,20 @@ fn given_zfp_stream_with_expert_params_when_set_mode_with_those_bits_expect_expe
 #[test]
 fn given_zfp_stream_when_set_params_with_valid_params_expect_returns_true() {
     // Valid params create a stream without error
-    let config = ZfpConfig::expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP);
+    let config = ZfpConfig::expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP).unwrap();
     assert_eq!(config.mode(), ZfpMode::Expert);
 }
 
 #[test]
 fn given_zfp_stream_when_set_params_with_invalid_params_expect_returns_false() {
-    // Invalid params (min_bits > max_bits) create a stream with Null mode
-    let config = ZfpConfig::expert(MAX_BITS + 1, MAX_BITS, MAX_PREC, MIN_EXP);
-    assert_eq!(config.mode(), ZfpMode::Null);
-}
-
-#[test]
-fn given_valid_params_when_try_expert_expect_expert_config() {
-    let config = ZfpConfig::try_expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP);
-    assert_eq!(
-        config,
-        Some(ZfpConfig::expert(MIN_BITS, MAX_BITS, MAX_PREC, MIN_EXP))
-    );
-}
-
-#[test]
-fn given_invalid_params_when_try_expert_expect_none() {
-    assert_eq!(
-        ZfpConfig::try_expert(MAX_BITS + 1, MAX_BITS, MAX_PREC, MIN_EXP),
-        None
-    );
-    assert_eq!(ZfpConfig::try_expert(MIN_BITS, MAX_BITS, 0, MIN_EXP), None);
-    assert_eq!(ZfpConfig::try_expert(MIN_BITS, MAX_BITS, 65, MIN_EXP), None);
+    // Invalid params (min_bits > max_bits, or max_prec outside 1..=64) are
+    // rejected, as `zfp_stream_set_params` rejects them.
+    for (min_bits, max_prec) in [(MAX_BITS + 1, MAX_PREC), (MIN_BITS, 0), (MIN_BITS, 65)] {
+        assert_eq!(
+            ZfpConfig::expert(min_bits, MAX_BITS, max_prec, MIN_EXP),
+            Err(ZfpConfigError::InvalidParameters)
+        );
+    }
 }
 
 #[test]
@@ -317,7 +306,7 @@ fn given_zfp_stream_when_zfp_stream_rate_expect_rate_returned() {
                     ZfpStreamAlignment::Unaligned,
                     ZfpStreamAlignment::WordAligned,
                 ] {
-                    let config = ZfpConfig::fixed_rate(rate, zfp_type, dims, align);
+                    let config = ZfpConfig::fixed_rate(rate, zfp_type, dims, align).unwrap();
                     let actual = config.rate(dims).expect("fixed rate");
                     // When align=WordAligned, fixed_rate rounds up to the next word boundary (64 bits),
                     // so the actual rate may differ from the requested rate.

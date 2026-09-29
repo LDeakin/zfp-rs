@@ -67,7 +67,8 @@ fn rs_config<T: Float>(mode: Mode) -> ZfpConfig {
             T::TYPE,
             ZfpDimensionality::D1,
             ZfpStreamAlignment::Unaligned,
-        ),
+        )
+        .unwrap(),
         Mode::Precision(p) => ZfpConfig::fixed_precision(p),
         Mode::Reversible => ZfpConfig::reversible(),
     }

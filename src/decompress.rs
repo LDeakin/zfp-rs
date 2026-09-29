@@ -336,7 +336,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D2,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         let src: Vec<f64> = (0..64).map(f64::from).collect();
         let mut bs = ZfpBitStream::new(4096);
         bs.compress(&config, &ZfpField::new(&src, [8usize, 8]).unwrap())
@@ -363,7 +364,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D2,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         let src: Vec<f64> = (0..64).map(f64::from).collect();
         let mut bs = ZfpBitStream::new(4096);
         let size = bs

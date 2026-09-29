@@ -146,7 +146,8 @@ fn gen_decompress_stream(dir: &Path) -> usize {
             for (family, config) in [
                 (
                     0u8,
-                    ZfpConfig::fixed_rate(8.0, ty, dimensionality(rank), Align),
+                    ZfpConfig::fixed_rate(8.0, ty, dimensionality(rank), Align)
+                        .expect("a rate of 8 is valid"),
                 ),
                 (1, ZfpConfig::fixed_precision(32)),
                 (3, ZfpConfig::reversible()),

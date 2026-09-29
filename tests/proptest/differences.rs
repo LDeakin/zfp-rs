@@ -78,14 +78,15 @@ impl Mode {
     fn config<T: Scalar>(self) -> ZfpConfig {
         match self {
             Mode::Expert(min_bits, max_bits, max_prec, min_exp) => {
-                ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+                ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp).unwrap()
             }
             Mode::Rate(rate) => ZfpConfig::fixed_rate(
                 rate,
                 T::SCALAR_TYPE,
                 ZfpDimensionality::D1,
                 ZfpStreamAlignment::Unaligned,
-            ),
+            )
+            .unwrap(),
             Mode::Precision(p) => ZfpConfig::fixed_precision(p),
         }
     }

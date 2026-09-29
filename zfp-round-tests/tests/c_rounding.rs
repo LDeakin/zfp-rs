@@ -46,7 +46,8 @@ fn rust_config(mode: Mode, ty: ZfpScalarType, dims: ZfpDimensionality) -> ZfpCon
             ty,
             dims,
             ZfpStreamAlignment::Unaligned,
-        ),
+        )
+        .unwrap(),
         Mode::FixedPrecision(p) => ZfpConfig::fixed_precision(p),
         Mode::FixedAccuracy(e) => ZfpConfig::fixed_accuracy(libm::ldexp(1.0, e)),
     };

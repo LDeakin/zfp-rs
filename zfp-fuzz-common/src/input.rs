@@ -233,7 +233,7 @@ impl ModeSpec {
                 // per-block budget, exactly as `apply_mode_rust` does in
                 // `tests/proptest/compress_compat.rs`.
                 let block = f64::from(1u32 << (2 * u32::from(dims)));
-                ZfpConfig::fixed_rate(f64::from(bits_per_block) / block, ty, dims, align)
+                ZfpConfig::fixed_rate(f64::from(bits_per_block) / block, ty, dims, align).ok()?
             }
             Self::FixedPrecision { precision } => ZfpConfig::fixed_precision(precision),
             Self::FixedAccuracy { min_exp } => ZfpConfig::fixed_accuracy(libm::ldexp(1.0, min_exp)),
@@ -243,7 +243,7 @@ impl ModeSpec {
                 max_bits,
                 max_prec,
                 min_exp,
-            } => ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp),
+            } => ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp).ok()?,
         };
         Some(config)
     }

@@ -169,7 +169,8 @@ fn rust_config<T: BenchScalar>(case: Case) -> ZfpConfig {
             T::RUST_TYPE,
             case.dimensionality(),
             ZfpStreamAlignment::Unaligned,
-        ),
+        )
+        .expect("the benchmark rate is valid"),
         ModeKind::FixedPrecision => ZfpConfig::fixed_precision(PRECISION),
         ModeKind::FixedAccuracy => ZfpConfig::fixed_accuracy(ACCURACY),
         ModeKind::Reversible => ZfpConfig::reversible(),

@@ -255,7 +255,8 @@ fn strided_fixed_rate() {
                 ZfpScalarType::F64,
                 dims,
                 ZfpStreamAlignment::Unaligned,
-            ),
+            )
+            .unwrap(),
         );
         roundtrip::<i32>(
             case,
@@ -264,7 +265,8 @@ fn strided_fixed_rate() {
                 ZfpScalarType::I32,
                 dims,
                 ZfpStreamAlignment::Unaligned,
-            ),
+            )
+            .unwrap(),
         );
     }
 }

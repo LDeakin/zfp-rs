@@ -19,15 +19,17 @@ fn tight_config() -> impl Strategy<Value = ZfpConfig> {
         prop_oneof![Just(-1075), -1074i32..=843],
     )
         .prop_flat_map(|(max_bits, max_prec, min_exp)| {
-            (1u32..=max_bits)
-                .prop_map(move |min_bits| ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp))
+            (1u32..=max_bits).prop_map(move |min_bits| {
+                ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp).unwrap()
+            })
         })
 }
 
 /// A reversible config whose `max_bits` and `max_prec` never bind, but whose
 /// `min_bits` pads every block.
 fn padded_reversible_config() -> impl Strategy<Value = ZfpConfig> {
-    (1u32..=ZFP_MAX_BITS).prop_map(|min_bits| ZfpConfig::expert(min_bits, ZFP_MAX_BITS, 64, -1075))
+    (1u32..=ZFP_MAX_BITS)
+        .prop_map(|min_bits| ZfpConfig::expert(min_bits, ZFP_MAX_BITS, 64, -1075).unwrap())
 }
 
 /// Field dimensions of 1–4 dimensions, each 1–9 long.

@@ -92,7 +92,8 @@ fn apply_mode_rust(
                 ty,
                 dims,
                 zfp_rs::ZfpStreamAlignment::Unaligned,
-            );
+            )
+            .unwrap();
         }
         Mode::FixedPrecision(p) => {
             *config = ZfpConfig::fixed_precision(p);

@@ -62,7 +62,7 @@
 //!     ZfpScalarType::F64,
 //!     ZfpDimensionality::D2,
 //!     ZfpStreamAlignment::Unaligned,
-//! );
+//! )?;
 //!
 //! // Compress into a stream sized for the worst case.
 //! let capacity = config.maximum_size(ZfpScalarType::F64, field.dims()).unwrap();

@@ -16,7 +16,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         zfp_rs::ZfpScalarType::F32,
         zfp_rs::ZfpDimensionality::D1,
         ZfpStreamAlignment::Unaligned,
-    );
+    )?;
 
     let field = ZfpField::new(&data, [data.len()])?;
     let mut bs = ZfpBitStream::new(1024);

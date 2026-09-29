@@ -113,7 +113,8 @@ fn apply_mode_rust(
                 ty,
                 dims,
                 zfp_rs::ZfpStreamAlignment::Unaligned,
-            );
+            )
+            .unwrap();
         }
         Mode::FixedPrecision(p) => {
             *config = ZfpConfig::fixed_precision(p);
@@ -130,7 +131,7 @@ fn apply_mode_rust(
             max_prec,
             min_exp,
         } => {
-            *config = ZfpConfig::try_expert(min_bits, max_bits, max_prec, min_exp)
+            *config = ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
                 .expect("the strategy generates valid parameters");
         }
     }

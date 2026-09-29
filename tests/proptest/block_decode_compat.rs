@@ -113,7 +113,7 @@ macro_rules! block_decode_compat_int {
 
                 // Decode with Rust.
                 let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes);
-                let rs_out = $rs_decode(&mut rs_bs, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP));
+                let rs_out = $rs_decode(&mut rs_bs, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
 
                 // Decode with C
                 let mut c_out = vec![0 as $scalar; $block_size];
@@ -163,7 +163,7 @@ macro_rules! block_decode_compat_float {
 
                 // Decode with Rust.
                 let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes);
-                let rs_out = $rs_decode(&mut rs_bs, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP));
+                let rs_out = $rs_decode(&mut rs_bs, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
 
                 // Decode with C
                 let mut c_out = vec![0.0 as $scalar; $block_size];

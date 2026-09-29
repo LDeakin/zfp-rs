@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         zfp_rs::ZfpScalarType::F64,
         zfp_rs::ZfpDimensionality::D3,
         ZfpStreamAlignment::Unaligned,
-    );
+    )?;
 
     let mut bs = ZfpBitStream::new(4096);
 

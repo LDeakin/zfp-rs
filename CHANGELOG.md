@@ -9,8 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `ZfpConfig::try_expert`, which rejects invalid expert-mode parameters.
-- `ZfpConfig::try_fixed_rate`, which rejects invalid rates.
+- `ZfpConfig::from_raw_params`, behind `ffi`, which holds unvalidated parameters from a C `zfp_stream`.
 - `ZfpConfig::checked_mode_bits` and `ZfpConfigError`, which report parameters that a header's mode word cannot hold.
 - `field::checked_index_span`, the overflow-checked form of `field::index_span`.
 - `ZfpFieldError`, returned by the field constructors and setters, and `ZfpFieldMut::set_strides`.
@@ -30,7 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpMetadataError::Null` is renamed `InvalidDims` and also covers malformed dimensions such as `[0, 5, 0, 0]`. `ZfpMetadataError` and `ZfpHeaderError` are `#[non_exhaustive]`.
 - **Breaking**: `ZfpConfig::maximum_size` takes `impl ZfpDims` instead of `&[usize]` and returns `None` instead of `0` for malformed dimensions or overflow. The zero-padded `[usize; 4]` from `ZfpField::dims` now gives the right size rather than just the header's.
 - **Breaking**: `ZfpConfig::{rate, precision, accuracy}` return `None` instead of `0` in other modes. `ZfpConfig::from_mode` is renamed `from_mode_bits` and `compression_mode` is renamed `mode`. The `*_from_params` functions require `ffi`.
-- **Breaking**: `ZfpConfig::fixed_rate` panics for a rate that `try_fixed_rate` rejects: negative, NaN or infinite, rounding to no bits for an integer type, or giving more than `ZFP_MAX_BITS` bits per block. It raised a negative or NaN rate to the block header for float types, gave integer types a zero budget, and for an infinite or very large rate gave a budget above `ZFP_MAX_BITS`, or overflowed if word-aligned.
+- **Breaking**: `ZfpConfig::expert` validates its parameters as C `zfp_stream_set_params` does, and returns `Result<Self, ZfpConfigError>`, so every `ZfpConfig` is valid. It accepted `min_bits > max_bits` or a `max_prec` outside `1..=64`, which compressed without meaning.
+- **Breaking**: `ZfpConfig::fixed_rate` returns `Result<Self, ZfpConfigError>`, rejecting a rate that is negative, NaN or infinite, rounds to no bits for an integer type, or gives more than `ZFP_MAX_BITS` bits per block. It raised a negative or NaN rate to the block header for float types, gave integer types a zero budget, and for an infinite or very large rate gave a budget above `ZFP_MAX_BITS`, or overflowed if word-aligned.
 - **Breaking**: `ZfpScalar::scalar_type()` is replaced by the associated const `SCALAR_TYPE`. `ZfpScalarType` variants are renamed `I32`, `I64`, `F32` and `F64`, and its methods take `self` by value.
 - **Breaking**: `ZfpStreamAlignment::None` is renamed `Unaligned`, to avoid confusion with `Option::None`. `ZfpHeaderMask::NONE` is removed in favour of `empty()`, and `ZfpDims::dimensionality` and `ZfpStrides::dimensionality` are removed.
 - **Breaking**: `ZfpBitStreamOps` and `ZfpBitStreamMutOps` are sealed.

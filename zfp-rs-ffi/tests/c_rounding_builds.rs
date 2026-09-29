@@ -170,7 +170,9 @@ fn bits<T: Scalar>(values: &[T]) -> Vec<u64> {
 type Params = (u32, u32, u32, i32);
 
 fn config((min_bits, max_bits, max_prec, min_exp): Params, rounding: ZfpRounding) -> ZfpConfig {
-    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp).with_rounding(rounding)
+    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+        .unwrap()
+        .with_rounding(rounding)
 }
 
 /// Run `f` on a stream of the C build for `rounding`, with `params`, over

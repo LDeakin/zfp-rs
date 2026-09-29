@@ -573,10 +573,10 @@ fn set_rate_matches_c_where_c_is_defined() {
 }
 
 /// Budgets that `zfp_stream_set_rate` sets as C does, but that
-/// `ZfpConfig::try_fixed_rate` rejects, compress as in C: to nothing for
+/// `ZfpConfig::fixed_rate` rejects, compress as in C: to nothing for
 /// integers that round to no bits, and to padded blocks above `ZFP_MAX_BITS`.
 #[test]
-fn set_rate_budgets_outside_try_fixed_rate_compress_as_c() {
+fn set_rate_budgets_outside_fixed_rate_compress_as_c() {
     let mut ints: Vec<i32> = (0..16).map(|i| i * 1000 - 7000).collect();
     let mut doubles: Vec<f64> = (0..16)
         .map(|i| (0.37 * f64::from(i)).sin() * 100.0)

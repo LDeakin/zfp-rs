@@ -167,7 +167,10 @@ macro_rules! encode_block_tests_int {
 
             // maxbits for fixed-rate mode: block_size * ZFP_RATE_PARAM_BITS
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn make_block() -> Vec<$scalar> {
                 let mut rng = $rng_new();
@@ -257,7 +260,10 @@ macro_rules! encode_block_tests_float {
             use super::*;
 
             const MAXBITS: u32 = ($block_size as u32) * ZFP_RATE_PARAM_BITS;
-            const CONFIG: ZfpConfig = ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP);
+            const CONFIG: ZfpConfig = match ZfpConfig::expert(MAXBITS, MAXBITS, ZFP_MAX_PREC, ZFP_MIN_EXP) {
+                Ok(config) => config,
+                Err(_) => panic!("valid expert parameters"),
+            };
 
             fn make_block() -> Vec<$scalar> {
                 let mut rng = $rng_new();

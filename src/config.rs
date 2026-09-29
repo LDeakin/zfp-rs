@@ -130,6 +130,9 @@ impl ZfpRounding {
 /// - [`ZfpConfig::fixed_accuracy`]
 /// - [`ZfpConfig::reversible`]
 /// - [`ZfpConfig::expert`]
+///
+/// Every constructor either validates its parameters or maps them into range,
+/// so a `ZfpConfig` always describes a valid codec configuration.
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub struct ZfpConfig {
     /// Minimum bits per block.
@@ -247,7 +250,7 @@ pub fn rate_from_params(
     min_exp: i32,
     dims: ZfpDimensionality,
 ) -> f64 {
-    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+    ZfpConfig::raw(min_bits, max_bits, max_prec, min_exp)
         .rate(dims)
         .unwrap_or(0.0)
 }
@@ -256,7 +259,7 @@ pub fn rate_from_params(
 #[cfg(feature = "ffi")]
 #[must_use]
 pub fn precision_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u32 {
-    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+    ZfpConfig::raw(min_bits, max_bits, max_prec, min_exp)
         .precision()
         .unwrap_or(0)
 }
@@ -265,7 +268,7 @@ pub fn precision_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_ex
 #[cfg(feature = "ffi")]
 #[must_use]
 pub fn accuracy_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> f64 {
-    ZfpConfig::expert(min_bits, max_bits, max_prec, min_exp)
+    ZfpConfig::raw(min_bits, max_bits, max_prec, min_exp)
         .accuracy()
         .unwrap_or(0.0)
 }
@@ -339,16 +342,7 @@ impl ZfpConfig {
             (min_bits, max_bits, max_prec, min_exp)
         };
 
-        if !valid_params(min_bits, max_bits, max_prec, min_exp) {
-            return None;
-        }
-        Some(Self {
-            min_bits,
-            max_bits,
-            max_prec,
-            min_exp,
-            rounding: ZfpRounding::Never,
-        })
+        Self::expert(min_bits, max_bits, max_prec, min_exp).ok()
     }
 
     /// Fixed-rate mode.
@@ -361,23 +355,6 @@ impl ZfpConfig {
     /// Pass [`ZfpStreamAlignment::WordAligned`] to pad each block to the next
     /// 64-bit word boundary; pass [`ZfpStreamAlignment::Unaligned`] for exact bit packing.
     ///
-    /// # Panics
-    ///
-    /// Panics if the rate is negative or non-finite, rounds to zero bits for
-    /// an integer type, or exceeds the supported fixed-rate block budget.
-    /// Use [`try_fixed_rate`][Self::try_fixed_rate] to handle these cases.
-    #[must_use]
-    pub fn fixed_rate(
-        rate: f64,
-        ty: ZfpScalarType,
-        dims: ZfpDimensionality,
-        align: ZfpStreamAlignment,
-    ) -> Self {
-        Self::try_fixed_rate(rate, ty, dims, align).expect("invalid ZFP fixed rate")
-    }
-
-    /// Fixed-rate mode with checked rate conversion and alignment.
-    ///
     /// # Errors
     ///
     /// Returns [`ZfpConfigError::InvalidRate`] if `rate` is negative or
@@ -385,7 +362,7 @@ impl ZfpConfig {
     /// budget above [`ZFP_MAX_BITS`], including after word alignment. A zero
     /// rate is raised to the minimum for float types, like any rate too small
     /// for the block header.
-    pub fn try_fixed_rate(
+    pub fn fixed_rate(
         rate: f64,
         ty: ZfpScalarType,
         dims: ZfpDimensionality,
@@ -489,39 +466,55 @@ impl ZfpConfig {
 
     /// Expert mode with explicit parameters.
     ///
-    /// The parameters are not validated, so an invalid combination yields a config whose
-    /// [`mode`][Self::mode] is [`ZfpMode::Null`]. Use [`try_expert`][Self::try_expert] to
-    /// reject invalid parameters.
+    /// This validates the codec parameters, not their header representation.
+    /// Use [`checked_mode_bits`][Self::checked_mode_bits] to check whether a
+    /// header can preserve them;
+    /// [`write_header`][crate::ZfpBitStreamMutOps::write_header] performs that
+    /// check when writing a mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpConfigError::InvalidParameters`] if `min_bits > max_bits`
+    /// or `max_prec` is not in `1..=64`, the failure case of C
+    /// `zfp_stream_set_params`.
+    pub const fn expert(
+        min_bits: u32,
+        max_bits: u32,
+        max_prec: u32,
+        min_exp: i32,
+    ) -> Result<Self, ZfpConfigError> {
+        if valid_params(min_bits, max_bits, max_prec, min_exp) {
+            Ok(Self::raw(min_bits, max_bits, max_prec, min_exp))
+        } else {
+            Err(ZfpConfigError::InvalidParameters)
+        }
+    }
+
+    /// Expert parameters from a C `zfp_stream`, without validation.
+    ///
+    /// C lets a `zfp_stream` hold any parameters, and compresses with them.
+    /// So does this config: the codec never panics, but an invalid combination
+    /// gives a config whose [`mode`][Self::mode] is [`ZfpMode::Null`], and
+    /// output that is only as meaningful as C's.
+    #[cfg(feature = "ffi")]
     #[must_use]
-    pub const fn expert(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> Self {
+    pub const fn from_raw_params(
+        min_bits: u32,
+        max_bits: u32,
+        max_prec: u32,
+        min_exp: i32,
+    ) -> Self {
+        Self::raw(min_bits, max_bits, max_prec, min_exp)
+    }
+
+    /// Expert parameters, unvalidated, with no rounding.
+    const fn raw(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> Self {
         Self {
             min_bits,
             max_bits,
             max_prec,
             min_exp,
             rounding: ZfpRounding::Never,
-        }
-    }
-
-    /// Expert mode with validated parameters.
-    ///
-    /// Returns [`None`] if `min_bits > max_bits` or `max_prec` is not in `1..=64`,
-    /// mirroring the failure case of C `zfp_stream_set_params`. This validates
-    /// the codec parameters, not their header representation. Use
-    /// [`checked_mode_bits`][Self::checked_mode_bits] to check whether a header
-    /// can preserve them; [`write_header`][crate::ZfpBitStreamMutOps::write_header]
-    /// performs that check when writing a mode.
-    #[must_use]
-    pub const fn try_expert(
-        min_bits: u32,
-        max_bits: u32,
-        max_prec: u32,
-        min_exp: i32,
-    ) -> Option<Self> {
-        if valid_params(min_bits, max_bits, max_prec, min_exp) {
-            Some(Self::expert(min_bits, max_bits, max_prec, min_exp))
-        } else {
-            None
         }
     }
 
@@ -542,7 +535,7 @@ impl ZfpConfig {
             ZfpScalarType::F32 => ((8 + 1) + 32 * values, 32, -149),
             ZfpScalarType::F64 => ((11 + 1) + 64 * values, 64, -1074),
         };
-        Self::expert(0, max_bits, max_prec, min_exp)
+        Self::raw(0, max_bits, max_prec, min_exp)
     }
 
     /// Default expert-mode config with all parameters at their maximum range.
@@ -789,6 +782,7 @@ mod tests {
                 ZFP_MAX_PREC,
                 ZFP_MIN_EXP
             )
+            .unwrap()
         );
     }
 
@@ -807,7 +801,8 @@ mod tests {
                 ZfpDimensionality::D4,
             ] {
                 let config =
-                    ZfpConfig::fixed_rate(8.0, zfp_type, dims, ZfpStreamAlignment::Unaligned);
+                    ZfpConfig::fixed_rate(8.0, zfp_type, dims, ZfpStreamAlignment::Unaligned)
+                        .unwrap();
                 assert_eq!(
                     config.mode(),
                     ZfpMode::FixedRate,
@@ -824,7 +819,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D3,
             ZfpStreamAlignment::WordAligned,
-        );
+        )
+        .unwrap();
         assert_eq!(config.max_bits(), 512);
 
         let config = ZfpConfig::fixed_rate(
@@ -832,7 +828,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D3,
             ZfpStreamAlignment::WordAligned,
-        );
+        )
+        .unwrap();
         assert_eq!(config.max_bits(), 320);
     }
 
@@ -843,7 +840,8 @@ mod tests {
             ZfpScalarType::F32,
             ZfpDimensionality::D1,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         assert_eq!(config.min_bits(), 9);
         assert_eq!(config.max_bits(), 9);
 
@@ -852,7 +850,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D1,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         assert_eq!(config.min_bits(), 12);
         assert_eq!(config.max_bits(), 12);
     }
@@ -875,18 +874,18 @@ mod tests {
                 ZfpStreamAlignment::WordAligned,
             ] {
                 assert_eq!(
-                    ZfpConfig::try_fixed_rate(rate, F64, D1, align),
+                    ZfpConfig::fixed_rate(rate, F64, D1, align),
                     Err(ZfpConfigError::InvalidRate),
                     "rate={rate:?}, align={align:?}"
                 );
             }
         }
         assert_eq!(
-            ZfpConfig::try_fixed_rate(0.01, I32, D1, ZfpStreamAlignment::Unaligned),
+            ZfpConfig::fixed_rate(0.01, I32, D1, ZfpStreamAlignment::Unaligned),
             Err(ZfpConfigError::InvalidRate)
         );
         assert_eq!(
-            ZfpConfig::try_fixed_rate(
+            ZfpConfig::fixed_rate(
                 f64::from(ZFP_MAX_BITS) / 4.0,
                 I32,
                 D1,
@@ -897,7 +896,7 @@ mod tests {
             ZFP_MAX_BITS
         );
         assert_eq!(
-            ZfpConfig::try_fixed_rate(
+            ZfpConfig::fixed_rate(
                 f64::from(ZFP_MAX_BITS) / 4.0,
                 I32,
                 D1,
@@ -907,7 +906,7 @@ mod tests {
         );
         let aligned_max = ZFP_MAX_BITS / STREAM_WORD_BITS * STREAM_WORD_BITS;
         assert_eq!(
-            ZfpConfig::try_fixed_rate(
+            ZfpConfig::fixed_rate(
                 f64::from(aligned_max) / 4.0,
                 I32,
                 D1,
@@ -918,7 +917,7 @@ mod tests {
             aligned_max
         );
         assert_eq!(
-            ZfpConfig::try_fixed_rate(
+            ZfpConfig::fixed_rate(
                 f64::from(aligned_max + 1) / 4.0,
                 I32,
                 D1,
@@ -936,8 +935,7 @@ mod tests {
         use ZfpScalarType::{F32, F64, I32};
         use ZfpStreamAlignment::{Unaligned, WordAligned};
         for rate in [-0.0, 0.0, 0.01] {
-            let bits =
-                |ty, align| ZfpConfig::try_fixed_rate(rate, ty, D1, align).map(|c| c.max_bits());
+            let bits = |ty, align| ZfpConfig::fixed_rate(rate, ty, D1, align).map(|c| c.max_bits());
             assert_eq!(bits(F32, Unaligned), Ok(1 + 8), "rate={rate:?}");
             assert_eq!(bits(F64, Unaligned), Ok(1 + 11), "rate={rate:?}");
             assert_eq!(
@@ -952,7 +950,9 @@ mod tests {
             );
         }
         assert_eq!(
-            ZfpConfig::fixed_rate(0.0, F64, D1, Unaligned).max_bits(),
+            ZfpConfig::fixed_rate(0.0, F64, D1, Unaligned)
+                .unwrap()
+                .max_bits(),
             1 + 11
         );
     }
@@ -997,7 +997,7 @@ mod tests {
 
     #[test]
     fn expert_sets_custom_params() {
-        let config = ZfpConfig::expert(10, 100, 50, -500);
+        let config = ZfpConfig::expert(10, 100, 50, -500).unwrap();
         assert_eq!(config.mode(), ZfpMode::Expert);
     }
 
@@ -1008,7 +1008,8 @@ mod tests {
             ZfpScalarType::F64,
             ZfpDimensionality::D3,
             ZfpStreamAlignment::Unaligned,
-        );
+        )
+        .unwrap();
         let cloned = config;
         assert_eq!(config, cloned);
         assert!(std::ptr::eq(&raw const config, &raw const config)); // Copy, not moved

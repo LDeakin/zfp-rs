@@ -11,9 +11,11 @@ use zfp_rs::types::{
     ZfpMetadataError,
 };
 use zfp_rs::{
-    ZfpBitStream, ZfpCompressionError, ZfpConfig, ZfpConfigError, ZfpDimensionality, ZfpField,
-    ZfpFieldMetadata, ZfpHeaderError, ZfpScalarType, ZfpStreamAlignment,
+    ZfpBitStream, ZfpCompressionError, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMetadata,
+    ZfpScalarType, ZfpStreamAlignment,
 };
+#[cfg(feature = "ffi")]
+use zfp_rs::{ZfpConfigError, ZfpHeaderError};
 
 // ---------------------------------------------------------------------------
 // Constants from the C test (testZfpHeader.c + included headers)
@@ -56,6 +58,7 @@ fn make_params() -> ZfpConfig {
         DIMS,
         ZfpStreamAlignment::Unaligned,
     )
+    .unwrap()
 }
 
 // ---------------------------------------------------------------------------
@@ -229,7 +232,8 @@ fn given_fixed_accuracy_when_zfp_write_header_mode_expect_12_bits_written_to_bit
 fn given_custom_compress_params_set_when_zfp_write_header_mode_expect_64_bits_written_to_bitstream()
 {
     // Custom params that don't match default expert mode → 64-bit long encoding.
-    let config = ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM);
+    let config =
+        ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM).unwrap();
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
     let bits = bs
@@ -488,7 +492,8 @@ fn given_proper_header_fixed_accuracy_when_zfp_read_header_mode_expect_stream_pa
 #[test]
 fn given_custom_compress_params_set_when_zfp_read_header_mode_expect_proper_num_bits_read() {
     // Custom params that don't match default expert mode → 64-bit long encoding.
-    let config = ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM);
+    let config =
+        ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM).unwrap();
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
     assert_proper_bits_read(
@@ -505,7 +510,8 @@ fn given_custom_compress_params_set_when_zfp_read_header_mode_expect_proper_num_
 fn given_custom_compress_params_and_proper_header_when_zfp_read_header_mode_expect_stream_params_set()
  {
     // Custom params that don't match default expert mode → 64-bit long encoding.
-    let config = ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM);
+    let config =
+        ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM).unwrap();
     let mut bs = ZfpBitStream::new(4096);
     let field = make_field();
     assert_compress_params_restored(
@@ -521,7 +527,7 @@ fn given_custom_compress_params_and_proper_header_when_zfp_read_header_mode_expe
 #[test]
 fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_proper_num_bits_read() {
     // Construct a malformed wire mode directly to exercise read rejection.
-    let config = ZfpConfig::expert(
+    let config = ZfpConfig::from_raw_params(
         MAX_BITS_CUSTOM + 1, // min_bits > max_bits = invalid
         MAX_BITS_CUSTOM,
         MAX_PREC_CUSTOM,
@@ -542,7 +548,7 @@ fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_prop
 fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_stream_params_not_set()
 {
     // Safe header writing rejects invalid parameters before writing any bits.
-    let config = ZfpConfig::expert(
+    let config = ZfpConfig::from_raw_params(
         MAX_BITS_CUSTOM + 1,
         MAX_BITS_CUSTOM,
         MAX_PREC_CUSTOM,

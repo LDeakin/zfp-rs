@@ -23,7 +23,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         zfp_rs::ZfpScalarType::F64,
         zfp_rs::ZfpDimensionality::D1,
         ZfpStreamAlignment::Unaligned,
-    );
+    )?;
 
     // Allocate a bitstream for the compressed output.
     let mut bs = ZfpBitStream::new(1024);

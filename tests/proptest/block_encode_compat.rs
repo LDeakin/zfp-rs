@@ -128,7 +128,7 @@ macro_rules! block_encode_compat_int {
 
                 // Rust side
                 let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
-                $rs_fn(&mut rs_bs, block, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP));
+                $rs_fn(&mut rs_bs, block, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
                 rs_bs.flush();
 
                 // C side
@@ -172,7 +172,7 @@ macro_rules! block_encode_compat_float {
 
                 // Rust side
                 let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
-                $rs_fn(&mut rs_bs, block, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP));
+                $rs_fn(&mut rs_bs, block, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
                 rs_bs.flush();
 
                 // C side
