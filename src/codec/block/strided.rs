@@ -526,37 +526,36 @@ pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::encode::reversible as rev;
 
-        // A 4-D block's worth of stack, rather than an allocation per block.
-        let mut buf = [T::default(); 256];
-        let block = &mut buf[..dims.block_size()];
-        gather_block(data, dims, strides, lengths, block);
-        reversible_dispatch! {
-            encode bs, dims, block, config,
-            d1: [
-                rev::encode_block_reversible_1d_i32,
-                rev::encode_block_reversible_1d_i64,
-                rev::encode_block_reversible_1d_f32,
-                rev::encode_block_reversible_1d_f64,
-            ],
-            d2: [
-                rev::encode_block_reversible_2d_i32,
-                rev::encode_block_reversible_2d_i64,
-                rev::encode_block_reversible_2d_f32,
-                rev::encode_block_reversible_2d_f64,
-            ],
-            d3: [
-                rev::encode_block_reversible_3d_i32,
-                rev::encode_block_reversible_3d_i64,
-                rev::encode_block_reversible_3d_f32,
-                rev::encode_block_reversible_3d_f64,
-            ],
-            d4: [
-                rev::encode_block_reversible_4d_i32,
-                rev::encode_block_reversible_4d_i64,
-                rev::encode_block_reversible_4d_f32,
-                rev::encode_block_reversible_4d_f64,
-            ],
-        }
+        with_block(dims, |block: &mut [T]| {
+            gather_block(data, dims, strides, lengths, block);
+            reversible_dispatch! {
+                encode bs, dims, block, config,
+                d1: [
+                    rev::encode_block_reversible_1d_i32,
+                    rev::encode_block_reversible_1d_i64,
+                    rev::encode_block_reversible_1d_f32,
+                    rev::encode_block_reversible_1d_f64,
+                ],
+                d2: [
+                    rev::encode_block_reversible_2d_i32,
+                    rev::encode_block_reversible_2d_i64,
+                    rev::encode_block_reversible_2d_f32,
+                    rev::encode_block_reversible_2d_f64,
+                ],
+                d3: [
+                    rev::encode_block_reversible_3d_i32,
+                    rev::encode_block_reversible_3d_i64,
+                    rev::encode_block_reversible_3d_f32,
+                    rev::encode_block_reversible_3d_f64,
+                ],
+                d4: [
+                    rev::encode_block_reversible_4d_i32,
+                    rev::encode_block_reversible_4d_i64,
+                    rev::encode_block_reversible_4d_f32,
+                    rev::encode_block_reversible_4d_f64,
+                ],
+            }
+        })
     }
 }
 
@@ -578,39 +577,50 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::decode::reversible as rev;
 
-        // A 4-D block's worth of stack, rather than an allocation per block.
-        let mut buf = [T::default(); 256];
-        let mut block = &mut buf[..dims.block_size()];
-        let bits = reversible_dispatch! {
-            decode bs, dims, block, config,
-            d1: [
-                rev::decode_block_reversible_1d_i32,
-                rev::decode_block_reversible_1d_i64,
-                rev::decode_block_reversible_1d_f32,
-                rev::decode_block_reversible_1d_f64,
-            ],
-            d2: [
-                rev::decode_block_reversible_2d_i32,
-                rev::decode_block_reversible_2d_i64,
-                rev::decode_block_reversible_2d_f32,
-                rev::decode_block_reversible_2d_f64,
-            ],
-            d3: [
-                rev::decode_block_reversible_3d_i32,
-                rev::decode_block_reversible_3d_i64,
-                rev::decode_block_reversible_3d_f32,
-                rev::decode_block_reversible_3d_f64,
-            ],
-            d4: [
-                rev::decode_block_reversible_4d_i32,
-                rev::decode_block_reversible_4d_i64,
-                rev::decode_block_reversible_4d_f32,
-                rev::decode_block_reversible_4d_f64,
-            ],
-        };
+        with_block(dims, |mut block: &mut [T]| {
+            let bits = reversible_dispatch! {
+                decode bs, dims, block, config,
+                d1: [
+                    rev::decode_block_reversible_1d_i32,
+                    rev::decode_block_reversible_1d_i64,
+                    rev::decode_block_reversible_1d_f32,
+                    rev::decode_block_reversible_1d_f64,
+                ],
+                d2: [
+                    rev::decode_block_reversible_2d_i32,
+                    rev::decode_block_reversible_2d_i64,
+                    rev::decode_block_reversible_2d_f32,
+                    rev::decode_block_reversible_2d_f64,
+                ],
+                d3: [
+                    rev::decode_block_reversible_3d_i32,
+                    rev::decode_block_reversible_3d_i64,
+                    rev::decode_block_reversible_3d_f32,
+                    rev::decode_block_reversible_3d_f64,
+                ],
+                d4: [
+                    rev::decode_block_reversible_4d_i32,
+                    rev::decode_block_reversible_4d_i64,
+                    rev::decode_block_reversible_4d_f32,
+                    rev::decode_block_reversible_4d_f64,
+                ],
+            };
 
-        scatter_block(block, data, dims, strides, lengths);
-        bits
+            scatter_block(block, data, dims, strides, lengths);
+            bits
+        })
+    }
+}
+
+/// Run `f` on a block of zeros on the stack, sized for `dims`: zeroing a 4-D
+/// block for every 1-D block would cost more than coding it.
+#[inline]
+fn with_block<T: ZfpScalar, R>(dims: ZfpDimensionality, f: impl FnOnce(&mut [T]) -> R) -> R {
+    match dims {
+        ZfpDimensionality::D1 => f(&mut [T::default(); 4]),
+        ZfpDimensionality::D2 => f(&mut [T::default(); 16]),
+        ZfpDimensionality::D3 => f(&mut [T::default(); 64]),
+        ZfpDimensionality::D4 => f(&mut [T::default(); 256]),
     }
 }
 
