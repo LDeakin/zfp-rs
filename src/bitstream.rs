@@ -16,6 +16,8 @@ pub use borrowed::{ZfpBitStreamRef, ZfpBitStreamRefMut};
 pub use ops::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 pub use owned::ZfpBitStream;
 
+#[cfg(feature = "rayon")]
+pub(crate) use core::vec_with_capacity;
 pub(crate) use core::{BitReader, BitWriter};
 
 #[cfg(test)]

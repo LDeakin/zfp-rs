@@ -137,8 +137,10 @@ unsafe fn decompress_typed<T: ZfpScalar>(
 /// For **fixed-rate** streams, each thread creates an independent bitstream
 /// view and seeks directly to its block's bit position.
 ///
-/// Falls back to serial decompression when block sizes can vary, or when field
-/// strides may alias: two blocks writing the same element would race.
+/// Falls back to serial decompression when block sizes can vary, when field
+/// strides may alias (two blocks writing the same element would race), when
+/// the blocks would run past the largest bit offset, or when the pool or the
+/// chunks cannot be created.
 #[cfg(feature = "rayon")]
 pub(crate) fn decompress_rayon(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
@@ -166,12 +168,22 @@ pub(crate) fn decompress_rayon(
 
     let blocks = info.num_blocks;
     if blocks == 0 {
-        return Ok(0);
+        return decompress(bs, field, config);
     }
-
     let bits_per_block = config.max_bits();
     let start_read_bit = bs.read_pos();
-    let (_chunks, chunk_starts) = decompress_compute_chunk_ranges(blocks, threads, chunk_size);
+    // Where serial decompression would leave the cursor. Bounding it bounds
+    // every block's offset, so the per-block seeks cannot overflow.
+    let Some(end) = u64::try_from(blocks)
+        .ok()
+        .and_then(|blocks| blocks.checked_mul(u64::from(bits_per_block)))
+        .and_then(|bits| bits.checked_add(start_read_bit))
+    else {
+        return decompress(bs, field, config);
+    };
+    let Some(ranges) = crate::execution::chunk_ranges(blocks, threads, chunk_size) else {
+        return decompress(bs, field, config);
+    };
 
     // Shared read-only slice of all words in the bitstream buffer.
     // `word_pos` tracks the current read cursor (reset by rewind), so we use
@@ -183,7 +195,7 @@ pub(crate) fn decompress_rayon(
     let run = || {
         decompress_chunks(
             words,
-            &chunk_starts,
+            &ranges,
             &info,
             config,
             bits_per_block,
@@ -191,21 +203,13 @@ pub(crate) fn decompress_rayon(
             base,
         );
     };
-    if threads > 0 {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads as usize)
-            .build()
-            .expect("rayon thread pool creation failed");
-        pool.install(run);
-    } else {
-        run();
+    // The pool is built before any block is decoded, so if it cannot be, the
+    // serial decoder fills the whole field.
+    if crate::execution::install(threads, run).is_none() {
+        return decompress(bs, field, config);
     }
 
     // Leave the cursor where serial decompression would.
-    let end = (blocks as u64)
-        .checked_mul(u64::from(bits_per_block))
-        .and_then(|bits| bits.checked_add(start_read_bit))
-        .unwrap_or(u64::MAX);
     bs.seek_read(end);
     bs.align();
     Ok(bs.byte_len())
@@ -245,7 +249,7 @@ unsafe impl Sync for FieldPtr {}
 #[cfg(feature = "rayon")]
 fn decompress_chunks(
     words: &[u64],
-    chunk_starts: &[usize],
+    ranges: &[Range<usize>],
     info: &FieldPlan,
     config: &ZfpConfig,
     bits_per_block: u32,
@@ -253,16 +257,9 @@ fn decompress_chunks(
     base: FieldPtr,
 ) {
     use crate::bitstream::borrowed::ZfpBitStreamRef;
-    use rayon::iter::{IntoParallelIterator, ParallelIterator};
+    use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-    (0..chunk_starts.len()).into_par_iter().for_each(|chunk| {
-        let start_block = chunk_starts[chunk];
-        let end_block = if chunk + 1 < chunk_starts.len() {
-            chunk_starts[chunk + 1]
-        } else {
-            info.num_blocks
-        };
-
+    ranges.par_iter().for_each(|range| {
         let mut local_bs = ZfpBitStreamRef::from_words(words);
         // SAFETY: `base` is the buffer `FieldPlan::new` validated for length
         // and alignment, and chunks cover disjoint blocks, so this thread
@@ -273,40 +270,11 @@ fn decompress_chunks(
                 base.ptr(),
                 info,
                 config,
-                start_block..end_block,
+                range.clone(),
                 Some((start_read_bit, u64::from(bits_per_block))),
             );
         }
     });
-}
-
-/// Compute chunk ranges for decompression following C OMP semantics.
-#[cfg(feature = "rayon")]
-#[allow(clippy::cast_sign_loss)]
-fn decompress_compute_chunk_ranges(
-    blocks: usize,
-    threads: u32,
-    chunk_size: u32,
-) -> (usize, Vec<usize>) {
-    let threads = if threads > 0 {
-        threads as usize
-    } else {
-        rayon::current_num_threads()
-    };
-
-    let chunks = if chunk_size > 0 {
-        let c = blocks.div_ceil(chunk_size as usize);
-        c.min(blocks)
-    } else {
-        threads.min(blocks)
-    };
-
-    let chunks = chunks.max(1);
-    let mut starts = Vec::with_capacity(chunks);
-    for chunk in 0..chunks {
-        starts.push((blocks * chunk) / chunks);
-    }
-    (chunks, starts)
 }
 
 #[cfg(all(test, feature = "rayon"))]
@@ -352,6 +320,35 @@ mod tests {
             },
         );
         assert_eq!(parallel, decode(&mut bs, &config, ZfpExecution::Serial));
+    }
+
+    /// Block offsets past `u64::MAX` overflowed the per-block seeks; they now
+    /// decompress serially.
+    #[test]
+    fn blocks_past_the_largest_offset_decompress_serially() {
+        let config = ZfpConfig::fixed_rate(
+            16.0,
+            ZfpScalarType::F64,
+            ZfpDimensionality::D2,
+            ZfpStreamAlignment::Unaligned,
+        )
+        .unwrap();
+        let mut bs = ZfpBitStream::new(64).unwrap();
+        let decode = |bs: &mut ZfpBitStream, execution| {
+            bs.seek_read(u64::MAX - 100);
+            let mut out = [1f64; 64];
+            let mut field = ZfpFieldMut::new(&mut out, [8usize, 8]).unwrap();
+            let read = bs
+                .decompress_with_execution(&config, &mut field, execution)
+                .unwrap();
+            (read, bs.read_pos(), out.map(f64::to_bits))
+        };
+        let serial = decode(&mut bs, ZfpExecution::Serial);
+        let parallel = ZfpExecution::Rayon {
+            threads: 2,
+            chunk_size: 1,
+        };
+        assert_eq!(decode(&mut bs, parallel), serial);
     }
 
     /// A truncated stream decodes as if the missing words were zeros, in

@@ -126,6 +126,10 @@ unsafe fn compress_typed<T: ZfpScalar>(
 /// Splits block indices into C-OMP-compatible chunks, compresses each chunk
 /// into a local bitstream, then concatenates results at bit-level granularity
 /// to match the C OMP implementation's `stream_copy` behavior.
+///
+/// Compresses serially if the pool, the chunks or their buffers cannot be
+/// created. Until every chunk has succeeded nothing is written to `bs`, so the
+/// serial fallback starts from a clean stream.
 #[cfg(feature = "rayon")]
 pub(crate) fn compress_rayon(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
@@ -134,7 +138,7 @@ pub(crate) fn compress_rayon(
     threads: u32,
     chunk_size: u32,
 ) -> Result<usize, ZfpCompressionError> {
-    use rayon::iter::{IntoParallelIterator, ParallelIterator};
+    use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
     let info = plan(field)?;
     let buf = field.data();
@@ -143,39 +147,36 @@ pub(crate) fn compress_rayon(
         return finish(bs);
     }
 
-    let (chunks, chunk_starts) = compute_chunk_ranges(blocks, threads, chunk_size);
+    let Some(ranges) = crate::execution::chunk_ranges(blocks, threads, chunk_size) else {
+        return compress(bs, field, config);
+    };
+    let Ok(mut chunk_results) = crate::bitstream::vec_with_capacity(ranges.len()) else {
+        return compress(bs, field, config);
+    };
 
     // Each chunk returns its words and bit count, for bit-level
     // concatenation, or `None` if its buffer could not be allocated or it
-    // outgrew it.
-    let chunk_results: Vec<Option<(u64, Vec<u64>)>> = if threads > 0 {
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(threads as usize)
-            .build()
-            .expect("rayon thread pool creation failed");
-        pool.install(|| {
-            (0..chunks)
-                .into_par_iter()
-                .map(|c| compress_one_chunk(&chunk_starts, &info, buf, config, blocks, c))
-                .collect()
-        })
-    } else {
-        (0..chunks)
-            .into_par_iter()
-            .map(|c| compress_one_chunk(&chunk_starts, &info, buf, config, blocks, c))
-            .collect()
+    // outgrew it. `chunk_results` already has room for them all.
+    let run = || {
+        ranges
+            .par_iter()
+            .map(|range| compress_one_chunk(range.clone(), &info, buf, config))
+            .collect_into_vec(&mut chunk_results);
     };
+    if crate::execution::install(threads, run).is_none() {
+        return compress(bs, field, config);
+    }
 
     // Chunk buffers are sized to fit every block of a valid config, so a chunk
     // fails if its buffer cannot be allocated, or for unvalidated C parameters.
     // Compressing serially needs no buffer, and gets the stream right.
-    let Some(chunk_results) = chunk_results.into_iter().collect::<Option<Vec<_>>>() else {
+    if chunk_results.iter().any(Option::is_none) {
         return compress(bs, field, config);
-    };
+    }
 
     // Concatenate chunks at bit-level granularity, matching C's stream_copy.
     // Write chunks sequentially (no seeking) to avoid buffer clobbering.
-    for (bits_written, chunk_words) in &chunk_results {
+    for (bits_written, chunk_words) in chunk_results.iter().flatten() {
         append_bits(bs, chunk_words, *bits_written);
     }
 
@@ -200,63 +201,29 @@ fn append_bits(bs: &mut (impl ZfpBitStreamMutOps + ?Sized), words: &[u64], bits:
     }
 }
 
-/// Compress one chunk of blocks, returning (`bits_written`, `compressed_words`),
+/// Compress blocks `range`, returning (`bits_written`, `compressed_words`),
 /// or `None` if the chunk's buffer cannot be allocated or the chunk outgrew it.
 ///
 /// Returns the exact bit count (before flush padding) alongside the flushed
 /// words, so the caller can copy at bit-level granularity across chunk boundaries.
 #[cfg(feature = "rayon")]
-#[allow(clippy::cast_possible_truncation)] // chunk_bits / 64 + 1 fits in usize for valid fields
 fn compress_one_chunk(
-    chunk_starts: &[usize],
+    range: Range<usize>,
     info: &FieldPlan,
     buf: &[u8],
     config: &ZfpConfig,
-    total_blocks: usize,
-    chunk: usize,
 ) -> Option<(u64, Vec<u64>)> {
     use crate::ZfpBitStream;
 
-    let start = chunk_starts[chunk];
-    let end = if chunk + 1 < chunk_starts.len() {
-        chunk_starts[chunk + 1]
-    } else {
-        total_blocks
-    };
-    let chunk_bits =
-        (end - start) as u64 * u64::from(config.block_bits(info.scalar_type, info.dims_enum));
-    #[allow(clippy::cast_possible_truncation)]
-    // chunk_bits is bounded by the field size, which fits in usize.
-    let chunk_words = (chunk_bits / 64 + 1) as usize;
-    let mut local_bs = ZfpBitStream::new(chunk_words * 8).ok()?;
+    let chunk_bits = u64::try_from(range.len()).ok()?.checked_mul(u64::from(
+        config.block_bits(info.scalar_type, info.dims_enum),
+    ))?;
+    let chunk_bytes = usize::try_from(chunk_bits / 64 + 1).ok()?.checked_mul(8)?;
+    let mut local_bs = ZfpBitStream::new(chunk_bytes).ok()?;
     // SAFETY: `buf` is the field's whole data buffer, validated by `FieldPlan::new`.
-    unsafe { compress_blocks(&mut local_bs, buf.as_ptr(), info, config, start..end) };
+    unsafe { compress_blocks(&mut local_bs, buf.as_ptr(), info, config, range) };
     // Record bits written before flushing (flush pads to word boundary).
     let bits_written = local_bs.write_pos();
     local_bs.flush();
     (!local_bs.overflowed()).then(|| (bits_written, local_bs.into_words()))
-}
-
-/// Compute chunk ranges following C OMP semantics.
-#[cfg(feature = "rayon")]
-#[allow(clippy::cast_sign_loss)]
-fn compute_chunk_ranges(blocks: usize, threads: u32, chunk_size: u32) -> (usize, Vec<usize>) {
-    let threads = if threads > 0 {
-        threads as usize
-    } else {
-        rayon::current_num_threads()
-    };
-
-    let chunks = if chunk_size > 0 {
-        blocks.div_ceil(chunk_size as usize).min(blocks)
-    } else {
-        threads.min(blocks)
-    };
-
-    let chunks = chunks.max(1);
-    let mut starts = Vec::with_capacity(chunks);
-    for chunk in 0..chunks {
-        starts.push((blocks * chunk) / chunks);
-    }
-    (chunks, starts)
 }
