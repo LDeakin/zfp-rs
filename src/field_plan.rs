@@ -2,7 +2,7 @@
 
 use std::ops::Range;
 
-use crate::field::{dimensionality, field_index_span};
+use crate::field::{checked_num_blocks, dimensionality, field_index_span, logical_shape_fits};
 use crate::types::{ZfpDimensionality, ZfpFieldError, ZfpScalarType};
 
 /// Block grid and memory layout, derived once per field.
@@ -47,6 +47,10 @@ impl FieldPlan {
             "the block grid and the field's span must agree on which axes are active"
         );
 
+        if !logical_shape_fits(&dims) {
+            return Err(ZfpFieldError::ShapeTooLarge { dims });
+        }
+
         let actual = data.len();
         if actual < required {
             return Err(ZfpFieldError::InsufficientData { required, actual });
@@ -68,8 +72,11 @@ impl FieldPlan {
         let bz = if dim_count >= 3 { nz.div_ceil(4) } else { 1 };
         let bw = if dim_count >= 4 { nw.div_ceil(4) } else { 1 };
 
+        let num_blocks = checked_num_blocks(&dims).ok_or(ZfpFieldError::ShapeTooLarge { dims })?;
+        debug_assert_eq!(num_blocks, bx * by * bz * bw);
+
         Ok(Self {
-            num_blocks: bx * by * bz * bw,
+            num_blocks,
             bx,
             by,
             bz,

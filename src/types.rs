@@ -104,6 +104,11 @@ pub enum ZfpFieldError {
         /// The dimensions supplied, as `[nx, ny, nz, nw]`.
         dims: [usize; 4],
     },
+    /// The logical element count or block grid cannot be represented safely.
+    ShapeTooLarge {
+        /// The dimensions supplied, as `[nx, ny, nz, nw]`.
+        dims: [usize; 4],
+    },
     /// The data buffer is smaller than the field's dimensions and strides
     /// require.
     InsufficientData {
@@ -129,6 +134,12 @@ impl fmt::Display for ZfpFieldError {
                 f,
                 "invalid field dimensions {dims:?}: dimensions must be nonzero and precede any zero ones"
             ),
+            Self::ShapeTooLarge { dims } => {
+                write!(
+                    f,
+                    "field dimensions {dims:?} exceed the supported logical size"
+                )
+            }
             Self::InsufficientData { required, actual } => write!(
                 f,
                 "field spans {required} bytes but its data buffer holds only {actual}"

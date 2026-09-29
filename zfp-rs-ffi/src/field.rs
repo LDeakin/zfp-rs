@@ -50,7 +50,7 @@ pub(crate) fn field_to_rust(field: &zfp_field) -> Option<ZfpField<'static>> {
             ZfpField::from_raw_unchecked(std::ptr::null(), 0, scalar_type, dims, strides)
         });
     }
-    let (begin, byte_count) = span_of(field.data.cast_const(), scalar_type, &dims, &strides);
+    let (begin, byte_count) = span_of(field.data.cast_const(), scalar_type, &dims, &strides)?;
     // SAFETY: the C caller guarantees that the field data pointer spans
     // the descriptor's memory footprint.
     Some(unsafe { ZfpField::from_raw_unchecked(begin, byte_count, scalar_type, dims, strides) })
@@ -70,14 +70,19 @@ fn span_of(
     scalar_type: zfp_rs::types::ZfpScalarType,
     dims: &[usize; 4],
     strides: &[isize; 4],
-) -> (*const u8, usize) {
-    let (imin, imax) = zfp_rs::field::index_span(dims, strides);
+) -> Option<(*const u8, usize)> {
+    let (imin, imax) = zfp_rs::field::checked_index_span(dims, strides)?;
     let elem_size = scalar_type.size();
-    let byte_count = (imax - imin + 1).cast_unsigned() * elem_size;
+    let span = imax.checked_sub(imin)?.checked_add(1)?;
+    let byte_count = usize::try_from(span).ok()?.checked_mul(elem_size)?;
+    if byte_count > isize::MAX as usize {
+        return None;
+    }
+    let byte_offset = imin.checked_mul(isize::try_from(elem_size).ok()?)?;
     // SAFETY: `imin <= 0` is the lowest element index the strides reach from
     // `data`, which the C caller guarantees is inside its buffer.
-    let begin = unsafe { data.cast::<u8>().offset(imin * elem_size.cast_signed()) };
-    (begin, byte_count)
+    let begin = unsafe { data.cast::<u8>().offset(byte_offset) };
+    Some((begin, byte_count))
 }
 
 pub(crate) unsafe fn field_mut_to_rust(
@@ -89,7 +94,7 @@ pub(crate) unsafe fn field_mut_to_rust(
     if field.data.is_null() {
         return None;
     }
-    let (begin, byte_count) = span_of(field.data.cast_const(), scalar_type, &dims, &strides);
+    let (begin, byte_count) = span_of(field.data.cast_const(), scalar_type, &dims, &strides)?;
     if byte_count == 0 {
         return None;
     }
@@ -503,12 +508,27 @@ mod tests {
             zfp_rs::types::ZfpScalarType::F64,
             &active_dims(&field),
             &active_strides(&field),
-        );
+        )
+        .unwrap();
         assert_eq!(begin, buf.as_ptr().cast::<u8>());
         assert_eq!(byte_count, std::mem::size_of_val(&buf));
 
         let rust = field_to_rust(&field).expect("a double field converts");
         assert_eq!(rust.data().as_ptr(), buf.as_ptr().cast::<u8>());
         assert_eq!(rust.size_bytes(), byte_count);
+    }
+
+    #[test]
+    fn oversized_span_is_rejected_before_creating_a_raw_slice() {
+        let data = [0i32; 1];
+        assert!(
+            span_of(
+                data.as_ptr().cast(),
+                zfp_rs::types::ZfpScalarType::I32,
+                &[isize::MAX as usize + 1, 0, 0, 0],
+                &[1, 0, 0, 0],
+            )
+            .is_none()
+        );
     }
 }

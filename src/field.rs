@@ -69,6 +69,9 @@ fn validate(
     if !valid_dims(dims) {
         return Err(ZfpFieldError::InvalidDims { dims: *dims });
     }
+    if !logical_shape_fits(dims) {
+        return Err(ZfpFieldError::ShapeTooLarge { dims: *dims });
+    }
     let required = checked_size_bytes(dims, strides, scalar_type).unwrap_or(usize::MAX);
     if data.len() < required {
         return Err(ZfpFieldError::InsufficientData {
@@ -175,16 +178,18 @@ macro_rules! impl_field_common {
                 self.dims
             }
 
-            /// Return the total number of scalar elements.
+            /// Return the total number of scalar elements. Saturates at
+            /// `usize::MAX` for an unchecked field whose count overflows.
             #[must_use]
             pub fn num_elements(&self) -> usize {
-                num_elements(&self.dims)
+                checked_num_elements(&self.dims).unwrap_or(usize::MAX)
             }
 
-            /// Return the number of 4^d compression blocks.
+            /// Return the number of 4^d compression blocks. Saturates at
+            /// `usize::MAX` for an unchecked field whose count overflows.
             #[must_use]
             pub fn num_blocks(&self) -> usize {
-                num_blocks(&self.dims)
+                checked_num_blocks(&self.dims).unwrap_or(usize::MAX)
             }
 
             /// Return `true` if the data layout is contiguous (all strides are 0 or
@@ -221,17 +226,19 @@ macro_rules! impl_field_common {
             ///
             /// Returns `(imin, imax)` where `imin <= 0 <= imax`.
             /// The total number of scalars spanned (including any gaps) is `imax - imin + 1`.
+            /// For an unchecked field whose span overflows, returns
+            /// `(isize::MIN, isize::MAX)`.
             #[must_use]
             pub fn index_span(&self) -> (isize, isize) {
                 field_index_span(&self.dims, &self.strides)
             }
 
-            /// Number of bytes spanned by the field, including gaps from non-unit strides.
+            /// Number of bytes spanned by the field, including gaps from non-unit
+            /// strides. Saturates at `usize::MAX` for an unchecked field whose
+            /// span overflows.
             #[must_use]
             pub fn size_bytes(&self) -> usize {
-                let (imin, imax) = self.index_span();
-                let size = self.scalar_type.size();
-                (imax - imin + 1) as usize * size
+                self.checked_size_bytes().unwrap_or(usize::MAX)
             }
 
             /// [`size_bytes`][Self::size_bytes] with overflow checking; `None` if the
@@ -526,26 +533,31 @@ pub(crate) fn dimensionality(dims: &[usize; 4]) -> ZfpDimensionality {
     }
 }
 
-fn num_elements(dims: &[usize; 4]) -> usize {
-    dims[0].max(1) * dims[1].max(1) * dims[2].max(1) * dims[3].max(1)
+fn checked_num_elements(dims: &[usize; 4]) -> Option<usize> {
+    dims.iter()
+        .take(usize::from(dimensionality(dims)))
+        .try_fold(1usize, |count, &dim| count.checked_mul(dim))
 }
 
-fn num_blocks(dims: &[usize; 4]) -> usize {
-    let bx = dims[0].div_ceil(4);
-    let by = dims[1].div_ceil(4);
-    let bz = dims[2].div_ceil(4);
-    let bw = dims[3].div_ceil(4);
-    match dimensionality(dims) {
-        ZfpDimensionality::D1 => bx,
-        ZfpDimensionality::D2 => bx * by,
-        ZfpDimensionality::D3 => bx * by * bz,
-        ZfpDimensionality::D4 => bx * by * bz * bw,
-    }
+pub(crate) fn checked_num_blocks(dims: &[usize; 4]) -> Option<usize> {
+    dims.iter()
+        .take(usize::from(dimensionality(dims)))
+        .try_fold(1usize, |count, &dim| count.checked_mul(dim.div_ceil(4)))
+}
+
+/// A logical element index must fit the signed offsets used by the codec.
+pub(crate) fn logical_shape_fits(dims: &[usize; 4]) -> bool {
+    checked_num_elements(dims).is_some_and(|n| isize::try_from(n).is_ok())
+        && checked_num_blocks(dims).is_some()
 }
 
 /// The stride an axis takes when its own is 0: the product of the dims below it.
-fn natural_stride(dims: &[usize; 4], axis: usize) -> usize {
-    dims[..axis].iter().product()
+fn natural_stride(dims: &[usize; 4], axis: usize) -> isize {
+    dims[..axis]
+        .iter()
+        .try_fold(1usize, |stride, &dim| stride.checked_mul(dim))
+        .and_then(|stride| isize::try_from(stride).ok())
+        .unwrap_or(isize::MAX)
 }
 
 fn effective_strides(dims: &[usize; 4], strides: &[isize; 4]) -> [isize; 4] {
@@ -553,12 +565,15 @@ fn effective_strides(dims: &[usize; 4], strides: &[isize; 4]) -> [isize; 4] {
         if strides[axis] != 0 {
             strides[axis]
         } else {
-            natural_stride(dims, axis) as isize
+            natural_stride(dims, axis)
         }
     })
 }
 
 fn is_contiguous(dims: &[usize; 4], strides: &[isize; 4]) -> bool {
+    if !logical_shape_fits(dims) {
+        return false;
+    }
     // All strides zero means contiguous by definition
     if strides.iter().all(|&s| s == 0) {
         return true;
@@ -585,6 +600,13 @@ fn is_contiguous(dims: &[usize; 4], strides: &[isize; 4]) -> bool {
 /// the first zero one is inert, so it must not widen the span or shift the
 /// origin away from what the block walk uses.
 pub(crate) fn field_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isize, isize) {
+    checked_index_span(dims, strides).unwrap_or((isize::MIN, isize::MAX))
+}
+
+/// Overflow-checked index span, including natural strides for zero entries.
+#[cfg_attr(not(feature = "ffi"), allow(dead_code))]
+#[must_use]
+pub fn checked_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> Option<(isize, isize)> {
     let mut imin: isize = 0;
     let mut imax: isize = 0;
     for axis in 0..usize::from(dimensionality(dims)) {
@@ -594,13 +616,18 @@ pub(crate) fn field_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isiz
         let stride = if strides[axis] != 0 {
             strides[axis]
         } else {
-            natural_stride(dims, axis) as isize
+            isize::try_from(
+                dims[..axis]
+                    .iter()
+                    .try_fold(1usize, |acc, &d| acc.checked_mul(d))?,
+            )
+            .ok()?
         };
-        let extent = stride * (dims[axis] as isize - 1);
-        imin += extent.min(0);
-        imax += extent.max(0);
+        let extent = stride.checked_mul(isize::try_from(dims[axis]).ok()?.checked_sub(1)?)?;
+        imin = imin.checked_add(extent.min(0))?;
+        imax = imax.checked_add(extent.max(0))?;
     }
-    (imin, imax)
+    Some((imin, imax))
 }
 
 /// Number of bytes a field with these dimensions and strides spans, using
@@ -616,29 +643,7 @@ pub(crate) fn checked_size_bytes(
     strides: &[isize; 4],
     scalar_type: ZfpScalarType,
 ) -> Option<usize> {
-    let active = usize::from(dimensionality(dims));
-    let mut imin: isize = 0;
-    let mut imax: isize = 0;
-    for axis in 0..active {
-        let dim = dims[axis];
-        if dim == 0 {
-            continue;
-        }
-        let stride = if strides[axis] != 0 {
-            strides[axis]
-        } else {
-            isize::try_from(
-                dims[..axis]
-                    .iter()
-                    .try_fold(1usize, |acc, &d| acc.checked_mul(d))?,
-            )
-            .ok()?
-        };
-        let extent = stride.checked_mul(isize::try_from(dim).ok()?.checked_sub(1)?)?;
-        imin = imin.checked_add(extent.min(0))?;
-        imax = imax.checked_add(extent.max(0))?;
-    }
-
+    let (imin, imax) = checked_index_span(dims, strides)?;
     let span = imax.checked_sub(imin)?.checked_add(1)?;
     usize::try_from(span).ok()?.checked_mul(scalar_type.size())
 }
@@ -807,6 +812,124 @@ mod tests {
             checked_size_bytes(&[usize::MAX, usize::MAX, 0, 0], &[0; 4], ZfpScalarType::F64),
             None
         );
+    }
+
+    #[test]
+    fn logical_shape_checks_the_signed_offset_and_block_count_boundaries() {
+        let within = [isize::MAX as usize, 1, 0, 0];
+        assert!(super::logical_shape_fits(&within));
+        assert_eq!(
+            super::checked_num_elements(&within),
+            Some(isize::MAX as usize)
+        );
+
+        let beyond = [isize::MAX as usize + 1, 1, 0, 0];
+        assert!(!super::logical_shape_fits(&beyond));
+        assert_eq!(super::checked_num_elements(&beyond), Some(beyond[0]));
+
+        let block_overflow = [1usize << 18; 4];
+        assert_eq!(super::checked_num_blocks(&block_overflow), None);
+        assert_eq!(super::checked_num_elements(&block_overflow), None);
+    }
+
+    #[test]
+    fn overlapping_field_rejects_an_overflowing_logical_block_grid() {
+        let n = 1usize << 18;
+        let dims = [n; 4];
+        // This covers the full physical span of the reported overlapping
+        // layout, while the logical element and block counts overflow usize.
+        let mut data = vec![0i32; 4 * (n - 1) + 1];
+        let strides = [1isize; 4];
+        assert_eq!(
+            checked_size_bytes(&dims, &strides, ZfpScalarType::I32),
+            Some(data.len() * size_of::<i32>())
+        );
+        let expected = ZfpFieldError::ShapeTooLarge { dims };
+        assert_eq!(
+            ZfpField::new_strided(&data, dims, strides).unwrap_err(),
+            expected
+        );
+        assert_eq!(
+            ZfpFieldMut::new_strided(&mut data, dims, strides).unwrap_err(),
+            expected
+        );
+    }
+
+    #[test]
+    fn setters_reject_unrepresentable_logical_shape_without_changing_field() {
+        let data = [0i32; 1];
+        let mut field = ZfpField::new(&data, [1usize]).unwrap();
+        let dims = [1usize << 18; 4];
+        assert_eq!(
+            field.set_metadata(super::ZfpFieldMetadata {
+                scalar_type: ZfpScalarType::I32,
+                dims,
+            }),
+            Err(ZfpFieldError::ShapeTooLarge { dims })
+        );
+        assert_eq!(field.dims(), [1, 0, 0, 0]);
+        assert_eq!(field.num_elements(), 1);
+        assert_eq!(field.num_blocks(), 1);
+    }
+
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn unchecked_field_inspectors_saturate_and_codec_rejects_shape() {
+        let mut data = [0i32; 1];
+        let dims = [1usize << 18; 4];
+        // SAFETY: the pointer and count accurately describe `data`; the
+        // descriptor itself is intentionally invalid.
+        let field = unsafe {
+            ZfpField::from_raw_unchecked(
+                data.as_ptr().cast(),
+                size_of::<i32>(),
+                ZfpScalarType::I32,
+                dims,
+                [1; 4],
+            )
+        };
+        assert_eq!(field.num_elements(), usize::MAX);
+        assert_eq!(field.num_blocks(), usize::MAX);
+        assert!(!field.is_contiguous());
+        assert_eq!(field.size_bytes(), (4 * (dims[0] - 1) + 1) * 4);
+        let mut stream = ZfpBitStream::new(8);
+        assert_eq!(
+            stream.compress(&ZfpConfig::reversible(), &field),
+            Err(ZfpCompressionError::Field(ZfpFieldError::ShapeTooLarge {
+                dims
+            }))
+        );
+        // SAFETY: the pointer and count accurately describe `data`.
+        let mut output = unsafe {
+            ZfpFieldMut::from_raw_unchecked(
+                data.as_mut_ptr().cast(),
+                size_of::<i32>(),
+                ZfpScalarType::I32,
+                dims,
+                [1; 4],
+            )
+        };
+        assert_eq!(
+            stream.decompress(&ZfpConfig::reversible(), &mut output),
+            Err(ZfpDecompressionError::Field(ZfpFieldError::ShapeTooLarge {
+                dims
+            }))
+        );
+
+        let huge = [isize::MAX as usize + 1, 1, 0, 0];
+        // SAFETY: as above.
+        let field = unsafe {
+            ZfpField::from_raw_unchecked(
+                data.as_ptr().cast(),
+                size_of::<i32>(),
+                ZfpScalarType::I32,
+                huge,
+                [1, 0, 0, 0],
+            )
+        };
+        assert_eq!(field.effective_strides()[1], isize::MAX);
+        assert_eq!(field.index_span(), (isize::MIN, isize::MAX));
+        assert_eq!(field.size_bytes(), usize::MAX);
     }
 
     #[test]
