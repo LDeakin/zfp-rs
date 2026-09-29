@@ -11,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Original data: {} elements", data.len());
 
     // Compress first (simulating reading from a file).
-    let compress_stream = ZfpConfig::fixed_rate(
+    let config = ZfpConfig::fixed_rate(
         8.0,
         zfp_rs::ZfpScalarType::F32,
         zfp_rs::ZfpDimensionality::D1,
@@ -20,11 +20,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let field = ZfpField::new(&data, [data.len()])?;
     let mut bs = ZfpBitStream::new(1024);
-    let compressed_bytes = bs.compress(&compress_stream, &field)?;
+    let compressed_bytes = bs.compress(&config, &field)?;
     println!("Compressed: {compressed_bytes} bytes");
-
-    // Now "read" the compressed data back.
-    let config = ZfpConfig::new();
 
     // Decompress into a new field.
     let mut out_data = vec![0.0_f32; data.len()];
@@ -41,5 +38,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .zip(result.iter())
         .all(|(a, b)| (*a - *b).abs() < 1e-5);
     println!("Match: {match_}");
+    assert!(match_, "decompressed values differ from the original data");
     Ok(())
 }

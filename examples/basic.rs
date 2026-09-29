@@ -2,8 +2,9 @@
 //!
 //! ```text
 //! $ cargo run --example basic --features ffi
-//! Compressed: 64 bytes
 //! Original data: [0.0, 1.0, 2.0, 3.0, 4.0]
+//! Compressed: 8 bytes
+//! Decompressed: 8 bytes
 //! Decompressed: [0.0, 1.0, 2.0, 3.0, 4.0]
 //! Match: true
 //! ```
