@@ -18,6 +18,7 @@ trait Float: ZfpScalar + Copy + Default + PartialEq + std::fmt::Debug {
     const TYPE: ZfpScalarType;
     const C_TYPE: zfp_sys::zfp_type;
     fn to_bits_u64(self) -> u64;
+    fn from_f64(v: f64) -> Self;
     /// `self * 2^e`.
     fn scale(self, e: i32) -> Self;
 }
@@ -27,6 +28,9 @@ impl Float for f32 {
     const C_TYPE: zfp_sys::zfp_type = zfp_sys::zfp_type_zfp_type_float;
     fn to_bits_u64(self) -> u64 {
         u64::from(self.to_bits())
+    }
+    fn from_f64(v: f64) -> Self {
+        v as f32
     }
     fn scale(self, e: i32) -> Self {
         libm::ldexpf(self, e)
@@ -38,6 +42,9 @@ impl Float for f64 {
     const C_TYPE: zfp_sys::zfp_type = zfp_sys::zfp_type_zfp_type_double;
     fn to_bits_u64(self) -> u64 {
         self.to_bits()
+    }
+    fn from_f64(v: f64) -> Self {
+        v
     }
     fn scale(self, e: i32) -> Self {
         libm::ldexp(self, e)
@@ -224,6 +231,42 @@ fn underflowing_blocks_decode_to_zeros() {
         );
         assert!(c_out.iter().all(|&v| v == 0.0), "{c_out:?}");
     }
+}
+
+/// A block whose largest magnitude is `2^e`.
+fn block_of<T: Float>(e: i32) -> Vec<T> {
+    [1.0, -0.5, 0.25, -0.125]
+        .map(|m| T::from_f64(m).scale(e))
+        .to_vec()
+}
+
+/// C's encoder loses a block exactly when its largest magnitude is below
+/// `2^encode`, and C's decoder, when it is below `2^decode`.
+fn check_thresholds<T: Float>(encode: i32, decode: i32) {
+    for mode in [Mode::Rate(16.0), Mode::Precision(20)] {
+        let at = block_of::<T>(encode);
+        assert_eq!(rs_compress(mode, &at), c_compress(mode, &at), "{mode:?}");
+        let below = block_of::<T>(encode - 1);
+        assert_ne!(
+            rs_compress(mode, &below),
+            c_compress(mode, &below),
+            "{mode:?}"
+        );
+
+        let at = block_of::<T>(decode);
+        let c_out = c_decompress::<T>(mode, &rs_compress(mode, &at), 4);
+        assert!(c_out.iter().any(|&v| v != T::default()), "{mode:?}");
+        let below = block_of::<T>(decode - 1);
+        let c_out = c_decompress::<T>(mode, &rs_compress(mode, &below), 4);
+        assert!(c_out.iter().all(|&v| v == T::default()), "{mode:?}");
+    }
+    check_scale_invariance(&block_of::<T>(decode), 64);
+}
+
+#[test]
+fn tiny_block_thresholds() {
+    check_thresholds::<f32>(-98, -120);
+    check_thresholds::<f64>(-962, -1013);
 }
 
 /// C reinterprets a tiny reversible block, as its cast overflows, and so does
