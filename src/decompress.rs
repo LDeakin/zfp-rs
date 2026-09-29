@@ -137,9 +137,8 @@ unsafe fn decompress_typed<T: ZfpScalar>(
 /// For **fixed-rate** streams, each thread creates an independent bitstream
 /// view and seeks directly to its block's bit position.
 ///
-/// Falls back to serial decompression for non-fixed-rate streams, and for
-/// fields whose strides may alias: two blocks writing the same element would
-/// race.
+/// Falls back to serial decompression when block sizes can vary, or when field
+/// strides may alias: two blocks writing the same element would race.
 #[cfg(feature = "rayon")]
 pub(crate) fn decompress_rayon(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
@@ -155,7 +154,13 @@ pub(crate) fn decompress_rayon(
     }
 
     let info = plan_mut(field)?;
-    if info.strides_may_alias() {
+    // A fixed-rate config only gives each block a fixed physical size if its
+    // budget can hold the type's block header. Below 9 bits for f32 or 12 for
+    // f64, zero blocks use max_bits but nonzero blocks write the full header.
+    // The maximum-size calculation already accounts for this distinction.
+    if info.strides_may_alias()
+        || config.block_bits(info.scalar_type, info.dims_enum) != config.max_bits()
+    {
         return decompress(bs, field, config);
     }
 

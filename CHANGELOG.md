@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ZfpFieldMetadata::to_bits` no longer panics (or wraps) for a zero leading dimension.
 - `write_header` returns `ZfpCompressionError::Config`, writing nothing, if the mode word cannot hold the config's parameters: a budget of 0 or above 32768 bits, or a `min_exp` outside -16495 to 16272. It wrote a different config, so decoding with the header could change values and misplace every block after the first.
+- Rayon decompression decodes serially when a fixed-rate `max_bits` is below the float block header (9 bits for `f32`, 12 for `f64`), which only expert configs allow. Block sizes then vary, so it read blocks from the wrong offsets.
 - Writing past the end of a bitstream no longer panics: the write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
 - Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it; reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made the strided `codec::block` decoders, and so the C ABI's `zfp_decode_block_*`, return a wrapped bit count.
 - Rayon decompression leaves the cursor where serial decompression does, and returns the same size, truncated streams included.
