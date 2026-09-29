@@ -16,6 +16,8 @@
 use proptest::prelude::*;
 use zfp_rs::ZfpBitStream;
 use zfp_rs::ZfpConfig;
+use zfp_rs::ZfpDimensionality;
+use zfp_rs::codec::block::encode_block_strided;
 use zfp_rs::codec::encode::{float as efloat, integer as einteger};
 
 // ---------------------------------------------------------------------------
@@ -43,6 +45,7 @@ fn normal_f64() -> impl Strategy<Value = f64> {
 
 const ZFP_MAX_PREC: u32 = 64;
 const ZFP_MIN_EXP: i32 = -1074;
+const ZFP_MAX_BITS: u32 = 16658;
 // Fixed-rate: 19 bits per element; MAXBITS = block_size * 19
 const ZFP_RATE_PARAM_BITS: u32 = 19;
 
@@ -334,5 +337,76 @@ block_encode_compat_float!(
     f64,
     normal_f64(),
     efloat::encode_block_4d_f64,
+    zfp_sys::zfp_encode_block_double_4
+);
+
+// ---------------------------------------------------------------------------
+// Reversible streams through the strided dispatcher, which zfp-rs-ffi's
+// `zfp_encode_block_*` call: as in C, a reversible config selects the
+// lossless coder.
+// ---------------------------------------------------------------------------
+
+macro_rules! reversible_block_encode_compat {
+    ($test_name:ident, $scalar:ty, $strategy:expr, $dims:expr, $strides:expr, $c_fn:path) => {
+        proptest! {
+            #[test]
+            fn $test_name(data in prop::collection::vec(
+                $strategy,
+                $dims.block_size()..=$dims.block_size(),
+            )) {
+                let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
+                let rs_bits = unsafe {
+                    encode_block_strided::<$scalar>(
+                        &mut rs_bs,
+                        data.as_ptr(),
+                        $dims,
+                        &$strides,
+                        &ZfpConfig::reversible(),
+                    )
+                };
+                rs_bs.flush();
+
+                let mut c = CZfpBlock::new(ZFP_MAX_BITS);
+                unsafe { zfp_sys::zfp_stream_set_reversible(c.zfp) };
+                let c_bits = unsafe { $c_fn(c.zfp, data.as_ptr()) };
+                c.flush();
+
+                prop_assert_eq!(rs_bits, c_bits);
+                prop_assert_eq!(rs_bs.as_bytes(), c.as_bytes());
+            }
+        }
+    };
+}
+
+reversible_block_encode_compat!(
+    reversible_encode_block_1d_i32,
+    i32,
+    any::<i32>(),
+    ZfpDimensionality::D1,
+    [1],
+    zfp_sys::zfp_encode_block_int32_1
+);
+reversible_block_encode_compat!(
+    reversible_encode_block_2d_i64,
+    i64,
+    any::<i64>(),
+    ZfpDimensionality::D2,
+    [1, 4],
+    zfp_sys::zfp_encode_block_int64_2
+);
+reversible_block_encode_compat!(
+    reversible_encode_block_3d_f32,
+    f32,
+    normal_f32(),
+    ZfpDimensionality::D3,
+    [1, 4, 16],
+    zfp_sys::zfp_encode_block_float_3
+);
+reversible_block_encode_compat!(
+    reversible_encode_block_4d_f64,
+    f64,
+    normal_f64(),
+    ZfpDimensionality::D4,
+    [1, 4, 16, 64],
     zfp_sys::zfp_encode_block_double_4
 );

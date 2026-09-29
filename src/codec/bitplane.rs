@@ -447,14 +447,17 @@ plane_block_chunks!(u64, 256, 4, [u64; 4], inv_round_u64);
 ///
 /// C `encode_ints`. `maxbits` only binds when the block could exceed it, as C
 /// selects its unconstrained `encode_ints_prec` otherwise.
+///
+/// Without `BOUNDED`, `maxbits` is ignored, and the budget checks compile
+/// away. That is for a caller that has checked the budget cannot bind.
 #[inline]
-pub(crate) fn encode_ints<B: PlaneBlock>(
+pub(crate) fn encode_ints<B: PlaneBlock, const BOUNDED: bool>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     block: &B,
 ) -> u32 {
-    let budget = if with_maxbits(maxbits, maxprec, B::SIZE) {
+    let budget = if BOUNDED && with_maxbits(maxbits, maxprec, B::SIZE) {
         maxbits
     } else {
         u32::MAX
@@ -559,18 +562,19 @@ fn encode_planes<P: Plane>(
 /// bits read.
 ///
 /// C `decode_ints`, including its `ZFP_ROUND_LAST` bias. As in
-/// [`encode_ints`], `maxbits` only binds when the block could exceed it.
+/// [`encode_ints`], `maxbits` only binds when the block could exceed it, and
+/// is ignored without `BOUNDED`.
 ///
 /// Also returns whether the block is all zeros, which lets callers skip the
 /// inverse transform, since it maps zeros to zeros.
 #[inline]
-pub(crate) fn decode_ints<B: PlaneBlock>(
+pub(crate) fn decode_ints<B: PlaneBlock, const BOUNDED: bool>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     maxbits: u32,
     maxprec: u32,
     rounding: ZfpRounding,
 ) -> (B, u32, bool) {
-    let constrained = with_maxbits(maxbits, maxprec, B::SIZE);
+    let constrained = BOUNDED && with_maxbits(maxbits, maxprec, B::SIZE);
     let budget = if constrained { maxbits } else { u32::MAX };
     let kmin = B::INTPREC.saturating_sub(maxprec);
     let mut planes = B::zero_planes();

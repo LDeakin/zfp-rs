@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpBitStream::from_buffer` is renamed `from_words`, and `into_vec` is renamed `into_bytes`. `into_words` returns only the words written, like `into_bytes`. `from_bytes` zero-pads a trailing partial word instead of dropping it.
 - **Breaking**: `ZfpBitStreamRefMut::{from_words_mut, from_bytes_mut}` are renamed `from_words` and `from_bytes`.
 - **Breaking**: `codec::block::{encode_block, decode_block}` take a `&ZfpConfig` after the stream, so every mode is available for block coding, not just unconstrained full precision. A reversible config selects lossless coding for every scalar type, and the output matches field compression. `encode_block_reversible_{f32,f64}` and `decode_block_reversible_{f32,f64}` are removed.
+- **Breaking**: `codec::block::encode_block_strided_reversible` (`ffi`) takes a `&ZfpConfig`, and the block functions in `codec::encode::reversible` and `codec::decode::reversible` (`internals`) take a `&ZfpConfig` instead of nothing or a `ZfpRounding`, so they can honour its limits.
 
 ### Fixed
 
@@ -54,6 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Rayon decompression leaves the stream cursor where serial decompression does, and returns the same size, truncated streams included.
 - Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it to the buffer: reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made `codec::block::decode_block` return a wrapped bit count.
 - Writing past the end of a bitstream no longer panics. The write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
+- Reversible expert configurations (`min_exp < ZFP_MIN_EXP`) honour `min_bits`, `max_bits` and `max_prec`, as in C, and produce the same stream. They were ignored, so every block was coded losslessly. One C bug is not reproduced: C's encoder does not pad an all-zero float block to `min_bits`, though its decoder skips the padding. zfp-rs pads it, so such streams round-trip.
+- The strided `codec::block` functions, and so the C ABI's `zfp_encode_block_*` and `zfp_decode_block_*`, use the reversible coder for a reversible config, as C does, instead of the lossy coder.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28
 

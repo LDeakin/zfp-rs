@@ -25,7 +25,7 @@
 
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
-use crate::types::{ZFP_MIN_EXP, ZfpBlockError, ZfpDimensionality, ZfpScalar};
+use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar};
 mod strided;
 
 // Public only with `ffi`, which the C-ABI layer enables. Without it these stay
@@ -40,12 +40,8 @@ pub(crate) use strided::*;
 // Contiguous block encode / decode
 // ---------------------------------------------------------------------------
 
-/// Strides and lengths that describe a contiguous 4^d block.
-fn contiguous_layout(dims: ZfpDimensionality) -> ([isize; 4], [usize; 4]) {
-    let d = usize::from(dims);
-    let lengths = std::array::from_fn(|axis| if axis < d { 4 } else { 0 });
-    ([1, 4, 16, 64], lengths)
-}
+/// The strides of a contiguous 4^d block.
+const CONTIGUOUS: [isize; 4] = [1, 4, 16, 64];
 
 /// Encode a contiguous 4^d block of scalars with the given config; return
 /// the number of bits written.
@@ -66,16 +62,9 @@ pub fn encode_block<T: ZfpScalar>(
     if data.len() != dims.block_size() {
         return Err(ZfpBlockError);
     }
-    let (strides, lengths) = contiguous_layout(dims);
     // SAFETY: `data` holds a whole block, and contiguous strides address
     // exactly its elements.
-    Ok(unsafe {
-        if config.min_exp() < ZFP_MIN_EXP {
-            encode_block_strided_reversible(bs, data.as_ptr(), dims, &strides, lengths)
-        } else {
-            encode_block_strided(bs, data.as_ptr(), dims, &strides, config)
-        }
-    })
+    Ok(unsafe { encode_block_strided(bs, data.as_ptr(), dims, &CONTIGUOUS, config) })
 }
 
 /// Decode a contiguous 4^d block of scalars with the given config; return
@@ -98,15 +87,8 @@ pub fn decode_block<T: ZfpScalar>(
     if data.len() != dims.block_size() {
         return Err(ZfpBlockError);
     }
-    let (strides, lengths) = contiguous_layout(dims);
     // SAFETY: as in `encode_block`.
-    Ok(unsafe {
-        if config.min_exp() < ZFP_MIN_EXP {
-            decode_block_strided_reversible(bs, data.as_mut_ptr(), dims, &strides, lengths, config)
-        } else {
-            decode_block_strided(bs, data.as_mut_ptr(), dims, &strides, config)
-        }
-    })
+    Ok(unsafe { decode_block_strided(bs, data.as_mut_ptr(), dims, &CONTIGUOUS, config) })
 }
 
 // ---------------------------------------------------------------------------

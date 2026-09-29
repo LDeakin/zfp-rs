@@ -109,6 +109,41 @@ pub(crate) fn fwd_order_i64(ublock: &mut [u64], iblock: &[i64], perm: &[u8]) {
 }
 
 // ---------------------------------------------------------------------------
+// Block bit budget
+// ---------------------------------------------------------------------------
+
+/// The bits a block may take: at least `min`, and at most `max` once its
+/// headers leave room.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Budget {
+    pub(crate) min: u32,
+    pub(crate) max: u32,
+}
+
+impl Budget {
+    #[inline]
+    pub(crate) fn of(config: &crate::config::ZfpConfig) -> Self {
+        Self {
+            min: config.min_bits(),
+            max: config.max_bits(),
+        }
+    }
+
+    /// What is left after `bits` header bits.
+    ///
+    /// Saturates where C subtracts unsigned integers: a `max_bits` smaller
+    /// than the headers wraps around in C, leaving the block unbounded.
+    #[inline]
+    #[must_use]
+    pub(crate) fn after(self, bits: u32) -> Self {
+        Self {
+            min: self.min.saturating_sub(bits),
+            max: self.max.saturating_sub(bits),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Rate-constraint predicate
 // ---------------------------------------------------------------------------
 

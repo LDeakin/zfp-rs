@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 0a30b23819388d1add3b2d30556d75d0872c22f00eb0aa009f6768789966c699 # shrinks to config = ZfpConfig { min_bits: 2, max_bits: 16658, max_prec: 64, min_exp: -1075, rounding: Never }, data = [0.0, 0.0, 0.0, 0.0, -0.0, 0.0, 0.0, 0.0]
+cc 06c80a68bf88b53eb561a522677c435ac0e2739fafda9b409b2b8733bed6352c # shrinks to config = ZfpConfig { min_bits: 2, max_bits: 16658, max_prec: 64, min_exp: -1075, rounding: Never }, data = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -4.336086586994395e-187]

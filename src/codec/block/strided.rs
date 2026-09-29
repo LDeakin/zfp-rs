@@ -14,7 +14,7 @@ use super::{
 };
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
-use crate::types::{ZfpDimensionality, ZfpScalar, ZfpScalarType};
+use crate::types::{ZFP_MIN_EXP, ZfpDimensionality, ZfpScalar, ZfpScalarType};
 
 /// Reinterpret a scalar pointer as the concrete type the enclosing match arm has
 /// already proven `T` to be.
@@ -121,65 +121,97 @@ macro_rules! typed_block {
 /// produced (encode) or `scatter_block` will consume (decode).
 macro_rules! reversible_dispatch {
     (
-        encode $bs:ident, $dims:ident, $block:ident,
+        encode $bs:ident, $dims:ident, $block:ident, $config:ident,
         d1: [$i1:path, $q1:path, $f1:path, $g1:path $(,)?],
         d2: [$i2:path, $q2:path, $f2:path, $g2:path $(,)?],
         d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
         d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
     ) => {
         match (T::SCALAR_TYPE, $dims) {
-            (ZfpScalarType::I32, ZfpDimensionality::D1) => {
-                $i1($bs, typed_block!(as_typed_block_1d::<T, i32>(&$block)))
-            }
-            (ZfpScalarType::I64, ZfpDimensionality::D1) => {
-                $q1($bs, typed_block!(as_typed_block_1d::<T, i64>(&$block)))
-            }
-            (ZfpScalarType::F32, ZfpDimensionality::D1) => {
-                $f1($bs, typed_block!(as_typed_block_1d::<T, f32>(&$block)))
-            }
-            (ZfpScalarType::F64, ZfpDimensionality::D1) => {
-                $g1($bs, typed_block!(as_typed_block_1d::<T, f64>(&$block)))
-            }
-            (ZfpScalarType::I32, ZfpDimensionality::D2) => {
-                $i2($bs, typed_block!(as_typed_block_2d::<T, i32>(&$block)))
-            }
-            (ZfpScalarType::I64, ZfpDimensionality::D2) => {
-                $q2($bs, typed_block!(as_typed_block_2d::<T, i64>(&$block)))
-            }
-            (ZfpScalarType::F32, ZfpDimensionality::D2) => {
-                $f2($bs, typed_block!(as_typed_block_2d::<T, f32>(&$block)))
-            }
-            (ZfpScalarType::F64, ZfpDimensionality::D2) => {
-                $g2($bs, typed_block!(as_typed_block_2d::<T, f64>(&$block)))
-            }
-            (ZfpScalarType::I32, ZfpDimensionality::D3) => {
-                $i3($bs, typed_block!(as_typed_block_3d::<T, i32>(&$block)))
-            }
-            (ZfpScalarType::I64, ZfpDimensionality::D3) => {
-                $q3($bs, typed_block!(as_typed_block_3d::<T, i64>(&$block)))
-            }
-            (ZfpScalarType::F32, ZfpDimensionality::D3) => {
-                $f3($bs, typed_block!(as_typed_block_3d::<T, f32>(&$block)))
-            }
-            (ZfpScalarType::F64, ZfpDimensionality::D3) => {
-                $g3($bs, typed_block!(as_typed_block_3d::<T, f64>(&$block)))
-            }
-            (ZfpScalarType::I32, ZfpDimensionality::D4) => {
-                $i4($bs, typed_block!(as_typed_block_4d::<T, i32>(&$block)))
-            }
-            (ZfpScalarType::I64, ZfpDimensionality::D4) => {
-                $q4($bs, typed_block!(as_typed_block_4d::<T, i64>(&$block)))
-            }
-            (ZfpScalarType::F32, ZfpDimensionality::D4) => {
-                $f4($bs, typed_block!(as_typed_block_4d::<T, f32>(&$block)))
-            }
-            (ZfpScalarType::F64, ZfpDimensionality::D4) => {
-                $g4($bs, typed_block!(as_typed_block_4d::<T, f64>(&$block)))
-            }
+            (ZfpScalarType::I32, ZfpDimensionality::D1) => $i1(
+                $bs,
+                typed_block!(as_typed_block_1d::<T, i32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::I64, ZfpDimensionality::D1) => $q1(
+                $bs,
+                typed_block!(as_typed_block_1d::<T, i64>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F32, ZfpDimensionality::D1) => $f1(
+                $bs,
+                typed_block!(as_typed_block_1d::<T, f32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F64, ZfpDimensionality::D1) => $g1(
+                $bs,
+                typed_block!(as_typed_block_1d::<T, f64>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::I32, ZfpDimensionality::D2) => $i2(
+                $bs,
+                typed_block!(as_typed_block_2d::<T, i32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::I64, ZfpDimensionality::D2) => $q2(
+                $bs,
+                typed_block!(as_typed_block_2d::<T, i64>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F32, ZfpDimensionality::D2) => $f2(
+                $bs,
+                typed_block!(as_typed_block_2d::<T, f32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F64, ZfpDimensionality::D2) => $g2(
+                $bs,
+                typed_block!(as_typed_block_2d::<T, f64>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::I32, ZfpDimensionality::D3) => $i3(
+                $bs,
+                typed_block!(as_typed_block_3d::<T, i32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::I64, ZfpDimensionality::D3) => $q3(
+                $bs,
+                typed_block!(as_typed_block_3d::<T, i64>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F32, ZfpDimensionality::D3) => $f3(
+                $bs,
+                typed_block!(as_typed_block_3d::<T, f32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F64, ZfpDimensionality::D3) => $g3(
+                $bs,
+                typed_block!(as_typed_block_3d::<T, f64>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::I32, ZfpDimensionality::D4) => $i4(
+                $bs,
+                typed_block!(as_typed_block_4d::<T, i32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::I64, ZfpDimensionality::D4) => $q4(
+                $bs,
+                typed_block!(as_typed_block_4d::<T, i64>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F32, ZfpDimensionality::D4) => $f4(
+                $bs,
+                typed_block!(as_typed_block_4d::<T, f32>(&$block)),
+                $config,
+            ),
+            (ZfpScalarType::F64, ZfpDimensionality::D4) => $g4(
+                $bs,
+                typed_block!(as_typed_block_4d::<T, f64>(&$block)),
+                $config,
+            ),
         }
     };
     (
-        decode $bs:ident, $dims:ident, $block:ident, $rounding:ident,
+        decode $bs:ident, $dims:ident, $block:ident, $config:ident,
         d1: [$i1:path, $q1:path, $f1:path, $g1:path $(,)?],
         d2: [$i2:path, $q2:path, $f2:path, $g2:path $(,)?],
         d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
@@ -189,82 +221,82 @@ macro_rules! reversible_dispatch {
             (ZfpScalarType::I32, ZfpDimensionality::D1) => $i1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, i32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::I64, ZfpDimensionality::D1) => $q1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, i64>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F32, ZfpDimensionality::D1) => $f1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, f32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F64, ZfpDimensionality::D1) => $g1(
                 $bs,
                 typed_block!(as_typed_block_1d_mut::<T, f64>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::I32, ZfpDimensionality::D2) => $i2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, i32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::I64, ZfpDimensionality::D2) => $q2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, i64>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F32, ZfpDimensionality::D2) => $f2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, f32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F64, ZfpDimensionality::D2) => $g2(
                 $bs,
                 typed_block!(as_typed_block_2d_mut::<T, f64>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::I32, ZfpDimensionality::D3) => $i3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, i32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::I64, ZfpDimensionality::D3) => $q3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, i64>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F32, ZfpDimensionality::D3) => $f3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, f32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F64, ZfpDimensionality::D3) => $g3(
                 $bs,
                 typed_block!(as_typed_block_3d_mut::<T, f64>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::I32, ZfpDimensionality::D4) => $i4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, i32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::I64, ZfpDimensionality::D4) => $q4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, i64>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F32, ZfpDimensionality::D4) => $f4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, f32>(&mut $block)),
-                $rounding,
+                $config,
             ),
             (ZfpScalarType::F64, ZfpDimensionality::D4) => $g4(
                 $bs,
                 typed_block!(as_typed_block_4d_mut::<T, f64>(&mut $block)),
-                $rounding,
+                $config,
             ),
         }
     };
@@ -478,7 +510,7 @@ unsafe fn scatter_block<T: ZfpScalar>(
 
 /// Reversible encode of a (possibly partial) strided 4^d block; return bits written.
 ///
-/// Used by `ZfpBitStream::compress` in reversible mode.
+/// The strided encoders take this path for a reversible `config`.
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
@@ -489,6 +521,7 @@ pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
     dims: ZfpDimensionality,
     strides: &[isize],
     lengths: [usize; 4],
+    config: &ZfpConfig,
 ) -> usize {
     unsafe {
         use crate::codec::encode::reversible as rev;
@@ -498,7 +531,7 @@ pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
         let block = &mut buf[..dims.block_size()];
         gather_block(data, dims, strides, lengths, block);
         reversible_dispatch! {
-            encode bs, dims, block,
+            encode bs, dims, block, config,
             d1: [
                 rev::encode_block_reversible_1d_i32,
                 rev::encode_block_reversible_1d_i64,
@@ -529,7 +562,7 @@ pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
 
 /// Reversible decode of a (possibly partial) strided 4^d block; return bits read.
 ///
-/// Used by `ZfpBitStream::decompress` in reversible mode.
+/// The strided decoders take this path for a reversible `config`.
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
@@ -542,7 +575,6 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
     lengths: [usize; 4],
     config: &ZfpConfig,
 ) -> usize {
-    let rounding = config.rounding();
     unsafe {
         use crate::codec::decode::reversible as rev;
 
@@ -550,7 +582,7 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
         let mut buf = [T::default(); 256];
         let mut block = &mut buf[..dims.block_size()];
         let bits = reversible_dispatch! {
-            decode bs, dims, block, rounding,
+            decode bs, dims, block, config,
             d1: [
                 rev::decode_block_reversible_1d_i32,
                 rev::decode_block_reversible_1d_i64,
@@ -582,11 +614,29 @@ pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
     }
 }
 
+/// Whether `config` selects the reversible coder, as C's `REVERSIBLE` does.
+#[inline]
+fn reversible(config: &ZfpConfig) -> bool {
+    config.min_exp() < ZFP_MIN_EXP
+}
+
+/// The lengths of a whole 4^d block, for the reversible coder.
+fn whole(dims: ZfpDimensionality) -> [usize; 4] {
+    std::array::from_fn(|axis| if axis < usize::from(dims) { 4 } else { 0 })
+}
+
+/// A partial block's lengths on all four axes, for the reversible coder.
+fn four(lengths: &[usize]) -> [usize; 4] {
+    std::array::from_fn(|axis| lengths.get(axis).copied().unwrap_or(0))
+}
+
 // ---------------------------------------------------------------------------
 // Parametric strided block encode: used by ZfpBitStream::compress
 // ---------------------------------------------------------------------------
 
 /// Encode a strided 4^d block with explicit stream parameters; return bits written.
+///
+/// A reversible `config` selects lossless coding.
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
@@ -598,6 +648,12 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
     strides: &[isize],
     config: &ZfpConfig,
 ) -> usize {
+    if reversible(config) {
+        // SAFETY: the caller's contract.
+        return unsafe {
+            encode_block_strided_reversible(bs, data, dims, strides, whole(dims), config)
+        };
+    }
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
@@ -633,6 +689,8 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
 
 /// Encode a partial (boundary) strided block with explicit stream parameters; return bits written.
 ///
+/// A reversible `config` selects lossless coding.
+///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
@@ -644,6 +702,12 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     strides: &[isize],
     config: &ZfpConfig,
 ) -> usize {
+    if reversible(config) {
+        // SAFETY: the caller's contract.
+        return unsafe {
+            encode_block_strided_reversible(bs, data, dims, strides, four(lengths), config)
+        };
+    }
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
@@ -683,6 +747,8 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
 
 /// Decode a strided 4^d block with explicit stream parameters; return bits read.
 ///
+/// A reversible `config` selects lossless coding.
+///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
@@ -693,6 +759,12 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
     strides: &[isize],
     config: &ZfpConfig,
 ) -> usize {
+    if reversible(config) {
+        // SAFETY: the caller's contract.
+        return unsafe {
+            decode_block_strided_reversible(bs, data, dims, strides, whole(dims), config)
+        };
+    }
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
@@ -728,6 +800,8 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
 
 /// Decode a partial (boundary) strided block with explicit stream parameters; return bits read.
 ///
+/// A reversible `config` selects lossless coding.
+///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
@@ -739,6 +813,12 @@ pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     strides: &[isize],
     config: &ZfpConfig,
 ) -> usize {
+    if reversible(config) {
+        // SAFETY: the caller's contract.
+        return unsafe {
+            decode_block_strided_reversible(bs, data, dims, strides, four(lengths), config)
+        };
+    }
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {

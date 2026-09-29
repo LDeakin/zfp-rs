@@ -58,6 +58,12 @@ enum Mode {
     FixedPrecision(u32), // precision (1..=64)
     FixedAccuracy(i32),  // min_exp (-1074..=843)
     Reversible,
+    Expert {
+        min_bits: u32,
+        max_bits: u32,
+        max_prec: u32,
+        min_exp: i32,
+    },
 }
 
 fn mode_strategy() -> impl Strategy<Value = Mode> {
@@ -66,7 +72,29 @@ fn mode_strategy() -> impl Strategy<Value = Mode> {
         (1u32..=64u32).prop_map(Mode::FixedPrecision),
         (-1074i32..=843i32).prop_map(Mode::FixedAccuracy),
         Just(Mode::Reversible),
+        expert_strategy(),
     ]
+}
+
+/// Expert parameters, reversible or not, on which C and zfp-rs agree.
+///
+/// `max_bits` is at least 19, the longest block header (reversible `f64`).
+/// Below a header, C's unsigned budget wraps around and leaves the block
+/// unbounded, where zfp-rs gives it no budget.
+fn expert_strategy() -> impl Strategy<Value = Mode> {
+    (
+        prop_oneof![19u32..=600u32, 19u32..=16658u32],
+        1u32..=64u32,
+        prop_oneof![Just(-1075i32), -1074i32..=843i32],
+    )
+        .prop_flat_map(|(max_bits, max_prec, min_exp)| {
+            (1u32..=max_bits).prop_map(move |min_bits| Mode::Expert {
+                min_bits,
+                max_bits,
+                max_prec,
+                min_exp,
+            })
+        })
 }
 
 fn apply_mode_rust(
@@ -92,6 +120,15 @@ fn apply_mode_rust(
         }
         Mode::Reversible => {
             *config = ZfpConfig::reversible();
+        }
+        Mode::Expert {
+            min_bits,
+            max_bits,
+            max_prec,
+            min_exp,
+        } => {
+            *config = ZfpConfig::try_expert(min_bits, max_bits, max_prec, min_exp)
+                .expect("the strategy generates valid parameters");
         }
     }
 }
@@ -120,6 +157,17 @@ unsafe fn apply_mode_c(
         }
         Mode::Reversible => {
             zfp_sys::zfp_stream_set_reversible(zfp);
+        }
+        Mode::Expert {
+            min_bits,
+            max_bits,
+            max_prec,
+            min_exp,
+        } => {
+            assert_ne!(
+                zfp_sys::zfp_stream_set_params(zfp, min_bits, max_bits, max_prec, min_exp),
+                0
+            );
         }
     }
 }
