@@ -74,6 +74,22 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --workspace
 
+  # Build rather than check: `cargo check` misses the `arithmetic_overflow`
+  # lint, which caught shifting a 32-bit `usize` by 48.
+  build-32bit:
+    name: Build (32-bit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --locked -p zfp-rs --target wasm32-unknown-unknown
+      - run: cargo build --locked -p zfp-rs --target wasm32-unknown-unknown --all-features
+
   docs:
     name: Rustdoc
     runs-on: ubuntu-latest
