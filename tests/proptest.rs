@@ -20,3 +20,5 @@ mod header_compat;
 mod rounding;
 #[path = "proptest/tiny_blocks.rs"]
 mod tiny_blocks;
+#[path = "proptest/wide_range_accuracy.rs"]
+mod wide_range_accuracy;
