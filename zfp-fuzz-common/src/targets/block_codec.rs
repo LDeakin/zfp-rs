@@ -201,11 +201,8 @@ fn typed<T: FuzzScalar>(
         );
     }
 
-    // Reversible mode is lossless, except that `ZfpRounding::Last` biases the
-    // decoded coefficients, as C's `ZFP_ROUND_LAST` does.
-    if config.mode() == ZfpMode::Reversible
-        && !matches!(config.rounding(), ZfpRounding::Last { .. })
-    {
+    // Reversible mode is lossless under every rounding mode.
+    if config.mode() == ZfpMode::Reversible {
         for index in block_offsets(rank, strides, effective) {
             let at = (origin.cast_signed() + index).cast_unsigned();
             assert_eq!(
