@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `ZfpFieldMetadata::to_bits` no longer panics (or wraps) for a zero leading dimension.
+- The crate builds on 32-bit targets. `ZfpFieldMetadata::from_bits` returns `None` for a dimension that does not fit in `usize`.
 - Field constructors and setters return `ZfpFieldError::ShapeTooLarge` for overlapping strides whose element or block count overflows. Compressing such a field panicked in debug builds and wrote nothing in release. For unchecked fields, `num_elements`, `num_blocks`, `index_span` and `size_bytes` saturate, and the C ABI rejects a `zfp_field` whose span overflows.
 - `write_header` returns `ZfpCompressionError::Config`, writing nothing, if the mode word cannot hold the config's parameters: a budget of 0 or above 32768 bits, or a `min_exp` outside -16495 to 16272. It wrote a different config, so decoding with the header could change values and misplace every block after the first.
 - Rayon decompression decodes serially when a fixed-rate `max_bits` is below the float block header (9 bits for `f32`, 12 for `f64`), which only expert configs allow. Block sizes then vary, so it read blocks from the wrong offsets.

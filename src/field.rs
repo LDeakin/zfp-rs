@@ -669,43 +669,22 @@ pub(crate) fn field_metadata(
         return Err(ZfpMetadataError::InvalidDims);
     }
     let d = dimensionality(dims);
-    let mut meta: u64;
-    match d {
-        ZfpDimensionality::D1 => {
-            if (dims[0] - 1) >> 48 != 0 {
-                return Err(ZfpMetadataError::DimensionTooLarge);
-            }
-            meta = (dims[0] - 1) as u64;
+    let bit_width: u32 = match d {
+        ZfpDimensionality::D1 => 48,
+        ZfpDimensionality::D2 => 24,
+        ZfpDimensionality::D3 => 16,
+        ZfpDimensionality::D4 => 12,
+    };
+    let max_encoded_dimension = (1u64 << bit_width) - 1;
+    let mut meta = 0u64;
+    let mut shift = 0;
+    for &dim in &dims[..usize::from(d)] {
+        let encoded = u64::try_from(dim - 1).map_err(|_| ZfpMetadataError::DimensionTooLarge)?;
+        if encoded > max_encoded_dimension {
+            return Err(ZfpMetadataError::DimensionTooLarge);
         }
-        ZfpDimensionality::D2 => {
-            if ((dims[0] - 1) >> 24 != 0) || ((dims[1] - 1) >> 24 != 0) {
-                return Err(ZfpMetadataError::DimensionTooLarge);
-            }
-            meta = ((dims[1] - 1) as u64) << 24 | (dims[0] - 1) as u64;
-        }
-        ZfpDimensionality::D3 => {
-            if ((dims[0] - 1) >> 16 != 0)
-                || ((dims[1] - 1) >> 16 != 0)
-                || ((dims[2] - 1) >> 16 != 0)
-            {
-                return Err(ZfpMetadataError::DimensionTooLarge);
-            }
-            meta =
-                ((dims[2] - 1) as u64) << 32 | ((dims[1] - 1) as u64) << 16 | (dims[0] - 1) as u64;
-        }
-        ZfpDimensionality::D4 => {
-            if ((dims[0] - 1) >> 12 != 0)
-                || ((dims[1] - 1) >> 12 != 0)
-                || ((dims[2] - 1) >> 12 != 0)
-                || ((dims[3] - 1) >> 12 != 0)
-            {
-                return Err(ZfpMetadataError::DimensionTooLarge);
-            }
-            meta = ((dims[3] - 1) as u64) << 36
-                | ((dims[2] - 1) as u64) << 24
-                | ((dims[1] - 1) as u64) << 12
-                | (dims[0] - 1) as u64;
-        }
+        meta |= encoded << shift;
+        shift += bit_width;
     }
     // 2 bits for dimensionality (0 = 1D, 1 = 2D, 2 = 3D, 3 = 4D)
     meta = (meta << 2) | (d as u64 - 1);
@@ -724,37 +703,20 @@ pub(crate) fn decode_metadata(meta: u64) -> Option<[usize; 4]> {
     let d = ((meta & 0x3) as usize) + 1;
     let meta = meta >> 2;
 
-    let dims = match d {
-        1 => {
-            let nx = (meta & 0x0000_ffff_ffff_ffff) as usize + 1;
-            [nx, 0, 0, 0]
-        }
-        2 => {
-            let nx = (meta & 0x00ff_ffff) as usize + 1;
-            let meta = meta >> 24;
-            let ny = (meta & 0x00ff_ffff) as usize + 1;
-            [nx, ny, 0, 0]
-        }
-        3 => {
-            let nx = (meta & 0xffff) as usize + 1;
-            let meta = meta >> 16;
-            let ny = (meta & 0xffff) as usize + 1;
-            let meta = meta >> 16;
-            let nz = (meta & 0xffff) as usize + 1;
-            [nx, ny, nz, 0]
-        }
-        4 => {
-            let nx = (meta & 0xfff) as usize + 1;
-            let meta = meta >> 12;
-            let ny = (meta & 0xfff) as usize + 1;
-            let meta = meta >> 12;
-            let nz = (meta & 0xfff) as usize + 1;
-            let meta = meta >> 12;
-            let nw = (meta & 0xfff) as usize + 1;
-            [nx, ny, nz, nw]
-        }
+    let bit_width: u32 = match d {
+        1 => 48,
+        2 => 24,
+        3 => 16,
+        4 => 12,
         _ => return None,
     };
+    let mask = (1u64 << bit_width) - 1;
+    let mut encoded = meta;
+    let mut dims = [0; 4];
+    for dim in &mut dims[..d] {
+        *dim = usize::try_from((encoded & mask) + 1).ok()?;
+        encoded >>= bit_width;
+    }
     Some(dims)
 }
 
@@ -763,8 +725,60 @@ mod tests {
     use super::checked_size_bytes;
     #[cfg(feature = "ffi")]
     use crate::types::{ZfpCompressionError, ZfpDecompressionError};
-    use crate::types::{ZfpFieldError, ZfpScalarType};
+    use crate::types::{ZfpFieldError, ZfpMetadataError, ZfpScalarType};
     use crate::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut};
+
+    #[test]
+    fn metadata_roundtrips_at_dimension_width_boundaries() {
+        let max_one_dim = usize::try_from(1u64 << 48).unwrap_or(usize::MAX);
+        for dims in [
+            [max_one_dim, 0, 0, 0],
+            [1usize << 24, 1usize << 24, 0, 0],
+            [1usize << 16, 1usize << 16, 1usize << 16, 0],
+            [1usize << 12; 4],
+        ] {
+            let metadata = super::ZfpFieldMetadata {
+                scalar_type: ZfpScalarType::F64,
+                dims,
+            };
+            let bits = metadata.to_bits().unwrap();
+            assert_eq!(bits >> 52, 0);
+            assert_eq!(super::ZfpFieldMetadata::from_bits(bits), Some(metadata));
+        }
+
+        for dims in [
+            [(1usize << 24) + 1, 1, 0, 0],
+            [(1usize << 16) + 1, 1, 1, 0],
+            [(1usize << 12) + 1, 1, 1, 1],
+        ] {
+            let metadata = super::ZfpFieldMetadata {
+                scalar_type: ZfpScalarType::I32,
+                dims,
+            };
+            assert_eq!(metadata.to_bits(), Err(ZfpMetadataError::DimensionTooLarge));
+        }
+        if let Ok(too_large) = usize::try_from((1u64 << 48) + 1) {
+            let metadata = super::ZfpFieldMetadata {
+                scalar_type: ZfpScalarType::I32,
+                dims: [too_large, 0, 0, 0],
+            };
+            assert_eq!(metadata.to_bits(), Err(ZfpMetadataError::DimensionTooLarge));
+        }
+    }
+
+    #[test]
+    fn metadata_decode_checks_dimension_after_increment() {
+        for dimension in [1u64 << 32, 1u64 << 48] {
+            let bits = (dimension - 1) << 4;
+            let expected = usize::try_from(dimension)
+                .ok()
+                .map(|dim| super::ZfpFieldMetadata {
+                    scalar_type: ZfpScalarType::I32,
+                    dims: [dim, 0, 0, 0],
+                });
+            assert_eq!(super::ZfpFieldMetadata::from_bits(bits), expected);
+        }
+    }
 
     #[test]
     fn checked_size_bytes_matches_size_bytes_for_ordinary_fields() {
