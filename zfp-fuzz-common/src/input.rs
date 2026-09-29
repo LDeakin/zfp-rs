@@ -176,13 +176,11 @@ const MAX_BITS: u32 = 16658;
 ///
 /// A block always emits its exponent header (1 + 11 bits for `f64`) before it
 /// can honour a bit budget, so a `max_bits` below that is not a rate the
-/// encoder can meet — it overshoots, and `maximum_size`, which trusts
-/// `max_bits`, then under-reports the buffer the encoder needs. The C reference
-/// has the same behaviour (it wraps the budget subtraction and overshoots
-/// further), and `ZfpConfig::fixed_rate` clamps to `1 + 11` for exactly this
-/// reason. Only the unvalidated `ZfpConfig::expert` can reach it, so the
-/// generator declines to. Low-rate configurations are still covered through
-/// `FixedRate`, which does the clamping itself.
+/// encoder can meet: it overshoots. `maximum_size` once trusted `max_bits` and
+/// under-reported the buffer for these configurations, which this floor kept
+/// out of reach; it now counts the headers, so lowering the floor would extend
+/// fuzzing to them. Low-rate configurations are still covered through
+/// `FixedRate`, which clamps to the header itself.
 const MIN_EXPERT_BITS: u32 = 64;
 
 impl ModeSpec {

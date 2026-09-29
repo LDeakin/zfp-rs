@@ -115,9 +115,9 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     // does not hold at the extremes this target reaches — a block spanning a
     // wide dynamic range reconstructs its small elements far outside the
     // tolerance, and large magnitudes can reconstruct to infinity from finite
-    // input. Whether either is a `zfp-rs` divergence or inherent to zfp needs
-    // the C reference to settle, and the C oracle is deliberately kept out of
-    // the fuzz targets; see the known-open findings in `fuzz/README.md`.
+    // input. The first is inherent to zfp, as
+    // `tests/proptest/wide_range_accuracy.rs` shows; the second is a known-open
+    // finding in `fuzz/README.md`.
     //
     // Those modes are still fully fuzzed — the structural invariants,
     // determinism check and ASan coverage above all apply. Reversible mode is

@@ -77,45 +77,36 @@ Getting these wrong wedges a fuzzer on false crashes, so each exclusion is load-
 - **`from_mode(c.mode_bits()) == c`.** Parameters outside the short mode forms are legitimately
   reclassified (a `min_exp` below `ZFP_MIN_EXP` becomes reversible). The real invariant, and the
   one asserted, is that the encoding is *idempotent*.
-- **zfp's absolute error bound for fixed-accuracy mode.** See the second known-open finding below;
-  `check_accuracy` asserts only that a finite input does not decompress to a non-finite value.
+- **zfp's absolute error bound for fixed-accuracy mode.** A block spanning a wide dynamic range
+  runs out of precision above its small elements, which can then exceed the tolerance. C does the
+  same (zfp FAQ Q17), and `tests/proptest/wide_range_accuracy.rs` pins zfp-rs to C's bytes and
+  values there. `roundtrip` makes no accuracy assertion for the lossy modes.
+- **Finite input staying finite.** See the known-open finding below.
 - **`read_pos` staying in range.** `bits` is shared between the read and write buffers, so querying
   the read position on a write-only stream wraps. C's `stream_rtell` does the same and the
   differential tests assert against it.
-- **Anything about `ZfpConfig::expert` with out-of-range parameters.** It performs no validation,
+- **Anything about `ZfpConfig::expert` with out-of-range parameters.** Unlike
+  `ZfpConfig::try_expert`, it performs no validation,
   so it will build configs with `min_bits = 0` or `max_bits` above `ZFP_MAX_BITS`; those get
   misclassified into a short mode form and the encoding is then not idempotent. `config_mode`
   asserts only that such configs do not *panic*.
 
 ## Known-open findings
 
-### 1. Encoder can exceed `maximum_size` when `max_bits` is below the exponent header width.**
-A block emits its exponent header (1 + 11 bits for `f64`, 1 + 8 for `f32`) before it can honour a
-bit budget, so `ZfpConfig::expert(1, 1, 1, -1074)` makes every block overshoot, and
-`maximum_size` — which trusts `max_bits` — under-reports the buffer the encoder needs. For the
-`zfp-rs-ffi` drop-in that is a heap overflow in the C caller's buffer.
+### Finite input can decompress to infinity
 
-The C reference behaves the same way, and worse: its `maxbits - bits` subtraction wraps, so it
-overshoots further. `ZfpConfig::fixed_rate` clamps to `1 + 11` precisely to avoid this; only the
-unvalidated `ZfpConfig::expert` can reach it. `ModeSpec` therefore floors expert `max_bits` at
-`MIN_EXPERT_BITS` (`zfp-fuzz-common/src/input.rs`). Removing that floor reproduces the overshoot
-immediately. Fixing it properly means validating `expert()`, which is an API decision.
+Large finite magnitudes can reconstruct to infinity in the lossy modes, so `roundtrip` does not
+assert that finite input stays finite. No reproducer is committed, and whether C does the same is
+unsettled. `tests/proptest/wide_range_accuracy.rs` is the place to compare such a block against
+C; `[MAX, MAX, -MAX, MAX]` at tolerance 1 reconstructs exactly in both.
 
-### 2. Fixed-accuracy error bound over a wide dynamic range
+## Coverage gaps
 
-A block containing values many binades apart — `7.9e-24` alongside elements near `1e30` — exhausts
-the 64-bit precision cap, and the small elements then reconstruct far outside the requested
-tolerance (observed: an element `7.9e-24` decompressing to `-9.5e29` with a tolerance of `6.2e26`).
-
-Whether that is a `zfp-rs` divergence or inherent to zfp's block-floating-point representation
-needs the C reference to settle, and the C oracle is deliberately kept out of the fuzz targets.
-`seeds/roundtrip/known-open-fixed-accuracy-wide-dynamic-range.bin` reproduces it. Until it is
-adjudicated, `roundtrip` asserts only that finite inputs stay finite; the exact correctness oracle
-is reversible mode, which is unaffected.
-
-Settling it is a good use of the existing differential harness: extend
-`tests/proptest/compress_compat.rs` with wide-dynamic-range fixed-accuracy fields and compare
-element-by-element against `zfp_decompress`.
+- `ModeSpec` floors expert `max_bits` at `MIN_EXPERT_BITS` (64), a guard from before
+  `maximum_size` counted block headers. Budgets below the header are covered by
+  `tests/header_checked.rs`, `tests/rayon_low_budget.rs` and `tests/proptest/differences.rs`
+  instead.
+- Only `block_codec` varies `ZfpRounding`; `roundtrip` and `decompress_stream` use the default.
 
 ## When a fuzzer finds a crash
 
