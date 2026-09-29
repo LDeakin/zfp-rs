@@ -28,6 +28,12 @@ fn normal_f64s() -> impl Strategy<Value = Vec<f64>> {
     )
 }
 
+/// Values a reversible block codes in few bit planes. `ZFP_ROUND_LAST`'s bias
+/// is a no-op at full precision, which arbitrary bit patterns need.
+fn small_integer_f64s() -> impl Strategy<Value = Vec<f64>> {
+    prop::collection::vec((-1000i32..1000).prop_map(f64::from), 64)
+}
+
 /// Compress then decompress a 4x4x4 `f64` block with the given config.
 fn round_trip(config: &ZfpConfig, data: &[f64]) -> (Vec<u8>, Vec<f64>) {
     let mut bs = ZfpBitStream::new(4096);
@@ -114,16 +120,14 @@ proptest! {
         prop_assert_ne!(&tight, &first);
     }
 
-    /// Reversible mode is unaffected by `Never` and `First`, and its stream is
-    /// unaffected by all three.
+    /// Reversible mode, stream and values, is unaffected by rounding.
     ///
-    /// `Last` is the exception on decode: upstream's `revdecode.c` shares
-    /// `decode_ints` with the lossy path, so `inv_round` biases reversible
-    /// coefficients too. That makes `Last` + reversible lossy in C, and this
-    /// crate matches it rather than silently diverging.
+    /// Upstream's `revdecode.c` shares `decode_ints` with the lossy path, so
+    /// `inv_round` biases reversible coefficients too, and a `ZFP_ROUND_LAST`
+    /// build is lossy in reversible mode. This crate does not reproduce that.
     #[test]
-    fn reversible_is_lossless_except_under_round_last(
-        data in normal_f64s(),
+    fn reversible_is_lossless_under_every_rounding(
+        data in prop_oneof![normal_f64s(), small_integer_f64s()],
         rounding in rounding_strategy(),
     ) {
         let config = ZfpConfig::reversible().with_rounding(rounding);
@@ -147,9 +151,6 @@ proptest! {
             out.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
         );
 
-        if matches!(rounding, ZfpRounding::Last { .. }) {
-            return Ok(());
-        }
         for (&want, &got) in data.iter().zip(out.iter()) {
             prop_assert!(want.to_bits() == got.to_bits(), "{} != {}", want, got);
         }

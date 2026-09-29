@@ -70,9 +70,7 @@ pub fn encode_block<T: ZfpScalar>(
 /// Decode a contiguous 4^d block of scalars with the given config; return
 /// the number of bits read.
 ///
-/// `config` must match the one used to encode, rounding included. As
-/// upstream, [`ZfpRounding::Last`][crate::ZfpRounding::Last] biases reversible
-/// coefficients too, so reversible decoding is then lossy.
+/// `config` must match the one used to encode, rounding included.
 ///
 /// # Errors
 ///

@@ -71,7 +71,9 @@ pub enum ZfpRounding {
     /// `true`, fixed-accuracy encoding matches `Never` with twice the tolerance,
     /// which uses the same precision without biasing coefficients.
     ///
-    /// As upstream, this also biases reversible decoding, which is then lossy.
+    /// Reversible decoding is not biased, so it stays lossless. Upstream biases
+    /// it too, which makes a `ZFP_ROUND_LAST` build of `libzfp` lossy in
+    /// reversible mode.
     Last {
         /// `ZFP_WITH_TIGHT_ERROR`: one fewer bit plane in fixed-accuracy and expert mode.
         tight_error: bool,
