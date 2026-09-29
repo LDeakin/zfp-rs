@@ -1023,6 +1023,32 @@ fn stream_copy_reads_from_live_source_without_reparsing_bytes() {
     assert_eq!(dst_words[0] & 0xffff, 0xabcd);
 }
 
+/// C reads and writes at most 64 bits at a time, and a larger count is
+/// undefined behaviour; the C ABI reads or writes 64.
+#[test]
+fn stream_bit_counts_above_64_read_and_write_64_bits() {
+    let mut words = vec![0u64; 4];
+    let bs = unsafe {
+        ffi::stream_open(
+            words.as_mut_ptr().cast::<c_void>(),
+            words.len() * size_of::<u64>(),
+        )
+    };
+    assert!(!bs.is_null());
+
+    let huge = (1usize << 32) | 5;
+    unsafe {
+        assert_eq!(ffi::stream_write_bits(bs, u64::MAX, 65), 0);
+        assert_eq!(ffi::stream_write_bits(bs, 0x0123_4567_89ab_cdef, huge), 0);
+        assert_eq!(ffi::stream_wtell(bs), 128);
+        ffi::stream_rewind(bs);
+        assert_eq!(ffi::stream_read_bits(bs, 200), u64::MAX);
+        assert_eq!(ffi::stream_read_bits(bs, huge), 0x0123_4567_89ab_cdef);
+        assert_eq!(ffi::stream_rtell(bs), 128);
+        ffi::stream_close(bs);
+    }
+}
+
 fn strided_dims_for(rank: u32) -> (Vec<usize>, Vec<isize>) {
     match rank {
         1 => (vec![6], vec![2]),

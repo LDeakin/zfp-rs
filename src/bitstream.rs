@@ -775,6 +775,139 @@ mod tests {
         assert_eq!(pad_count, WSIZE - prev_buffer_bit_count);
     }
 
+    /// Every piece of cursor state, and the buffer, for comparing streams.
+    fn snapshot(s: &ZfpBitStream) -> (usize, u64, u32, bool, Vec<u64>) {
+        (
+            s.state.word_pos,
+            s.state.buffer,
+            s.state.bits,
+            s.state.overflowed,
+            s.words.clone(),
+        )
+    }
+
+    #[test]
+    fn when_bit_count_above_64_expect_64_bits() {
+        let mut words = setup();
+        words.write_word(WORD2);
+        words.write_word(WORD1);
+        let bytes = words.into_bytes();
+
+        for n in [65, 200, u32::MAX] {
+            let mut clamped = ZfpBitStream::from_bytes(&bytes);
+            let mut exact = ZfpBitStream::from_bytes(&bytes);
+            clamped.read_bits(3);
+            exact.read_bits(3);
+            assert_eq!(clamped.read_bits(n), exact.read_bits(64), "n={n}");
+            assert_eq!(snapshot(&clamped), snapshot(&exact), "n={n}");
+
+            let mut clamped = setup();
+            let mut exact = setup();
+            clamped.write_bits(1, 1);
+            exact.write_bits(1, 1);
+            assert_eq!(clamped.write_bits(WORD2, n), 0, "n={n}");
+            exact.write_bits(WORD2, 64);
+            assert_eq!(snapshot(&clamped), snapshot(&exact), "n={n}");
+        }
+    }
+
+    #[test]
+    fn when_put_bit_above_one_expect_wrapping_addition_as_in_c() {
+        use crate::bitstream::core::BitStreamStorageMut;
+
+        let mut s = setup();
+        s.write_bits(0, 32);
+        s.put_bit(u32::MAX);
+        assert_eq!(s.buffer_value(), 0xffff_ffff_0000_0000);
+        s.put_bit(1);
+        assert_eq!(s.buffer_value(), 0x0000_0001_0000_0000);
+        assert_eq!(s.buffer_bits(), 34);
+        s.read_bits(64);
+    }
+
+    #[test]
+    fn when_pad_past_end_expect_same_state_as_writing_word_by_word() {
+        for start in [0, 5, 64 + 63, 2 * 64, 3 * 64 + 1, 7 * 64 + 9] {
+            for n in [0, 1, 63, 64, 65, 3 * 64, 6 * 64 + 5, 11 * 64] {
+                let mut bulk = setup();
+                let mut stepwise = setup();
+                for s in [&mut bulk, &mut stepwise] {
+                    s.seek_write(start);
+                    s.write_bits(0x2a5, 10);
+                }
+                bulk.pad(n);
+                let mut remaining = n;
+                while remaining > 0 {
+                    let step = remaining.min(64);
+                    stepwise.write_bits(0, step as u32);
+                    remaining -= step;
+                }
+                assert_eq!(snapshot(&bulk), snapshot(&stepwise), "start={start} n={n}");
+            }
+        }
+    }
+
+    #[test]
+    fn when_pad_huge_expect_prompt_return_and_overflow() {
+        let mut s = setup();
+        s.write_bits(0x3, 2);
+        s.pad(u64::MAX);
+        assert!(s.overflowed());
+        assert_eq!(s.word_at(0), 0x3);
+        assert!(s.backing_words()[1..].iter().all(|&w| w == 0));
+    }
+
+    #[test]
+    fn when_copy_past_end_expect_same_state_as_copying_word_by_word() {
+        for src_start in [0, 3, 64, 2 * 64 + 17, 5 * 64] {
+            for dst_start in [0, 7, 3 * 64, 4 * 64 + 1] {
+                for n in [0, 5, 64, 65, 4 * 64 + 3, 9 * 64, 13 * 64 + 60] {
+                    let mut src_bulk = setup();
+                    src_bulk.write_word(WORD2);
+                    src_bulk.write_word(WORD1);
+                    src_bulk.write_word(0x0123_4567_89ab_cdef);
+                    let bytes = src_bulk.into_bytes();
+
+                    let mut src_bulk = ZfpBitStream::from_bytes(&bytes);
+                    let mut src_step = ZfpBitStream::from_bytes(&bytes);
+                    let mut dst_bulk = setup();
+                    let mut dst_step = setup();
+                    for s in [&mut src_bulk, &mut src_step] {
+                        s.seek_read(src_start);
+                    }
+                    for s in [&mut dst_bulk, &mut dst_step] {
+                        s.seek_write(dst_start);
+                    }
+
+                    dst_bulk.copy_from(&mut src_bulk, n);
+                    let mut remaining = n;
+                    while remaining > 0 {
+                        let step = remaining.min(64) as u32;
+                        let w = src_step.read_bits(step);
+                        dst_step.write_bits(w, step);
+                        remaining -= u64::from(step);
+                    }
+
+                    let at = format!("src={src_start} dst={dst_start} n={n}");
+                    assert_eq!(snapshot(&src_bulk), snapshot(&src_step), "{at}");
+                    assert_eq!(snapshot(&dst_bulk), snapshot(&dst_step), "{at}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn when_copy_huge_expect_prompt_return_and_overflow() {
+        let mut src = setup();
+        src.write_word(WORD1);
+        src.rewind();
+        let mut dst = setup();
+        dst.copy_from(&mut src, u64::MAX);
+        assert!(dst.overflowed());
+        assert_eq!(dst.word_at(0), WORD1);
+        assert!(dst.backing_words()[1..].iter().all(|&w| w == 0));
+    }
+
     #[test]
     fn when_stream_copy_expect_bits_copied_to_dest_bitstream() {
         let src_offset: u64 = u64::from(WSIZE) - 6;

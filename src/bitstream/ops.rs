@@ -1,5 +1,5 @@
 use crate::bitstream::core::{
-    BitStreamStorage, BitStreamStorageMut, WSIZE, align_impl, backing_bytes, committed_words,
+    BitStreamStorage, BitStreamStorageMut, align_impl, backing_bytes, committed_words, copy_impl,
     flush_impl, pad_impl, read_bits_impl, read_pos_impl, read_word_impl, rewind_impl,
     seek_read_impl, seek_write_impl, skip_impl, write_bits_impl, write_pos_impl, write_word_impl,
 };
@@ -20,7 +20,9 @@ use crate::types::{ZfpBitStreamWord, ZfpHeaderMask};
 pub trait ZfpBitStreamOps: BitStreamStorage {
     /// Read one full 64-bit word.
     fn read_word(&mut self) -> u64;
-    /// Read `n` bits (`n <= 64`), least significant first.
+    /// Read `n` bits, least significant first.
+    ///
+    /// `n` above 64, which C does not support, reads 64 bits.
     fn read_bits(&mut self, n: u32) -> u64;
     /// Read a single bit.
     fn read_bit(&mut self) -> bool;
@@ -141,7 +143,9 @@ pub trait ZfpBitStreamOps: BitStreamStorage {
 pub trait ZfpBitStreamMutOps: ZfpBitStreamOps + BitStreamStorageMut {
     /// Write one full 64-bit word.
     fn write_word(&mut self, word: u64);
-    /// Write the low `n` bits of `value` (`n <= 64`); return `value >> n`.
+    /// Write the low `n` bits of `value`; return `value >> n`.
+    ///
+    /// `n` above 64, which C does not support, writes 64 bits and returns 0.
     fn write_bits(&mut self, value: u64, n: u32) -> u64;
     /// Write a single bit.
     fn write_bit(&mut self, bit: bool);
@@ -151,12 +155,19 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps + BitStreamStorageMut {
     /// are dropped; see [`overflowed`][ZfpBitStreamOps::overflowed].
     fn seek_write(&mut self, offset: u64);
     /// Write `n` zero bits (`stream_pad`).
+    ///
+    /// Words past the end of the buffer are dropped together, so a huge `n`
+    /// takes no longer than filling the buffer.
     fn pad(&mut self, n: u64);
     /// Pad with zero bits to the next word boundary, so that
     /// [`as_bytes`][ZfpBitStreamOps::as_bytes] covers everything written;
     /// return the number of bits padded.
     fn flush(&mut self) -> u32;
     /// Copy `n` bits from `src` (`stream_copy`).
+    ///
+    /// Once both streams are past the end of their buffers, the remaining
+    /// words are skipped together, so a huge `n` takes no longer than
+    /// traversing both buffers.
     fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: u64);
 
     /// Write the header sections indicated by `mask` into this bitstream.
@@ -373,18 +384,7 @@ macro_rules! impl_bitstream_mut_ops {
             }
 
             pub fn copy_from(&mut self, src: &mut dyn ZfpBitStreamOps, n: u64) {
-                let mut remaining = n;
-                while remaining > u64::from(WSIZE) {
-                    let w = src.read_bits(WSIZE);
-                    write_bits_impl(self, w, WSIZE);
-                    remaining -= u64::from(WSIZE);
-                }
-                if remaining > 0 {
-                    #[allow(clippy::cast_possible_truncation, reason = "remaining <= 64")]
-                    let remaining = remaining as u32;
-                    let w = src.read_bits(remaining);
-                    write_bits_impl(self, w, remaining);
-                }
+                copy_impl(self, src, n);
             }
 
         #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]

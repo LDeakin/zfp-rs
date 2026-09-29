@@ -42,9 +42,12 @@ pub trait BitStreamStorage {
     }
 
     /// Bytes up to the cursor's word, unclamped (C `stream_size`).
+    ///
+    /// Saturates for a cursor seeked so far past the end that the count
+    /// overflows `usize`, which only a 32-bit target can reach.
     #[inline]
     fn byte_len(&self) -> usize {
-        self.state().word_pos * STREAM_WORD_BYTES
+        self.state().word_pos.saturating_mul(STREAM_WORD_BYTES)
     }
 }
 
@@ -92,7 +95,7 @@ fn read_word_raw<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u64 {
     let pos = stream.state().word_pos;
     // Zero past the end rather than panicking; C reads out of bounds here.
     let w = stream.words().get(pos).copied().unwrap_or(0);
-    stream.state_mut().word_pos += 1;
+    stream.state_mut().word_pos = pos.saturating_add(1);
     w
 }
 
@@ -106,7 +109,7 @@ fn write_word_raw<S: BitStreamStorageMut + ?Sized>(stream: &mut S, value: u64) {
     } else {
         stream.state_mut().overflowed = true;
     }
-    stream.state_mut().word_pos += 1;
+    stream.state_mut().word_pos = pos.saturating_add(1);
 }
 
 pub(super) fn committed_words<S: BitStreamStorage + ?Sized>(stream: &S) -> &[ZfpBitStreamWord] {
@@ -124,7 +127,10 @@ pub(super) fn read_word_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u6
     read_word_raw(stream)
 }
 
+/// Read `n` bits, least significant first; `n` above 64 is read as 64, the
+/// most C's `stream_read_bits` supports.
 pub(super) fn read_bits_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: u32) -> u64 {
+    let n = n.min(WSIZE);
     let mut value = stream.state().buffer;
     if stream.state().bits < n {
         loop {
@@ -132,7 +138,9 @@ pub(super) fn read_bits_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: u3
             {
                 let state = stream.state_mut();
                 state.buffer = word;
-                value += state.buffer << state.bits;
+                // Wrapping, as C's unsigned addition: `put_bit` can leave bits
+                // above the buffered count, which this would carry into.
+                value = value.wrapping_add(state.buffer << state.bits);
                 state.bits += WSIZE;
                 if state.bits >= n {
                     break;
@@ -206,11 +214,14 @@ pub(super) fn write_word_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, w
     write_word_raw(stream, word);
 }
 
+/// Write the low `n` bits of `value` and return `value >> n`; `n` above 64 is
+/// written as 64, the most C's `stream_write_bits` supports.
 pub(super) fn write_bits_impl<S: BitStreamStorageMut + ?Sized>(
     stream: &mut S,
     value: u64,
     n: u32,
 ) -> u64 {
+    let n = n.min(WSIZE);
     {
         let state = stream.state_mut();
         state.buffer = state.buffer.wrapping_add(value << state.bits);
@@ -240,7 +251,8 @@ pub(super) fn write_bits_impl<S: BitStreamStorageMut + ?Sized>(
 pub(super) fn write_bit_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, bit: u32) -> u32 {
     {
         let state = stream.state_mut();
-        state.buffer += u64::from(bit) << state.bits;
+        // Wrapping, as C's unsigned addition: a `bit` above 1 is added whole.
+        state.buffer = state.buffer.wrapping_add(u64::from(bit) << state.bits);
         state.bits += 1;
     }
     if stream.state().bits == WSIZE {
@@ -302,16 +314,75 @@ pub(super) fn skip_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: u64) {
     seek_read_impl(stream, pos);
 }
 
+/// Write `n` zero bits (C `stream_pad`).
+///
+/// Once the cursor is past the end of the buffer, every word left would be
+/// dropped, so they are skipped at once, leaving the stream as dropping them
+/// one at a time would. That bounds the work by the buffer's length.
+///
+/// Out of line: fixed-rate blocks are padded, and inlining this into the
+/// block encoders changed what else LLVM inlined there, costing reversible
+/// compression 5%.
+#[inline(never)]
 #[allow(clippy::cast_possible_truncation)]
 pub(super) fn pad_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, n: u64) {
     let mut bits = u64::from(stream.state().bits).saturating_add(n);
     while bits >= u64::from(WSIZE) {
+        if stream.state().word_pos >= stream.words().len() {
+            let words = usize::try_from(bits / u64::from(WSIZE)).unwrap_or(usize::MAX);
+            let state = stream.state_mut();
+            state.word_pos = state.word_pos.saturating_add(words);
+            state.buffer = 0;
+            state.overflowed = true;
+            bits %= u64::from(WSIZE);
+            break;
+        }
         let buffer = stream.state().buffer;
         write_word_raw(stream, buffer);
         stream.state_mut().buffer = 0;
         bits -= u64::from(WSIZE);
     }
     stream.state_mut().bits = bits as u32;
+}
+
+/// Copy `n` bits from `src` to `dst` (C `stream_copy`).
+///
+/// Once both cursors are past the end of their buffers, reads yield zeros and
+/// writes are dropped, so the remaining whole words are skipped at once. That
+/// leaves both streams exactly as copying them one at a time would, and bounds
+/// the work by the buffer lengths whatever `n` is.
+pub(super) fn copy_impl<D, S>(dst: &mut D, src: &mut S, n: u64)
+where
+    D: BitStreamStorageMut + ?Sized,
+    S: BitStreamStorage + ?Sized,
+{
+    let mut remaining = n;
+    while remaining > u64::from(WSIZE) {
+        let src_done = src.state().word_pos >= src.words().len() && src.state().buffer == 0;
+        let dst_done = dst.state().word_pos >= dst.words().len();
+        if src_done && dst_done {
+            // The words the loop below would copy, leaving the tail to it.
+            let skipped = (remaining - 1) / u64::from(WSIZE);
+            let words = usize::try_from(skipped).unwrap_or(usize::MAX);
+            let src_state = src.state_mut();
+            src_state.word_pos = src_state.word_pos.saturating_add(words);
+            let dst_state = dst.state_mut();
+            dst_state.word_pos = dst_state.word_pos.saturating_add(words);
+            dst_state.buffer = 0;
+            dst_state.overflowed = true;
+            remaining -= skipped * u64::from(WSIZE);
+            break;
+        }
+        let w = read_bits_impl(src, WSIZE);
+        write_bits_impl(dst, w, WSIZE);
+        remaining -= u64::from(WSIZE);
+    }
+    if remaining > 0 {
+        #[allow(clippy::cast_possible_truncation, reason = "remaining <= 64")]
+        let remaining = remaining as u32;
+        let w = read_bits_impl(src, remaining);
+        write_bits_impl(dst, w, remaining);
+    }
 }
 
 pub(super) fn align_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u32 {
@@ -379,7 +450,7 @@ impl<'a> BitReader<'a> {
             self.bits -= n;
         } else {
             let word = self.next_word();
-            self.word_pos += 1;
+            self.word_pos = self.word_pos.saturating_add(1);
             self.bits = self.bits + WSIZE - n;
             // `word >> (WSIZE - bits)`, and zero when `bits == 0`.
             self.buffer = (word >> 1) >> (WSIZE - 1 - self.bits);
@@ -443,7 +514,7 @@ impl<'a> BitWriter<'a> {
         } else {
             self.overflowed = true;
         }
-        self.word_pos += 1;
+        self.word_pos = self.word_pos.saturating_add(1);
     }
 
     /// Append the `n <= 64` bits of `value`, which must have no bits set above

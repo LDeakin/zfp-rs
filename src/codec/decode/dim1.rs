@@ -52,7 +52,7 @@ pub fn decode_block_1d_i32_default(
         &ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D1),
     );
     *block = decoded;
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 
 /// Decode a contiguous 1-D block of 4 `i64` values; return bits read.
@@ -67,7 +67,7 @@ pub fn decode_block_1d_i64_default(
         &ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D1),
     );
     *block = decoded;
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 
 /// Decode a contiguous 1-D block of 4 `f32` values; return bits read.
@@ -82,7 +82,7 @@ pub fn decode_block_1d_f32_default(
         &ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D1),
     );
     *block = decoded;
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 
 /// Decode a contiguous 1-D block of 4 `f64` values; return bits read.
@@ -97,7 +97,7 @@ pub fn decode_block_1d_f64_default(
         &ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D1),
     );
     *block = decoded;
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 
 // ---------------------------------------------------------------------------

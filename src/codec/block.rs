@@ -283,6 +283,32 @@ mod tests {
         }
     }
 
+    /// A write in word 0, or a seek near `u64::MAX`, wraps `read_pos`, which
+    /// underflowed the decoders' bit count.
+    #[test]
+    fn decoding_from_a_wrapped_read_position_counts_the_bits_read() {
+        let config = ZfpConfig::fixed_precision(16);
+        let mut block = [0f32; 4];
+
+        let mut written = ZfpBitStream::new(64);
+        written.write_bits(1, 1);
+        assert_eq!(written.read_pos(), u64::MAX);
+        let read = decode_block(&mut written, &config, &mut block, ZfpDimensionality::D1).unwrap();
+        assert!(read > 0);
+
+        let mut seeked = ZfpBitStream::new(64);
+        seeked.seek_read(u64::MAX - 100);
+        let read = decode_block(&mut seeked, &config, &mut block, ZfpDimensionality::D1).unwrap();
+        assert_eq!(
+            seeked.read_pos(),
+            (u64::MAX - 100).wrapping_add(read as u64)
+        );
+
+        let mut out = [0f32; 16];
+        let mut field = ZfpFieldMut::new(&mut out, [16usize]).unwrap();
+        written.decompress(&config, &mut field).unwrap();
+    }
+
     #[test]
     fn block_coding_rejects_wrong_lengths() {
         let config = ZfpConfig::reversible();

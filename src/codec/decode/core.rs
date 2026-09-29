@@ -446,7 +446,7 @@ macro_rules! strided_decode_wrappers {
             let before = bs.read_pos();
             let block = $decode(bs, &$default);
             unsafe { $scatter(&block, data, $($s),+) };
-            (bs.read_pos() - before) as usize
+            bs.read_pos().wrapping_sub(before) as usize
         }
 
         /// Decode a partial (boundary) strided block; return bits read.
@@ -464,7 +464,7 @@ macro_rules! strided_decode_wrappers {
             let before = bs.read_pos();
             let block = $decode(bs, &$default);
             unsafe { $scatter_partial(&block, data, $($n,)+ $($s),+) };
-            (bs.read_pos() - before) as usize
+            bs.read_pos().wrapping_sub(before) as usize
         }
 
         /// Decode a strided block with explicit stream parameters.
@@ -481,7 +481,7 @@ macro_rules! strided_decode_wrappers {
             let before = bs.read_pos();
             let block = $decode(bs, config);
             unsafe { $scatter(&block, data, $($s),+) };
-            (bs.read_pos() - before) as usize
+            bs.read_pos().wrapping_sub(before) as usize
         }
 
         /// Decode a partial strided block with explicit stream parameters.
@@ -499,7 +499,7 @@ macro_rules! strided_decode_wrappers {
             let before = bs.read_pos();
             let block = $decode(bs, config);
             unsafe { $scatter_partial(&block, data, $($n,)+ $($s),+) };
-            (bs.read_pos() - before) as usize
+            bs.read_pos().wrapping_sub(before) as usize
         }
     };
 }

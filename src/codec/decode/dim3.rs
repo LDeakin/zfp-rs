@@ -64,7 +64,7 @@ pub fn decode_block_3d_i32_default(
         bs,
         &ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D3),
     );
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 #[cfg(feature = "internals")]
 pub fn decode_block_3d_i64_default(
@@ -76,7 +76,7 @@ pub fn decode_block_3d_i64_default(
         bs,
         &ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D3),
     );
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 #[cfg(feature = "internals")]
 pub fn decode_block_3d_f32_default(
@@ -88,7 +88,7 @@ pub fn decode_block_3d_f32_default(
         bs,
         &ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D3),
     );
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 #[cfg(feature = "internals")]
 pub fn decode_block_3d_f64_default(
@@ -100,7 +100,7 @@ pub fn decode_block_3d_f64_default(
         bs,
         &ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D3),
     );
-    (bs.read_pos() - before) as usize
+    bs.read_pos().wrapping_sub(before) as usize
 }
 
 // ---------------------------------------------------------------------------

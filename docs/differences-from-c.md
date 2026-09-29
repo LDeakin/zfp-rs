@@ -10,6 +10,7 @@ Unless stated otherwise, the examples compress the 16 `f64` values `(0.37 * i).s
 | Difference | C | zfp-rs | Same bytes? |
 | --- | --- | --- | --- |
 | [Reading, writing or seeking past the end of a stream](#the-ends-of-a-stream) | Out-of-bounds access | Reads yield zeros; writes are dropped and reported | Yes, for well-formed streams |
+| [Bit counts above 64](#bit-counts-above-64) | Undefined | 64 bits | n/a |
 | [Invalid fields and buffers](#field-validation) | Trusted | Rejected with an error | Yes |
 | [Rounding mode](#rounding) | Build-time option | Per-call `ZfpRounding` | Yes, with matching settings |
 | [Parallel execution](#parallel-execution) | OpenMP compression only | Rayon compression, and decompression of fixed-rate streams | Yes |
@@ -31,9 +32,15 @@ zfp-rs instead:
 
 - reads zeros past the end, so a truncated stream decodes as if zero-padded ([`truncated_stream_decompresses_as_if_zero_padded`](../src/decompress.rs));
 - drops writes past the end and sets `overflowed()`, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall` ([`given_undersized_stream_when_compress_expect_buffer_too_small_not_panic`](../src/bitstream.rs), [`given_undersized_stream_when_write_header_expect_buffer_too_small_and_nothing_written`](../src/bitstream.rs));
+- drops the words that `pad` and `copy_from` would write past the end all at once, leaving the stream as writing them one at a time would ([`when_pad_past_end_expect_same_state_as_writing_word_by_word`](../src/bitstream.rs), [`when_copy_past_end_expect_same_state_as_copying_word_by_word`](../src/bitstream.rs)), so a huge count returns promptly ([`when_pad_huge_expect_prompt_return_and_overflow`](../src/bitstream.rs), [`when_copy_huge_expect_prompt_return_and_overflow`](../src/bitstream.rs)), where C's `stream_pad` and `stream_copy` (lines 381 and 413) write every word;
 - keeps a seek offset past the end, as C does ([`seek_past_end_compat`](../tests/proptest/bitstream_compat.rs)), but then reads zeros and drops writes ([`when_seek_read_past_end_expect_offset_kept_and_zeros_read`](../src/bitstream.rs), [`when_seek_write_past_end_expect_offset_kept_and_writes_dropped`](../src/bitstream.rs)), where C's `stream_rseek` and `stream_wseek` (lines 340 and 356) load the out-of-bounds word under an offset that is not word-aligned.
 
 Within the buffer, both give the same bytes and positions ([`bitstream_compat`](../tests/proptest/bitstream_compat.rs)).
+
+### Bit counts above 64
+
+C's `stream_read_bits` and `stream_write_bits` take at most 64 bits ([`bitstream.inl`](../zfp/include/zfp/bitstream.inl) lines 252 and 287), and shift out of range for a larger count, which is undefined behaviour.
+zfp-rs reads or writes 64 bits for any larger count ([`when_bit_count_above_64_expect_64_bits`](../src/bitstream.rs)), as does the C ABI ([`stream_bit_counts_above_64_read_and_write_64_bits`](../zfp-rs-ffi/tests/ffi_compat.rs)).
 
 ### Field validation
 

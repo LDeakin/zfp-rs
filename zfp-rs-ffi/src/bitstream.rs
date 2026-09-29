@@ -391,9 +391,10 @@ pub unsafe extern "C" fn stream_read_bits(stream: *mut bitstream, n: bitstream_c
         return 0;
     };
 
-    #[allow(clippy::cast_possible_truncation)]
-    // FFI: bitstream_count is bounded to u16 range by the C API contract.
-    wrapper.inner.read_bits(n as u32)
+    // C reads at most 64 bits; zfp-rs reads 64 for any larger count.
+    wrapper
+        .inner
+        .read_bits(u32::try_from(n).unwrap_or(u32::MAX))
 }
 
 // ===========================================================================
@@ -419,9 +420,10 @@ pub unsafe extern "C" fn stream_write_bits(
         return 0;
     };
 
-    #[allow(clippy::cast_possible_truncation)]
-    // FFI: bitstream_count is bounded to u16 range by the C API contract.
-    wrapper.inner.write_bits(value, n as u32)
+    // C writes at most 64 bits; zfp-rs writes 64 for any larger count.
+    wrapper
+        .inner
+        .write_bits(value, u32::try_from(n).unwrap_or(u32::MAX))
 }
 
 // ===========================================================================
