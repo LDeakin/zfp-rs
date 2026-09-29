@@ -200,7 +200,6 @@ pub(crate) use pad_strided;
 /// `MIN(maxprec, MAX(0, maxexp - minexp + 2*dims + 2))`, or `+ 1` under
 /// `ZFP_WITH_TIGHT_ERROR`. `dims` is the number of spatial dimensions (1–4).
 #[inline]
-#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // u32→i32 for exponent calc
 pub(crate) fn precision_f(
     maxexp: i32,
     maxprec: u32,
@@ -209,8 +208,10 @@ pub(crate) fn precision_f(
     tight_error: bool,
 ) -> u32 {
     let slack = if tight_error { 1 } else { 2 };
-    let raw = maxexp - minexp + 2 * dims as i32 + slack;
-    maxprec.min(raw.max(0) as u32)
+    // Both exponents may span the full i32 range. Clamp before converting
+    // back to u32 so neither subtraction nor conversion wraps.
+    let raw = i64::from(maxexp) - i64::from(minexp) + 2 * i64::from(dims) + i64::from(slack);
+    u32::try_from(raw.clamp(0, i64::from(maxprec))).expect("bounded by maxprec")
 }
 
 /// Largest `|x|` in a block; NaNs are skipped, as C's `max < f` test never
@@ -680,5 +681,15 @@ mod tests {
         assert_eq!(precision_f(0, 12, -149, 3, true), 12);
         // clamped at zero
         assert_eq!(precision_f(-149, 64, 0, 1, true), 0);
+    }
+
+    #[test]
+    fn precision_handles_exponent_extremes() {
+        for tight_error in [false, true] {
+            assert_eq!(precision_f(-332, 64, i32::MAX, 1, tight_error), 0);
+            assert_eq!(precision_f(-332, 64, i32::MIN, 1, tight_error), 64);
+            assert_eq!(precision_f(i32::MAX, 64, i32::MIN, 4, tight_error), 64);
+            assert_eq!(precision_f(i32::MIN, 64, i32::MAX, 4, tight_error), 0);
+        }
     }
 }

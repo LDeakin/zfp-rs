@@ -21,6 +21,9 @@ use std::fmt;
 pub enum ZfpConfigError {
     /// Expert parameters do not describe a valid codec configuration.
     InvalidParameters,
+    /// The requested fixed rate is negative or non-finite, or gives a block
+    /// budget of zero bits or above [`ZFP_MAX_BITS`].
+    InvalidRate,
     /// The mode word would change at least one expert parameter.
     UnrepresentableMode,
 }
@@ -29,6 +32,7 @@ impl fmt::Display for ZfpConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidParameters => write!(f, "invalid ZFP compression parameters"),
+            Self::InvalidRate => write!(f, "invalid ZFP fixed rate"),
             Self::UnrepresentableMode => {
                 write!(
                     f,
@@ -356,17 +360,48 @@ impl ZfpConfig {
     ///
     /// Pass [`ZfpStreamAlignment::WordAligned`] to pad each block to the next
     /// 64-bit word boundary; pass [`ZfpStreamAlignment::Unaligned`] for exact bit packing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the rate is negative or non-finite, rounds to zero bits for
+    /// an integer type, or exceeds the supported fixed-rate block budget.
+    /// Use [`try_fixed_rate`][Self::try_fixed_rate] to handle these cases.
     #[must_use]
-    #[allow(clippy::cast_possible_truncation)] // n≥1, rate>0, result fits in u32 for valid params
-    #[allow(clippy::cast_sign_loss)] // f64→u32 for bit count
     pub fn fixed_rate(
         rate: f64,
         ty: ZfpScalarType,
         dims: ZfpDimensionality,
         align: ZfpStreamAlignment,
     ) -> Self {
+        Self::try_fixed_rate(rate, ty, dims, align).expect("invalid ZFP fixed rate")
+    }
+
+    /// Fixed-rate mode with checked rate conversion and alignment.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpConfigError::InvalidRate`] if `rate` is negative or
+    /// non-finite, rounds to zero bits for an integer type, or produces a block
+    /// budget above [`ZFP_MAX_BITS`], including after word alignment. A zero
+    /// rate is raised to the minimum for float types, like any rate too small
+    /// for the block header.
+    pub fn try_fixed_rate(
+        rate: f64,
+        ty: ZfpScalarType,
+        dims: ZfpDimensionality,
+        align: ZfpStreamAlignment,
+    ) -> Result<Self, ZfpConfigError> {
+        if !rate.is_finite() || rate < 0.0 {
+            return Err(ZfpConfigError::InvalidRate);
+        }
         let n = 1u32 << (2 * u32::from(dims));
-        let mut bits = (f64::from(n) * rate + 0.5).floor() as u32;
+        let rounded = (f64::from(n) * rate + 0.5).floor();
+        if !rounded.is_finite() || rounded > f64::from(ZFP_MAX_BITS) {
+            return Err(ZfpConfigError::InvalidRate);
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        // The checks above bound rounded to [0, ZFP_MAX_BITS].
+        let mut bits = rounded as u32;
 
         match ty {
             ZfpScalarType::F32 if bits < 1 + 8 => {
@@ -379,22 +414,29 @@ impl ZfpConfig {
         }
 
         if align == ZfpStreamAlignment::WordAligned {
-            bits = bits.next_multiple_of(STREAM_WORD_BITS);
+            bits = bits
+                .checked_next_multiple_of(STREAM_WORD_BITS)
+                .ok_or(ZfpConfigError::InvalidRate)?;
         }
 
-        Self {
+        if bits == 0 || bits > ZFP_MAX_BITS {
+            return Err(ZfpConfigError::InvalidRate);
+        }
+
+        Ok(Self {
             min_bits: bits,
             max_bits: bits,
             max_prec: ZFP_MAX_PREC,
             min_exp: ZFP_MIN_EXP,
             rounding: ZfpRounding::Never,
-        }
+        })
     }
 
     /// Fixed-precision mode.
     ///
     /// Configures the stream for fixed-precision compression with the given
-    /// number of uncompressed bits per scalar.
+    /// number of uncompressed bits per scalar. Zero selects the full precision
+    /// of 64 bits; values above 64 are clamped to 64.
     #[must_use]
     pub fn fixed_precision(precision: u32) -> Self {
         Self {
@@ -413,7 +455,9 @@ impl ZfpConfig {
     /// Fixed-accuracy mode.
     ///
     /// Configures the stream for fixed-accuracy compression with the given
-    /// absolute error tolerance.
+    /// absolute error tolerance. Zero, negative values, and NaN select the
+    /// default minimum exponent. Positive infinity follows `frexp` semantics
+    /// and selects exponent `-1`.
     #[must_use]
     pub fn fixed_accuracy(tolerance: f64) -> Self {
         let emin = if tolerance > 0.0 {
@@ -704,11 +748,12 @@ impl Default for ZfpConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::ZfpConfig;
+    use super::STREAM_WORD_BITS;
     use crate::config::ZfpStreamAlignment;
     use crate::types::{
         ZFP_MAX_PREC, ZFP_MIN_BITS, ZFP_MIN_EXP, ZfpDimensionality, ZfpMode, ZfpScalarType,
     };
+    use crate::{ZFP_MAX_BITS, ZfpConfig, ZfpConfigError};
 
     #[test]
     fn rounding_defaults_to_never_and_round_trips() {
@@ -810,6 +855,119 @@ mod tests {
         );
         assert_eq!(config.min_bits(), 12);
         assert_eq!(config.max_bits(), 12);
+    }
+
+    #[test]
+    fn fixed_rate_rejects_invalid_and_unrepresentable_rates() {
+        use ZfpDimensionality::D1;
+        use ZfpScalarType::{F64, I32};
+        for rate in [
+            f64::NEG_INFINITY,
+            -1.0,
+            -f64::MIN_POSITIVE,
+            f64::NAN,
+            f64::INFINITY,
+            f64::from(u32::MAX) / 4.0,
+            f64::MAX,
+        ] {
+            for align in [
+                ZfpStreamAlignment::Unaligned,
+                ZfpStreamAlignment::WordAligned,
+            ] {
+                assert_eq!(
+                    ZfpConfig::try_fixed_rate(rate, F64, D1, align),
+                    Err(ZfpConfigError::InvalidRate),
+                    "rate={rate:?}, align={align:?}"
+                );
+            }
+        }
+        assert_eq!(
+            ZfpConfig::try_fixed_rate(0.01, I32, D1, ZfpStreamAlignment::Unaligned),
+            Err(ZfpConfigError::InvalidRate)
+        );
+        assert_eq!(
+            ZfpConfig::try_fixed_rate(
+                f64::from(ZFP_MAX_BITS) / 4.0,
+                I32,
+                D1,
+                ZfpStreamAlignment::Unaligned
+            )
+            .unwrap()
+            .max_bits(),
+            ZFP_MAX_BITS
+        );
+        assert_eq!(
+            ZfpConfig::try_fixed_rate(
+                f64::from(ZFP_MAX_BITS) / 4.0,
+                I32,
+                D1,
+                ZfpStreamAlignment::WordAligned
+            ),
+            Err(ZfpConfigError::InvalidRate)
+        );
+        let aligned_max = ZFP_MAX_BITS / STREAM_WORD_BITS * STREAM_WORD_BITS;
+        assert_eq!(
+            ZfpConfig::try_fixed_rate(
+                f64::from(aligned_max) / 4.0,
+                I32,
+                D1,
+                ZfpStreamAlignment::WordAligned
+            )
+            .unwrap()
+            .max_bits(),
+            aligned_max
+        );
+        assert_eq!(
+            ZfpConfig::try_fixed_rate(
+                f64::from(aligned_max + 1) / 4.0,
+                I32,
+                D1,
+                ZfpStreamAlignment::WordAligned
+            ),
+            Err(ZfpConfigError::InvalidRate)
+        );
+    }
+
+    /// A zero rate is too small for any block, like any rate below the header:
+    /// float types are raised to the header, and integer types have no budget.
+    #[test]
+    fn fixed_rate_raises_a_zero_rate_to_the_float_header() {
+        use ZfpDimensionality::D1;
+        use ZfpScalarType::{F32, F64, I32};
+        use ZfpStreamAlignment::{Unaligned, WordAligned};
+        for rate in [-0.0, 0.0, 0.01] {
+            let bits =
+                |ty, align| ZfpConfig::try_fixed_rate(rate, ty, D1, align).map(|c| c.max_bits());
+            assert_eq!(bits(F32, Unaligned), Ok(1 + 8), "rate={rate:?}");
+            assert_eq!(bits(F64, Unaligned), Ok(1 + 11), "rate={rate:?}");
+            assert_eq!(
+                bits(F64, WordAligned),
+                Ok(STREAM_WORD_BITS),
+                "rate={rate:?}"
+            );
+            assert_eq!(
+                bits(I32, Unaligned),
+                Err(ZfpConfigError::InvalidRate),
+                "rate={rate:?}"
+            );
+        }
+        assert_eq!(
+            ZfpConfig::fixed_rate(0.0, F64, D1, Unaligned).max_bits(),
+            1 + 11
+        );
+    }
+
+    #[test]
+    fn legacy_precision_and_tolerance_edge_values_are_stable() {
+        assert_eq!(ZfpConfig::fixed_precision(0).max_prec(), ZFP_MAX_PREC);
+        assert_eq!(
+            ZfpConfig::fixed_precision(u32::MAX).max_prec(),
+            ZFP_MAX_PREC
+        );
+        for tolerance in [-1.0, -0.0, 0.0, f64::NEG_INFINITY, f64::NAN] {
+            assert_eq!(ZfpConfig::fixed_accuracy(tolerance).min_exp(), ZFP_MIN_EXP);
+        }
+        assert_eq!(ZfpConfig::fixed_accuracy(f64::INFINITY).min_exp(), -1);
     }
 
     #[test]

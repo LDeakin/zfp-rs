@@ -6,8 +6,8 @@ use crate::abi::{
 };
 use crate::util::c_dims_to_rust;
 use zfp_rs::{
-    STREAM_WORD_BITS, ZfpConfig, ZfpExecution, ZfpHeaderMask, ZfpRounding, ZfpScalarType,
-    ZfpStreamAlignment,
+    STREAM_WORD_BITS, ZFP_MAX_PREC, ZFP_MIN_EXP, ZfpConfig, ZfpExecution, ZfpHeaderMask,
+    ZfpRounding, ZfpScalarType,
 };
 
 fn params_from_c(stream: &zfp_stream) -> (uint, uint, uint, i32) {
@@ -436,32 +436,39 @@ pub unsafe extern "C" fn zfp_stream_set_rate(
     let rust_ty = crate::util::zfp_type_to_rust_type(ty);
     let Some(rust_ty) = rust_ty else { return 0.0 };
 
-    let stream = unsafe { &mut *stream };
     let n = 1u32 << (2 * u32::from(rust_dims));
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    // Rate is positive and n fits in u32, so this cast is safe.
-    let mut bits = (f64::from(n) * rate + 0.5).floor() as u32;
-    match rust_ty {
-        ZfpScalarType::F32 if bits < 1 + 8 => {
-            bits = 1 + 8;
-        }
-        ZfpScalarType::F64 if bits < 1 + 11 => {
-            bits = 1 + 11;
-        }
-        _ => {}
-    }
-    let align = align == zfp_true;
-    if align {
-        bits = bits.next_multiple_of(STREAM_WORD_BITS);
-    }
-    let stream_align = if align {
-        ZfpStreamAlignment::WordAligned
-    } else {
-        ZfpStreamAlignment::Unaligned
+    let Some(bits) = c_rate_bits(rate, rust_ty, n, align == zfp_true) else {
+        return 0.0;
     };
-    let zfp = ZfpConfig::fixed_rate(rate, rust_ty, rust_dims, stream_align);
+    // C sets the budget unvalidated, which `ZfpConfig::try_fixed_rate` would
+    // reject for integer types that round to no bits, or above `ZFP_MAX_BITS`.
+    let zfp = ZfpConfig::expert(bits, bits, ZFP_MAX_PREC, ZFP_MIN_EXP);
+    let stream = unsafe { &mut *stream };
     write_params(stream, &zfp);
     f64::from(bits) / f64::from(n)
+}
+
+/// The block budget C's `zfp_stream_set_rate` computes for `n` values per
+/// block, or `None` where C's conversion to `uint` is undefined, or its word
+/// alignment wraps around to zero.
+fn c_rate_bits(rate: f64, ty: ZfpScalarType, n: u32, align: bool) -> Option<uint> {
+    let rounded = (f64::from(n) * rate + 0.5).floor();
+    // Also false for NaN.
+    if !(0.0..=f64::from(uint::MAX)).contains(&rounded) {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // The check above bounds `rounded` to the range of `uint`.
+    let mut bits = rounded as uint;
+    match ty {
+        ZfpScalarType::F32 => bits = bits.max(1 + 8),
+        ZfpScalarType::F64 => bits = bits.max(1 + 11),
+        ZfpScalarType::I32 | ZfpScalarType::I64 => {}
+    }
+    if align {
+        bits = bits.checked_next_multiple_of(STREAM_WORD_BITS)?;
+    }
+    Some(bits)
 }
 
 #[unsafe(no_mangle)]

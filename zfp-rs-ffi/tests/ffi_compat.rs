@@ -502,6 +502,132 @@ fn stream_maximum_size_holds_blocks_longer_than_max_bits() {
     }
 }
 
+const ZFP_MAX_BITS: u32 = 16658;
+
+fn stream_params(zfp: *const ffi::zfp_stream) -> (u32, u32, u32, i32) {
+    unsafe {
+        (
+            (*zfp).minbits,
+            (*zfp).maxbits,
+            (*zfp).maxprec,
+            (*zfp).minexp,
+        )
+    }
+}
+
+/// `zfp_stream_set_rate` returns C's rate and sets C's parameters wherever
+/// C's conversion to `uint` is defined, including rates that round to no bits
+/// and budgets above `ZFP_MAX_BITS`.
+#[test]
+fn set_rate_matches_c_where_c_is_defined() {
+    let types = [
+        zfp_sys::zfp_type_zfp_type_int32,
+        zfp_sys::zfp_type_zfp_type_int64,
+        zfp_sys::zfp_type_zfp_type_float,
+        zfp_sys::zfp_type_zfp_type_double,
+    ];
+    // Bits per block before rounding, from the lowest that rounds to zero.
+    let budgets = [
+        -0.5,
+        -0.0,
+        0.0,
+        0.4,
+        1.0,
+        8.0,
+        9.0,
+        11.0,
+        12.0,
+        64.0,
+        65.0,
+        f64::from(ZFP_MAX_BITS),
+        f64::from(ZFP_MAX_BITS + 1),
+        f64::from(u32::MAX - 63),
+        f64::from(u32::MAX),
+    ];
+    for ty in types {
+        for dims in 1..=4u32 {
+            let n = f64::from(1u32 << (2 * dims));
+            for bits in budgets {
+                for align in [ffi::zfp_false, ffi::zfp_true] {
+                    // C's word alignment wraps this budget around to zero,
+                    // which `rate_boundaries.rs` covers.
+                    if align == ffi::zfp_true && bits > f64::from(u32::MAX - 63) {
+                        continue;
+                    }
+                    let rate = bits / n;
+                    unsafe {
+                        let c = zfp_sys::zfp_stream_open(std::ptr::null_mut());
+                        let rs = ffi::zfp_stream_open(std::ptr::null_mut());
+                        let c_rate = zfp_sys::zfp_stream_set_rate(c, rate, ty, dims, align);
+                        let rs_rate = ffi::zfp_stream_set_rate(rs, rate, ffi_type(ty), dims, align);
+                        let case = format!("ty={ty:?} dims={dims} rate={rate:?} align={align}");
+                        assert_eq!(rs_rate.to_bits(), c_rate.to_bits(), "{case}");
+                        assert_eq!(stream_params(rs), stream_params(c), "{case}");
+                        zfp_sys::zfp_stream_close(c);
+                        ffi::zfp_stream_close(rs);
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Budgets that `zfp_stream_set_rate` sets as C does, but that
+/// `ZfpConfig::try_fixed_rate` rejects, compress as in C: to nothing for
+/// integers that round to no bits, and to padded blocks above `ZFP_MAX_BITS`.
+#[test]
+fn set_rate_budgets_outside_try_fixed_rate_compress_as_c() {
+    let mut ints: Vec<i32> = (0..16).map(|i| i * 1000 - 7000).collect();
+    let mut doubles: Vec<f64> = (0..16)
+        .map(|i| (0.37 * f64::from(i)).sin() * 100.0)
+        .collect();
+    let cases: [(zfp_sys::zfp_type, *mut c_void, f64); 4] = [
+        (
+            zfp_sys::zfp_type_zfp_type_int32,
+            ints.as_mut_ptr().cast(),
+            0.0,
+        ),
+        (
+            zfp_sys::zfp_type_zfp_type_int32,
+            ints.as_mut_ptr().cast(),
+            f64::from(ZFP_MAX_BITS + 1),
+        ),
+        (
+            zfp_sys::zfp_type_zfp_type_double,
+            doubles.as_mut_ptr().cast(),
+            f64::from(ZFP_MAX_BITS + 1),
+        ),
+        (
+            zfp_sys::zfp_type_zfp_type_double,
+            doubles.as_mut_ptr().cast(),
+            20000.0,
+        ),
+    ];
+    for (ty, data, bits) in cases {
+        let rate = bits / 4.0;
+        let mut c = CStream::new();
+        let mut rs = FfiStream::new();
+        let (c_size, rs_size) = unsafe {
+            zfp_sys::zfp_stream_set_rate(c.zfp, rate, ty, 1, ffi::zfp_false);
+            ffi::zfp_stream_set_rate(rs.zfp, rate, ffi_type(ty), 1, ffi::zfp_false);
+            let c_field = c_field(data, ty, &[16]);
+            let rs_field = ffi_field_from(data, ffi_type(ty), &[16]);
+            let sizes = (
+                zfp_sys::zfp_compress(c.zfp, c_field),
+                ffi::zfp_compress(rs.zfp, rs_field),
+            );
+            zfp_sys::zfp_field_free(c_field);
+            ffi::zfp_field_free(rs_field);
+            sizes
+        };
+        c.flush();
+        rs.flush();
+        let case = format!("ty={ty:?} bits={bits}");
+        assert_eq!(rs_size, c_size, "{case}");
+        assert_eq!(rs.bytes(), c.bytes(), "{case}");
+    }
+}
+
 #[derive(Clone, Debug)]
 enum Mode {
     FixedRate(u32),

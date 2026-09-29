@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `ZfpConfig::try_expert`, which rejects invalid expert-mode parameters.
+- `ZfpConfig::try_fixed_rate`, which rejects invalid rates.
 - `ZfpConfig::checked_mode_bits` and `ZfpConfigError`, which report parameters that a header's mode word cannot hold.
 - `field::checked_index_span`, the overflow-checked form of `field::index_span`.
 - `ZfpFieldError`, returned by the field constructors and setters, and `ZfpFieldMut::set_strides`.
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpMetadataError::Null` is renamed `InvalidDims` and also covers malformed dimensions such as `[0, 5, 0, 0]`. `ZfpMetadataError` and `ZfpHeaderError` are `#[non_exhaustive]`.
 - **Breaking**: `ZfpConfig::maximum_size` takes `impl ZfpDims` instead of `&[usize]` and returns `None` instead of `0` for malformed dimensions or overflow. The zero-padded `[usize; 4]` from `ZfpField::dims` now gives the right size rather than just the header's.
 - **Breaking**: `ZfpConfig::{rate, precision, accuracy}` return `None` instead of `0` in other modes. `ZfpConfig::from_mode` is renamed `from_mode_bits` and `compression_mode` is renamed `mode`. The `*_from_params` functions require `ffi`.
+- **Breaking**: `ZfpConfig::fixed_rate` panics for a rate that `try_fixed_rate` rejects: negative, NaN or infinite, rounding to no bits for an integer type, or giving more than `ZFP_MAX_BITS` bits per block. It raised a negative or NaN rate to the block header for float types, gave integer types a zero budget, and for an infinite or very large rate gave a budget above `ZFP_MAX_BITS`, or overflowed if word-aligned.
 - **Breaking**: `ZfpScalar::scalar_type()` is replaced by the associated const `SCALAR_TYPE`. `ZfpScalarType` variants are renamed `I32`, `I64`, `F32` and `F64`, and its methods take `self` by value.
 - **Breaking**: `ZfpStreamAlignment::None` is renamed `Unaligned`, to avoid confusion with `Option::None`. `ZfpHeaderMask::NONE` is removed in favour of `empty()`, and `ZfpDims::dimensionality` and `ZfpStrides::dimensionality` are removed.
 - **Breaking**: `ZfpBitStreamOps` and `ZfpBitStreamMutOps` are sealed.
@@ -45,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Field constructors and setters return `ZfpFieldError::ShapeTooLarge` for overlapping strides whose element or block count overflows. Compressing such a field panicked in debug builds and wrote nothing in release. For unchecked fields, `num_elements`, `num_blocks`, `index_span` and `size_bytes` saturate, and the C ABI rejects a `zfp_field` whose span overflows.
 - `write_header` returns `ZfpCompressionError::Config`, writing nothing, if the mode word cannot hold the config's parameters: a budget of 0 or above 32768 bits, or a `min_exp` outside -16495 to 16272. It wrote a different config, so decoding with the header could change values and misplace every block after the first.
 - Rayon decompression decodes serially when a fixed-rate `max_bits` is below the float block header (9 bits for `f32`, 12 for `f64`), which only expert configs allow. Block sizes then vary, so it read blocks from the wrong offsets.
+- Lossy float compression no longer overflows computing the precision for an expert `min_exp` near `i32::MIN` or `i32::MAX`, which panicked in debug builds and wrapped in release.
+- `zfp_stream_set_rate` returns `0` and leaves the stream unchanged for a rate that is NaN or rounds outside `0..=u32::MAX` bits per block, where C's conversion is undefined, and for a word-aligned budget that C wraps around to zero, which panicked in debug builds.
 - Writing past the end of a bitstream no longer panics: the write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
 - Seeking past the end of a bitstream keeps the offset, as in C, instead of clamping it; reads there yield zeros and writes are dropped. Decoding a truncated stream no longer moves the cursor backwards, which panicked in debug builds and made the strided `codec::block` decoders, and so the C ABI's `zfp_decode_block_*`, return a wrapped bit count.
 - Rayon decompression leaves the cursor where serial decompression does, and returns the same size, truncated streams included.
