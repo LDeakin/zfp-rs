@@ -70,7 +70,7 @@ fn roundtrip_mode_header(bs: &mut impl ZfpBitStreamMutOps, config: ZfpConfig, bi
 #[test]
 fn mode_budget_boundaries_on_owned_and_borrowed_streams() {
     for budget in [1, 32768] {
-        let mut owned = ZfpBitStream::new(12000);
+        let mut owned = ZfpBitStream::new(12000).unwrap();
         roundtrip_two_blocks(&mut owned, budget);
         let mut words = vec![0u64; 1500];
         let mut borrowed = ZfpBitStreamRefMut::from_words(&mut words);
@@ -83,7 +83,7 @@ fn mode_budget_boundaries_on_owned_and_borrowed_streams() {
             config.checked_mode_bits(),
             Err(ZfpConfigError::UnrepresentableMode)
         );
-        let mut owned = ZfpBitStream::new(64);
+        let mut owned = ZfpBitStream::new(64).unwrap();
         reject_without_writing(&mut owned, config);
         let mut words = [0u64; 8];
         let mut borrowed = ZfpBitStreamRefMut::from_words(&mut words);
@@ -96,7 +96,7 @@ fn mode_exponent_boundaries_and_codec_validation() {
     for exponent in [-16495, -1075, -1074, 843, 844, 16272] {
         let config = ZfpConfig::expert(2, 100, 30, exponent).unwrap();
         assert!(config.checked_mode_bits().is_ok());
-        let mut owned = ZfpBitStream::new(16);
+        let mut owned = ZfpBitStream::new(16).unwrap();
         roundtrip_mode_header(&mut owned, config, 64);
         let mut words = [0u64; 2];
         let mut borrowed = ZfpBitStreamRefMut::from_words(&mut words);
@@ -108,7 +108,7 @@ fn mode_exponent_boundaries_and_codec_validation() {
             config.checked_mode_bits(),
             Err(ZfpConfigError::UnrepresentableMode)
         );
-        let mut owned = ZfpBitStream::new(16);
+        let mut owned = ZfpBitStream::new(16).unwrap();
         reject_without_writing(&mut owned, config);
         let mut words = [0u64; 2];
         let mut borrowed = ZfpBitStreamRefMut::from_words(&mut words);
@@ -116,7 +116,7 @@ fn mode_exponent_boundaries_and_codec_validation() {
     }
     for (exponent, bits) in [(-1075, 12), (-1074, 64), (843, 12), (844, 64)] {
         let config = ZfpConfig::expert(1, 16658, 64, exponent).unwrap();
-        let mut owned = ZfpBitStream::new(16);
+        let mut owned = ZfpBitStream::new(16).unwrap();
         roundtrip_mode_header(&mut owned, config, bits);
     }
     assert_eq!(
@@ -129,7 +129,7 @@ fn mode_exponent_boundaries_and_codec_validation() {
 fn headers_without_mode_do_not_require_representable_config() {
     let config = ZfpConfig::expert(40000, 40000, 64, -1075).unwrap();
     let field = ZfpField::new(&INPUT, [8usize]).unwrap();
-    let mut bs = ZfpBitStream::new(32);
+    let mut bs = ZfpBitStream::new(32).unwrap();
     assert_eq!(
         bs.write_header(&config, &field.metadata(), ZfpHeaderMask::MAGIC),
         Ok(32)

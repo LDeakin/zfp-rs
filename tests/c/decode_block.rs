@@ -191,7 +191,7 @@ macro_rules! decode_block_tests {
             }
 
             fn encode_and_rewind(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 encode_block::<$scalar>(&mut bs, &CONFIG, data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                 bs.flush();
                 bs.rewind();
@@ -199,7 +199,7 @@ macro_rules! decode_block_tests {
             }
 
             fn encode_rate_and_rewind(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let block: &[$scalar; $block_size] = data[..].try_into().unwrap();
                 $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
@@ -302,7 +302,7 @@ macro_rules! decode_block_tests_float {
             }
 
             fn encode_and_rewind(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 encode_block::<$scalar>(&mut bs, &CONFIG, data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                 bs.flush();
                 bs.rewind();
@@ -310,7 +310,7 @@ macro_rules! decode_block_tests_float {
             }
 
             fn encode_rate_and_rewind(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let block: &[$scalar; $block_size] = data[..].try_into().unwrap();
                 $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
@@ -319,7 +319,7 @@ macro_rules! decode_block_tests_float {
             }
 
             fn encode_reversible_and_rewind(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 encode_block(&mut bs, &ZfpConfig::reversible(), data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                 bs.flush();
                 bs.rewind();

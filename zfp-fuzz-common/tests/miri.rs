@@ -197,7 +197,7 @@ fn roundtrip<T: Sample>(case: &Case, config: &ZfpConfig) {
     let cap = config
         .maximum_size(T::SCALAR_TYPE, case.dims)
         .map_or(64, |size| size.max(64));
-    let mut bs = ZfpBitStream::new(cap);
+    let mut bs = ZfpBitStream::new(cap).unwrap();
 
     let written = {
         let field = ZfpField::new_strided(&src, case.dims, case.strides).unwrap();
@@ -298,7 +298,7 @@ fn undersized_field_is_rejected() {
         )
     };
     let config = ZfpConfig::reversible();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     assert!(
         bs.compress(&config, &field).is_err(),
         "compressing a 4-element buffer declared as 1000 elements must fail"

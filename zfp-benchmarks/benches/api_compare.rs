@@ -380,7 +380,8 @@ fn compressed_rust<T: BenchScalar>(data: &[T], dims: &[usize], case: Case) -> Ve
         config
             .maximum_size(T::RUST_TYPE, dims4(dims))
             .expect("maximum size"),
-    );
+    )
+    .expect("the stream allocates");
     let bytes = bs
         .compress(&config, &field)
         .expect("rust compression failed");
@@ -435,7 +436,7 @@ fn bench_case<T: BenchScalar>(criterion: &mut Criterion, case: Case) {
     {
         let config = rust_config::<T>(case);
         let field = rust_field(&data, &dims);
-        let mut bs = ZfpBitStream::new(capacity);
+        let mut bs = ZfpBitStream::new(capacity).expect("the stream allocates");
         group.bench_function(
             BenchmarkId::new("compress", format!("{case_label}/zfp-rs")),
             |b| {
@@ -501,7 +502,7 @@ fn bench_case<T: BenchScalar>(criterion: &mut Criterion, case: Case) {
         {
             let config = rust_config::<T>(case);
             let field = rust_field(&data, &dims);
-            let mut bs = ZfpBitStream::new(capacity);
+            let mut bs = ZfpBitStream::new(capacity).expect("the stream allocates");
             group.bench_function(
                 BenchmarkId::new("compress", format!("{case_label}/zfp-rs-rayon{threads}")),
                 |b| {
@@ -580,7 +581,7 @@ fn bench_case<T: BenchScalar>(criterion: &mut Criterion, case: Case) {
     {
         let config = rust_config::<T>(case);
         let mut output = vec![T::default(); data.len()];
-        let mut bs = ZfpBitStream::from_bytes(&rust_bytes);
+        let mut bs = ZfpBitStream::from_bytes(&rust_bytes).expect("the stream allocates");
         group.bench_function(
             BenchmarkId::new("decompress", format!("{case_label}/zfp-rs")),
             |b| {
@@ -648,7 +649,7 @@ fn bench_case<T: BenchScalar>(criterion: &mut Criterion, case: Case) {
             {
                 let config = rust_config::<T>(case);
                 let mut output = vec![T::default(); data.len()];
-                let mut bs = ZfpBitStream::from_bytes(&rust_bytes);
+                let mut bs = ZfpBitStream::from_bytes(&rust_bytes).expect("the stream allocates");
                 group.bench_function(
                     BenchmarkId::new("decompress", format!("{case_label}/zfp-rs-rayon{threads}")),
                     |b| {

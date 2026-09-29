@@ -115,7 +115,7 @@ impl Mode {
 
 fn rs_compress<T: Scalar>(mode: Mode, data: &[T]) -> Vec<u8> {
     let field = ZfpField::new(data, [data.len()]).unwrap();
-    let mut bs = ZfpBitStream::new(1 << 16);
+    let mut bs = ZfpBitStream::new(1 << 16).unwrap();
     bs.compress(&mode.config::<T>(), &field).unwrap();
     bs.as_bytes().to_vec()
 }
@@ -123,7 +123,7 @@ fn rs_compress<T: Scalar>(mode: Mode, data: &[T]) -> Vec<u8> {
 fn rs_decompress<T: Scalar>(mode: Mode, bytes: &[u8], n: usize) -> Vec<T> {
     let mut out = vec![T::default(); n];
     let mut field = ZfpFieldMut::new(&mut out, [n]).unwrap();
-    let mut bs = ZfpBitStream::from_bytes(bytes);
+    let mut bs = ZfpBitStream::from_bytes(bytes).unwrap();
     bs.decompress(&mode.config::<T>(), &mut field).unwrap();
     out
 }

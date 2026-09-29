@@ -403,7 +403,7 @@ fn run_compress_decompress<T: ZfpScalar>(
         let buf_size = config
             .maximum_size(T::SCALAR_TYPE, n)
             .expect("maximum size");
-        let mut bs = ZfpBitStream::new(buf_size);
+        let mut bs = ZfpBitStream::new(buf_size).unwrap();
 
         // Compression field: pass the full backing array. For reversed layouts,
         // start_offset marks the logical element [0,0,0,0] within `data`, but the
@@ -507,7 +507,7 @@ fn run_reversible<T: ZfpScalar + PartialEq + std::fmt::Debug>(
     let buf_size = config
         .maximum_size(T::SCALAR_TYPE, n)
         .expect("maximum size");
-    let mut bs = ZfpBitStream::new(buf_size);
+    let mut bs = ZfpBitStream::new(buf_size).unwrap();
 
     let field = make_field(&strided.data, dims, n, strided.strides);
     let compressed_bytes = bs.compress(&config, &field).unwrap();
@@ -656,7 +656,7 @@ fn test_bitrate<T: ZfpScalar>(dims: u32, n: [usize; 4], src: &[T]) {
         let buf_size = config
             .maximum_size(T::SCALAR_TYPE, n)
             .expect("maximum size");
-        let mut bs = ZfpBitStream::new(buf_size);
+        let mut bs = ZfpBitStream::new(buf_size).unwrap();
         let field = make_field(src, dims, n, [0; 4]);
         let compressed_bytes = bs.compress(&config, &field).unwrap();
         assert!(
@@ -700,7 +700,7 @@ fn test_accuracy<T: ZfpScalar>(dims: u32, n: [usize; 4], strided: &StridedData<T
         let buf_size = config
             .maximum_size(T::SCALAR_TYPE, n)
             .expect("maximum size");
-        let mut bs = ZfpBitStream::new(buf_size);
+        let mut bs = ZfpBitStream::new(buf_size).unwrap();
 
         let field = make_field(&strided.data, dims, n, strided.strides);
         let compressed_bytes = bs.compress(&config, &field).unwrap();

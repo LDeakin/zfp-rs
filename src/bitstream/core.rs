@@ -1,5 +1,5 @@
 use crate::config::STREAM_WORD_BYTES;
-use crate::types::ZfpBitStreamWord;
+use crate::types::{ZfpAllocError, ZfpBitStreamWord};
 
 pub(crate) const WSIZE: u32 = 64;
 
@@ -65,9 +65,43 @@ pub trait BitStreamStorageMut: BitStreamStorage {
     }
 }
 
-pub(super) fn bytes_to_words(buf: &[u8]) -> Vec<ZfpBitStreamWord> {
+/// `n` zeroed words, or the error if they cannot be allocated.
+///
+/// Zeroed by the allocator, as `vec![0; n]` is, so a large stream costs no
+/// more than the pages it touches.
+pub(super) fn zeroed_words(n: usize) -> Result<Vec<ZfpBitStreamWord>, ZfpAllocError> {
+    let error = ZfpAllocError {
+        bytes: n.saturating_mul(STREAM_WORD_BYTES),
+    };
+    if n == 0 {
+        return Ok(Vec::new());
+    }
+    let layout = std::alloc::Layout::array::<ZfpBitStreamWord>(n).map_err(|_| error)?;
+    // SAFETY: `layout` has a nonzero size, as `n > 0`.
+    let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
+    if ptr.is_null() {
+        return Err(error);
+    }
+    #[expect(clippy::cast_ptr_alignment, reason = "`layout` is aligned for words")]
+    let words = std::ptr::slice_from_raw_parts_mut(ptr.cast::<ZfpBitStreamWord>(), n);
+    // SAFETY: `words` was allocated by the global allocator with the layout of
+    // `[ZfpBitStreamWord; n]`, and is initialised, as zero is a valid word.
+    Ok(unsafe { Box::from_raw(words) }.into_vec())
+}
+
+/// An empty vector with room for `n` elements, or the error if it cannot be
+/// allocated.
+pub(crate) fn vec_with_capacity<T>(n: usize) -> Result<Vec<T>, ZfpAllocError> {
+    let mut v = Vec::new();
+    v.try_reserve_exact(n).map_err(|_| ZfpAllocError {
+        bytes: n.saturating_mul(size_of::<T>()),
+    })?;
+    Ok(v)
+}
+
+pub(super) fn bytes_to_words(buf: &[u8]) -> Result<Vec<ZfpBitStreamWord>, ZfpAllocError> {
     let (chunks, tail) = buf.as_chunks::<{ size_of::<ZfpBitStreamWord>() }>();
-    let mut out: Vec<ZfpBitStreamWord> = Vec::with_capacity(buf.len().div_ceil(STREAM_WORD_BYTES));
+    let mut out: Vec<ZfpBitStreamWord> = vec_with_capacity(buf.len().div_ceil(STREAM_WORD_BYTES))?;
     match bytemuck::try_cast_slice::<u8, ZfpBitStreamWord>(&buf[..chunks.len() * STREAM_WORD_BYTES])
     {
         Ok(words) => out.extend_from_slice(words),
@@ -78,7 +112,7 @@ pub(super) fn bytes_to_words(buf: &[u8]) -> Vec<ZfpBitStreamWord> {
         last[..tail.len()].copy_from_slice(tail);
         out.push(ZfpBitStreamWord::from_ne_bytes(last));
     }
-    out
+    Ok(out)
 }
 
 pub(super) fn cast_bytes_to_words(buf: &[u8]) -> Option<&[ZfpBitStreamWord]> {

@@ -162,7 +162,7 @@ macro_rules! header_write_compat {
                 let field = ZfpField::new(&data, [nx]).unwrap();
                 let mut rs_params = ZfpConfig::new();
                 apply_mode_rust(&mut rs_params, &mode, $zfp_type, ZfpDimensionality::D1);
-                let mut rs_bs = ZfpBitStream::new(256);
+                let mut rs_bs = ZfpBitStream::new(256).unwrap();
                 rs_bs.write_header(&rs_params, &field.metadata(), mask).expect("write header");
                 rs_bs.flush();
                 let rs_bytes = rs_bs.as_bytes();

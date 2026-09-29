@@ -5,7 +5,7 @@ fn encode_and_decode(min_exp: i32) -> (Vec<u8>, [f64; 4]) {
     let config = ZfpConfig::expert(1, 16658, 64, min_exp).unwrap();
     let field = ZfpField::new(&input, [4usize]).unwrap();
     let capacity = config.maximum_size(ZfpScalarType::F64, [4usize]).unwrap();
-    let mut stream = ZfpBitStream::new(capacity);
+    let mut stream = ZfpBitStream::new(capacity).unwrap();
     stream.compress(&config, &field).unwrap();
     let encoded = stream.as_bytes().to_vec();
     stream.rewind();

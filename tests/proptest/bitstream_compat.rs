@@ -116,7 +116,7 @@ proptest! {
     fn write_bits_compat(ops in write_ops_strategy()) {
         // Large enough buffer for 200 × 63-bit writes = ~1600 bytes; use 4096.
         let capacity = 4096;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         for op in &ops {
@@ -156,7 +156,7 @@ proptest! {
         write_ops in write_ops_strategy(),
     ) {
         let capacity = 4096;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         // Track total bits written so we know how many to read back.
@@ -198,7 +198,7 @@ proptest! {
     #[test]
     fn write_read_bit_compat(bits in prop::collection::vec(0u32..=1u32, 1..=256)) {
         let capacity = 4096;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         for &b in &bits {
@@ -224,7 +224,7 @@ proptest! {
     #[test]
     fn tell_compat(ops in write_ops_strategy()) {
         let capacity = 4096;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         for op in &ops {
@@ -253,7 +253,7 @@ proptest! {
         extra_bits in prop::collection::vec(0u32..=1u32, 1..=64),
     ) {
         let capacity = 4096;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         // Write initial pattern.
@@ -298,7 +298,7 @@ proptest! {
     #[test]
     fn seek_past_end_compat(past_words in 0u64..=1_000_000) {
         let capacity = 64;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
         let offset = (capacity as u64 / 8 + past_words) * 64;
 
@@ -323,7 +323,7 @@ proptest! {
         let mask = (1u64 << n) - 1;
         let value = value & mask;
         let capacity = 64;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         rs.write_bits(value, n);
@@ -351,7 +351,7 @@ proptest! {
         values in prop::collection::vec(0u64..u64::MAX, 1..=64),
     ) {
         let capacity = 512;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         // Write each value as 64 bits.
@@ -391,7 +391,7 @@ proptest! {
     #[test]
     fn write_read_bits_64_readback(value in 0u64..u64::MAX) {
         let capacity = 16;
-        let mut rs = ZfpBitStream::new(capacity);
+        let mut rs = ZfpBitStream::new(capacity).unwrap();
         let mut cs = CStream::new(capacity);
 
         // Write and verify overflow is 0.

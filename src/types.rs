@@ -70,6 +70,29 @@ impl fmt::Display for ZfpMetadataError {
 impl std::error::Error for ZfpMetadataError {}
 
 // ---------------------------------------------------------------------------
+// Allocation errors
+// ---------------------------------------------------------------------------
+
+/// A buffer could not be allocated.
+///
+/// Returned by the [`ZfpBitStream`][crate::ZfpBitStream] constructors and
+/// [`into_bytes`][crate::ZfpBitStream::into_bytes] when the allocator fails,
+/// or the size overflows the address space.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct ZfpAllocError {
+    /// Bytes requested.
+    pub bytes: usize,
+}
+
+impl fmt::Display for ZfpAllocError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "cannot allocate {} bytes", self.bytes)
+    }
+}
+
+impl std::error::Error for ZfpAllocError {}
+
+// ---------------------------------------------------------------------------
 // Block errors
 // ---------------------------------------------------------------------------
 

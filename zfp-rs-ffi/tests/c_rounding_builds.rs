@@ -264,7 +264,7 @@ fn rs_dims(dims: &[usize]) -> [usize; 4] {
 }
 
 fn rs_compress<T: Scalar>(config: &ZfpConfig, data: &[T], dims: &[usize]) -> Vec<u8> {
-    let mut bs = ZfpBitStream::new(CAPACITY);
+    let mut bs = ZfpBitStream::new(CAPACITY).unwrap();
     bs.compress(config, &ZfpField::new(data, rs_dims(dims)).unwrap())
         .unwrap();
     bs.as_bytes().to_vec()
@@ -273,6 +273,7 @@ fn rs_compress<T: Scalar>(config: &ZfpConfig, data: &[T], dims: &[usize]) -> Vec
 fn rs_decompress<T: Scalar>(config: &ZfpConfig, bytes: &[u8], dims: &[usize]) -> Vec<T> {
     let mut out = vec![T::default(); dims.iter().product()];
     ZfpBitStream::from_bytes(bytes)
+        .unwrap()
         .decompress(
             config,
             &mut ZfpFieldMut::new(&mut out, rs_dims(dims)).unwrap(),

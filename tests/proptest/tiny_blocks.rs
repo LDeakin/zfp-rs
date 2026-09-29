@@ -88,7 +88,7 @@ unsafe fn set_c_mode<T: Float>(zfp: *mut zfp_sys::zfp_stream, mode: Mode) {
 
 fn rs_compress<T: Float>(mode: Mode, data: &[T]) -> Vec<u8> {
     let field = ZfpField::new(data, [data.len()]).unwrap();
-    let mut bs = ZfpBitStream::new(1 << 16);
+    let mut bs = ZfpBitStream::new(1 << 16).unwrap();
     bs.compress(&rs_config::<T>(mode), &field).unwrap();
     bs.as_bytes().to_vec()
 }
@@ -96,7 +96,7 @@ fn rs_compress<T: Float>(mode: Mode, data: &[T]) -> Vec<u8> {
 fn rs_decompress<T: Float>(mode: Mode, bytes: &[u8], n: usize) -> Vec<T> {
     let mut out = vec![T::default(); n];
     let mut field = ZfpFieldMut::new(&mut out, [n]).unwrap();
-    let mut bs = ZfpBitStream::from_bytes(bytes);
+    let mut bs = ZfpBitStream::from_bytes(bytes).unwrap();
     bs.decompress(&rs_config::<T>(mode), &mut field).unwrap();
     out
 }

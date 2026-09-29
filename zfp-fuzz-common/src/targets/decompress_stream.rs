@@ -149,6 +149,7 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
         let mut out =
             ZfpFieldMut::new(&mut truncated, dims).expect("an exactly-sized field is valid");
         ZfpBitStream::from_bytes(&payload[..kept])
+            .expect("the stream allocates")
             .decompress_with_execution(&config, &mut out, exec)
             .unwrap_or_else(|e| panic!("decompress failed on an exactly-sized field: {e}"))
     };
@@ -168,7 +169,7 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
     // They may contain NaN, infinities and subnormals in combinations no
     // generator would produce, so this is free coverage of the encode path.
     let field = ZfpField::new(&dst, dims).expect("an exactly-sized field is valid");
-    let mut re = ZfpBitStream::new(cap);
+    let mut re = ZfpBitStream::new(cap).expect("the stream allocates");
     let written = re
         .compress(&config, &field)
         .expect("re-compress of decoded values must succeed");

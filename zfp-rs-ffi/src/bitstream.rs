@@ -88,9 +88,12 @@ impl ZfpBitStreamHandleInner {
         }
     }
 
-    fn clone_copy(&self) -> Self {
-        // Deep copy of the committed bytes, matching C `stream_clone`.
-        Self::Owned(ZfpBitStream::from_bytes(self.as_ops().as_bytes()))
+    /// Deep copy of the committed bytes, matching C `stream_clone`, or `None`
+    /// if the copy cannot be allocated.
+    fn clone_copy(&self) -> Option<Self> {
+        ZfpBitStream::from_bytes(self.as_ops().as_bytes())
+            .ok()
+            .map(Self::Owned)
     }
 }
 
@@ -167,10 +170,16 @@ pub unsafe extern "C" fn stream_open(
     bytes: usize,
 ) -> *mut bitstream {
     let inner = if buffer.is_null() {
-        ZfpBitStreamHandleInner::Owned(ZfpBitStream::new(bytes))
+        let Ok(bs) = ZfpBitStream::new(bytes) else {
+            return std::ptr::null_mut();
+        };
+        ZfpBitStreamHandleInner::Owned(bs)
     } else if !(buffer as usize).is_multiple_of(align_of::<zfp_rs::ZfpBitStreamWord>()) {
         let slice = unsafe { std::slice::from_raw_parts(buffer.cast::<u8>(), bytes) };
-        ZfpBitStreamHandleInner::Owned(ZfpBitStream::from_bytes(slice))
+        let Ok(bs) = ZfpBitStream::from_bytes(slice) else {
+            return std::ptr::null_mut();
+        };
+        ZfpBitStreamHandleInner::Owned(bs)
     } else {
         let words_len = bytes / size_of::<zfp_rs::ZfpBitStreamWord>();
         // SAFETY: this C API mirrors zfp's `stream_open`: the caller owns the
@@ -210,7 +219,7 @@ pub unsafe extern "C" fn stream_close(stream: *mut bitstream) {
 
 /// Clone a bitstream by copying all committed bytes.
 ///
-/// Returns a pointer to the new bitstream.
+/// Returns a pointer to the new bitstream, or null on allocation failure.
 ///
 /// # Safety
 /// `stream` must be a valid pointer returned by `stream_open`.
@@ -225,10 +234,10 @@ pub unsafe extern "C" fn stream_clone(stream: *const bitstream) -> *mut bitstrea
         return std::ptr::null_mut();
     };
 
-    Box::into_raw(Box::new(ZfpBitStreamHandle {
-        inner: wrapper.inner.clone_copy(),
-    }))
-    .cast::<bitstream>()
+    let Some(inner) = wrapper.inner.clone_copy() else {
+        return std::ptr::null_mut();
+    };
+    Box::into_raw(Box::new(ZfpBitStreamHandle { inner })).cast::<bitstream>()
 }
 
 // ===========================================================================

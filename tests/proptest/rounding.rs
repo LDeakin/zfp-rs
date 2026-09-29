@@ -36,7 +36,7 @@ fn small_integer_f64s() -> impl Strategy<Value = Vec<f64>> {
 
 /// Compress then decompress a 4x4x4 `f64` block with the given config.
 fn round_trip(config: &ZfpConfig, data: &[f64]) -> (Vec<u8>, Vec<f64>) {
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     bs.compress(config, &ZfpField::new(data, [4usize, 4, 4]).unwrap())
         .expect("compress");
     bs.flush();
@@ -140,7 +140,7 @@ proptest! {
 
         let mut block = vec![0f64; data.len()];
         decode_block(
-            &mut ZfpBitStream::from_bytes(&bytes),
+            &mut ZfpBitStream::from_bytes(&bytes).unwrap(),
             &config,
             &mut block,
             ZfpDimensionality::D3,
@@ -165,7 +165,7 @@ fn header_config_needs_the_encoders_rounding() {
     let config = ZfpConfig::fixed_accuracy(1.0e-3).with_rounding(rounding);
     let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
 
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL)
         .expect("write header");
     bs.compress(&config, &field).expect("compress");

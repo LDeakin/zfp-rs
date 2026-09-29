@@ -62,7 +62,7 @@ fn c_decompress(tolerance: f64, bytes: &[u8]) -> [f64; 4] {
 fn roundtrip_matches_c(tolerance: f64, data: [f64; 4]) -> [f64; 4] {
     let config = ZfpConfig::fixed_accuracy(tolerance);
     let field = ZfpField::new(&data, [4usize]).unwrap();
-    let mut bs = ZfpBitStream::new(1024);
+    let mut bs = ZfpBitStream::new(1024).unwrap();
     bs.compress(&config, &field).unwrap();
     let bytes = bs.as_bytes().to_vec();
     assert_eq!(
@@ -74,6 +74,7 @@ fn roundtrip_matches_c(tolerance: f64, data: [f64; 4]) -> [f64; 4] {
     let mut out = [0.0; 4];
     let mut field = ZfpFieldMut::new(&mut out, [4usize]).unwrap();
     ZfpBitStream::from_bytes(&bytes)
+        .unwrap()
         .decompress(&config, &mut field)
         .unwrap();
     let c_out = c_decompress(tolerance, &bytes);

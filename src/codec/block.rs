@@ -194,10 +194,10 @@ mod tests {
         let field_dims: [usize; 4] = std::array::from_fn(|axis| if axis < d { 4 } else { 0 });
 
         let field = ZfpField::new(&data[..n], field_dims).unwrap();
-        let mut whole = ZfpBitStream::new(1 << 16);
+        let mut whole = ZfpBitStream::new(1 << 16).unwrap();
         whole.compress(config, &field).unwrap();
 
-        let mut block = ZfpBitStream::new(1 << 16);
+        let mut block = ZfpBitStream::new(1 << 16).unwrap();
         let written = encode_block(&mut block, config, &data[..n], dims).unwrap();
         assert_eq!(written as u64, block.write_pos());
         block.flush();
@@ -271,11 +271,11 @@ mod tests {
         )
         .unwrap();
         let data: Vec<f64> = (0..64).map(f64::from).collect();
-        let mut bs = ZfpBitStream::new(1024);
+        let mut bs = ZfpBitStream::new(1024).unwrap();
         bs.compress(&config, &ZfpField::new(&data, [8usize, 8]).unwrap())
             .unwrap();
         // One word of four blocks' worth, so most blocks start past the end.
-        let mut truncated = ZfpBitStream::from_bytes(&bs.as_bytes()[..8]);
+        let mut truncated = ZfpBitStream::from_bytes(&bs.as_bytes()[..8]).unwrap();
         let mut block = [0f64; 16];
         for i in 1..=4 {
             let read =
@@ -292,13 +292,13 @@ mod tests {
         let config = ZfpConfig::fixed_precision(16);
         let mut block = [0f32; 4];
 
-        let mut written = ZfpBitStream::new(64);
+        let mut written = ZfpBitStream::new(64).unwrap();
         written.write_bits(1, 1);
         assert_eq!(written.read_pos(), u64::MAX);
         let read = decode_block(&mut written, &config, &mut block, ZfpDimensionality::D1).unwrap();
         assert!(read > 0);
 
-        let mut seeked = ZfpBitStream::new(64);
+        let mut seeked = ZfpBitStream::new(64).unwrap();
         seeked.seek_read(u64::MAX - 100);
         let read = decode_block(&mut seeked, &config, &mut block, ZfpDimensionality::D1).unwrap();
         assert_eq!(
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn block_coding_rejects_wrong_lengths() {
         let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(1024);
+        let mut bs = ZfpBitStream::new(1024).unwrap();
         assert!(encode_block(&mut bs, &config, &[0f32; 15], ZfpDimensionality::D2).is_err());
         assert!(decode_block(&mut bs, &config, &mut [0f32; 17], ZfpDimensionality::D2).is_err());
         assert_eq!(bs.write_pos(), 0);

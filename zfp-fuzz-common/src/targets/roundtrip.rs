@@ -63,7 +63,7 @@ fn typed<T: FuzzScalar>(input: &RoundtripInput<'_>) {
     let src: Vec<T> = decode_scalars::<T>(input.payload, n);
     let exec = input.exec.to_execution();
 
-    let mut bs = ZfpBitStream::new(cap);
+    let mut bs = ZfpBitStream::new(cap).expect("the stream allocates");
     let written = {
         let field = ZfpField::new(&src, dims).expect("an exactly-sized field is valid");
         match bs.compress_with_execution(&config, &field, exec) {

@@ -52,7 +52,7 @@ fn exercise<T: ZfpScalar>(first: &[T], second: &[T], budget: u32, rounding: ZfpR
     let config = ZfpConfig::expert(budget, budget, 64, -1074)
         .unwrap()
         .with_rounding(rounding);
-    let mut encoded = ZfpBitStream::new(4096);
+    let mut encoded = ZfpBitStream::new(4096).unwrap();
     let mut ends = [0; 2];
     for (index, input) in [first, second].into_iter().enumerate() {
         let field = ZfpField::new(input, [input.len()]).unwrap();

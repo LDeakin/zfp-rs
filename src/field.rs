@@ -906,7 +906,7 @@ mod tests {
         assert_eq!(field.num_blocks(), usize::MAX);
         assert!(!field.is_contiguous());
         assert_eq!(field.size_bytes(), (4 * (dims[0] - 1) + 1) * 4);
-        let mut stream = ZfpBitStream::new(8);
+        let mut stream = ZfpBitStream::new(8).unwrap();
         assert_eq!(
             stream.compress(&ZfpConfig::reversible(), &field),
             Err(ZfpCompressionError::Field(ZfpFieldError::ShapeTooLarge {
@@ -1003,7 +1003,7 @@ mod tests {
             actual: 32,
         };
         let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(4096);
+        let mut bs = ZfpBitStream::new(4096).unwrap();
         // SAFETY: the pointer and length describe `data`.
         let field = unsafe {
             ZfpField::from_raw_unchecked(
@@ -1041,7 +1041,7 @@ mod tests {
         let expected = ZfpFieldError::MisalignedData { align: 8 };
         let ptr = data.as_mut_ptr().cast::<u8>().wrapping_add(4);
         let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(4096);
+        let mut bs = ZfpBitStream::new(4096).unwrap();
         // SAFETY: the 16 bytes at `ptr` are within `data`.
         let field = unsafe {
             ZfpField::from_raw_unchecked(ptr, 16, ZfpScalarType::F64, [2, 0, 0, 0], [0; 4])
@@ -1069,7 +1069,8 @@ mod tests {
             config
                 .maximum_size(ZfpScalarType::F64, [4usize, 4, 4])
                 .unwrap(),
-        );
+        )
+        .unwrap();
 
         let written = bs
             .compress(&config, &field)

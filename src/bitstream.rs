@@ -35,7 +35,7 @@ mod tests {
     const STREAM_WORD_CAPACITY: usize = 3;
 
     fn setup() -> ZfpBitStream {
-        ZfpBitStream::new(STREAM_WORD_CAPACITY * 8)
+        ZfpBitStream::new(STREAM_WORD_CAPACITY * 8).unwrap()
     }
 
     #[test]
@@ -46,7 +46,7 @@ mod tests {
     #[test]
     fn when_bitstream_opened_expect_proper_length_and_boundaries() {
         let num_words: usize = 4;
-        let s = ZfpBitStream::new(num_words * 8);
+        let s = ZfpBitStream::new(num_words * 8).unwrap();
         assert_eq!(s.capacity(), num_words * 8);
         assert_eq!(s.state.word_pos, 0);
     }
@@ -77,12 +77,12 @@ mod tests {
     #[test]
     fn owned_conversions_round_trip_committed_data() {
         // A trailing partial word is zero-padded rather than dropped.
-        let s = ZfpBitStream::from_bytes(&[1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        let s = ZfpBitStream::from_bytes(&[1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
         assert_eq!(s.capacity(), 16);
         assert_eq!(s.backing_bytes()[8..], [9, 0, 0, 0, 0, 0, 0, 0]);
 
         // `into_words` and `into_bytes` both return exactly what was written.
-        let mut s = ZfpBitStream::new(64);
+        let mut s = ZfpBitStream::new(64).unwrap();
         s.write_bits(0xabc, 12);
         assert!(s.as_words().is_empty());
         assert_eq!(s.into_words(), vec![0xabc]);
@@ -91,7 +91,7 @@ mod tests {
         s.write_word(WORD2);
         s.write_bit(true);
         assert_eq!(s.as_words(), [WORD2]);
-        let bytes = s.into_bytes();
+        let bytes = s.into_bytes().unwrap();
         assert_eq!(bytes.len(), 16);
         assert_eq!(bytes[8], 1);
     }
@@ -120,11 +120,11 @@ mod tests {
         let field = ZfpField::new(&data, [16usize, 16]).unwrap();
         let config = ZfpConfig::reversible();
 
-        let mut big = ZfpBitStream::new(1 << 16);
+        let mut big = ZfpBitStream::new(1 << 16).unwrap();
         let size = big.compress(&config, &field).unwrap();
         assert!(!big.overflowed());
 
-        let mut small = ZfpBitStream::new(size - 8);
+        let mut small = ZfpBitStream::new(size - 8).unwrap();
         assert_eq!(
             small.compress(&config, &field),
             Err(ZfpCompressionError::BufferTooSmall {
@@ -160,7 +160,7 @@ mod tests {
         let config = ZfpConfig::fixed_precision(8);
 
         // 32 + 52 + 12 = 96 bits do not fit in one word.
-        let mut bs = ZfpBitStream::new(8);
+        let mut bs = ZfpBitStream::new(8).unwrap();
         assert_eq!(
             bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL),
             Err(ZfpCompressionError::BufferTooSmall {
@@ -216,7 +216,8 @@ mod tests {
             ZfpStreamAlignment::Unaligned,
         )
         .unwrap();
-        let mut bs = ZfpBitStream::new(config.maximum_size(ZfpScalarType::F64, 300usize).unwrap());
+        let mut bs =
+            ZfpBitStream::new(config.maximum_size(ZfpScalarType::F64, 300usize).unwrap()).unwrap();
         let written = bs.compress(&config, &field).unwrap();
 
         let mut decode = |execution| {
@@ -260,7 +261,7 @@ mod tests {
             chunk_size: 2,
         };
 
-        let mut owned = ZfpBitStream::new(1024);
+        let mut owned = ZfpBitStream::new(1024).unwrap();
         let owned_size = owned
             .compress_with_execution(&config, &field, execution)
             .unwrap();
@@ -777,6 +778,25 @@ mod tests {
         assert_eq!(pad_count, WSIZE - prev_buffer_bit_count);
     }
 
+    #[test]
+    fn when_capacity_cannot_be_allocated_expect_alloc_error() {
+        use crate::types::ZfpAllocError;
+
+        // More than the address space: the layout itself overflows.
+        assert_eq!(
+            ZfpBitStream::new(usize::MAX).unwrap_err(),
+            ZfpAllocError { bytes: usize::MAX }
+        );
+        // A valid layout that no allocator can satisfy.
+        let huge = isize::MAX.cast_unsigned() & !7;
+        assert_eq!(
+            ZfpBitStream::new(huge).unwrap_err(),
+            ZfpAllocError { bytes: huge }
+        );
+        assert_eq!(ZfpBitStream::new(0).unwrap().capacity(), 0);
+        assert_eq!(ZfpBitStream::new(9).unwrap().capacity(), 16);
+    }
+
     /// Every piece of cursor state, and the buffer, for comparing streams.
     fn snapshot(s: &ZfpBitStream) -> (usize, u64, u32, bool, Vec<u64>) {
         (
@@ -793,11 +813,11 @@ mod tests {
         let mut words = setup();
         words.write_word(WORD2);
         words.write_word(WORD1);
-        let bytes = words.into_bytes();
+        let bytes = words.into_bytes().unwrap();
 
         for n in [65, 200, u32::MAX] {
-            let mut clamped = ZfpBitStream::from_bytes(&bytes);
-            let mut exact = ZfpBitStream::from_bytes(&bytes);
+            let mut clamped = ZfpBitStream::from_bytes(&bytes).unwrap();
+            let mut exact = ZfpBitStream::from_bytes(&bytes).unwrap();
             clamped.read_bits(3);
             exact.read_bits(3);
             assert_eq!(clamped.read_bits(n), exact.read_bits(64), "n={n}");
@@ -868,10 +888,10 @@ mod tests {
                     src_bulk.write_word(WORD2);
                     src_bulk.write_word(WORD1);
                     src_bulk.write_word(0x0123_4567_89ab_cdef);
-                    let bytes = src_bulk.into_bytes();
+                    let bytes = src_bulk.into_bytes().unwrap();
 
-                    let mut src_bulk = ZfpBitStream::from_bytes(&bytes);
-                    let mut src_step = ZfpBitStream::from_bytes(&bytes);
+                    let mut src_bulk = ZfpBitStream::from_bytes(&bytes).unwrap();
+                    let mut src_step = ZfpBitStream::from_bytes(&bytes).unwrap();
                     let mut dst_bulk = setup();
                     let mut dst_step = setup();
                     for s in [&mut src_bulk, &mut src_step] {
@@ -929,7 +949,7 @@ mod tests {
         src.flush();
         src.seek_read(src_offset);
 
-        let mut dst = ZfpBitStream::new(STREAM_WORD_CAPACITY * 8);
+        let mut dst = ZfpBitStream::new(STREAM_WORD_CAPACITY * 8).unwrap();
         dst.seek_write(dst_offset);
 
         dst.copy_from(&mut src, copy_bits as u64);

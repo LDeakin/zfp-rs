@@ -132,7 +132,7 @@ mod tests {
         let data = ramp();
         let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
         let config = ZfpConfig::reversible();
-        let mut bs = ZfpBitStream::new(4096);
+        let mut bs = ZfpBitStream::new(4096).unwrap();
         bs.write_header(&config, &field.metadata(), ZfpHeaderMask::FULL)
             .expect("write header");
         bs.compress(&config, &field).expect("compress");

@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         ZfpStreamAlignment::Unaligned,
     )?;
 
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096)?;
 
     let bytes = bs.compress(&config, &field)?;
     println!("Compressed: {bytes} bytes");

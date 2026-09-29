@@ -127,7 +127,7 @@ macro_rules! block_encode_compat_int {
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
 
                 // Rust side
-                let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
+                let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY).unwrap();
                 $rs_fn(&mut rs_bs, block, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
                 rs_bs.flush();
 
@@ -171,7 +171,7 @@ macro_rules! block_encode_compat_float {
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
 
                 // Rust side
-                let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
+                let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY).unwrap();
                 $rs_fn(&mut rs_bs, block, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
                 rs_bs.flush();
 
@@ -361,7 +361,7 @@ macro_rules! reversible_block_encode_compat {
                 $strategy,
                 $dims.block_size()..=$dims.block_size(),
             )) {
-                let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY);
+                let mut rs_bs = ZfpBitStream::new(CZfpBlock::CAPACITY).unwrap();
                 let rs_bits = unsafe {
                     encode_block_strided::<$scalar>(
                         &mut rs_bs,

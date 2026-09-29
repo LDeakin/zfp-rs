@@ -32,7 +32,7 @@ pub fn run(data: &[u8]) {
 // Read and write positions can wrap after a mixed transition, so they are not
 // an oracle for whether a write reached the backing buffer.
 fn run_mixed_ops(data: &[u8]) {
-    let mut bs = ZfpBitStream::new(CAPACITY);
+    let mut bs = ZfpBitStream::new(CAPACITY).expect("the stream allocates");
     let capacity_bits = (CAPACITY * 8) as u64;
 
     for chunk in data.chunks(3).take(MAX_OPS) {
@@ -105,7 +105,7 @@ fn run_mixed_ops(data: &[u8]) {
 // Only write-mode transitions participate in the round-trip oracle. The
 // mixed-state pass above still exercises every operation in the input.
 fn run_write_roundtrips(data: &[u8]) {
-    let mut bs = ZfpBitStream::new(CAPACITY);
+    let mut bs = ZfpBitStream::new(CAPACITY).expect("the stream allocates");
     let capacity_bits = (CAPACITY * 8) as u64;
 
     for chunk in data.chunks(3).take(MAX_OPS) {

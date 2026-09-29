@@ -153,7 +153,7 @@ fn when_zfp_field_set_metadata_called_for_invalid_meta_expect_false() {
 #[test]
 fn when_zfp_write_header_magic_expect_num_bits_written_equal_to_zfp_magic_bits() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     let bits = bs
         .write_header(&config, &field, ZfpHeaderMask::MAGIC)
@@ -164,7 +164,7 @@ fn when_zfp_write_header_magic_expect_num_bits_written_equal_to_zfp_magic_bits()
 #[test]
 fn when_zfp_write_header_magic_expect_24_bits_are_chars_zfp_followed_by_8_bits_zfp_codec_version() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_eq!(
         bs.write_header(&config, &field, ZfpHeaderMask::MAGIC)
@@ -186,7 +186,7 @@ fn when_zfp_write_header_magic_expect_24_bits_are_chars_zfp_followed_by_8_bits_z
 #[test]
 fn when_zfp_write_header_metadata_expect_num_bits_written_equal_to_zfp_meta_bits() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     let bits = bs
         .write_header(&config, &field, ZfpHeaderMask::META)
@@ -198,7 +198,7 @@ fn when_zfp_write_header_metadata_expect_num_bits_written_equal_to_zfp_meta_bits
 fn given_fixed_rate_when_zfp_write_header_mode_expect_12_bits_written_to_bitstream() {
     // setup uses fixed-rate mode already
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     let bits = bs
         .write_header(&config, &field, ZfpHeaderMask::MODE)
@@ -209,7 +209,7 @@ fn given_fixed_rate_when_zfp_write_header_mode_expect_12_bits_written_to_bitstre
 #[test]
 fn given_fixed_precision_when_zfp_write_header_mode_expect_12_bits_written_to_bitstream() {
     let config = ZfpConfig::fixed_precision(PREC);
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     let bits = bs
         .write_header(&config, &field, ZfpHeaderMask::MODE)
@@ -220,7 +220,7 @@ fn given_fixed_precision_when_zfp_write_header_mode_expect_12_bits_written_to_bi
 #[test]
 fn given_fixed_accuracy_when_zfp_write_header_mode_expect_12_bits_written_to_bitstream() {
     let config = ZfpConfig::fixed_accuracy(ACC);
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     let bits = bs
         .write_header(&config, &field, ZfpHeaderMask::MODE)
@@ -234,7 +234,7 @@ fn given_custom_compress_params_set_when_zfp_write_header_mode_expect_64_bits_wr
     // Custom params that don't match default expert mode → 64-bit long encoding.
     let config =
         ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM).unwrap();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     let bits = bs
         .write_header(&config, &field, ZfpHeaderMask::MODE)
@@ -245,7 +245,7 @@ fn given_custom_compress_params_set_when_zfp_write_header_mode_expect_64_bits_wr
 #[test]
 fn given_oversized_field_when_zfp_write_header_full_expect_error_and_nothing_written() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = ZfpFieldMetadata {
         scalar_type: ZfpScalarType::F64,
         dims: [1 << 25, 1, 0, 0],
@@ -300,7 +300,7 @@ fn assert_proper_bits_read(
 #[test]
 fn when_zfp_read_header_magic_expect_proper_num_bits_read() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_proper_bits_read(
         &config,
@@ -314,7 +314,7 @@ fn when_zfp_read_header_magic_expect_proper_num_bits_read() {
 
 #[test]
 fn given_improper_header_when_zfp_read_header_magic_expect_returns_zero() {
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let result = bs.read_header(ZfpHeaderMask::MAGIC);
     assert!(result.is_err());
 }
@@ -322,7 +322,7 @@ fn given_improper_header_when_zfp_read_header_magic_expect_returns_zero() {
 #[test]
 fn when_zfp_read_header_metadata_expect_proper_num_bits_read() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_proper_bits_read(
         &config,
@@ -337,7 +337,7 @@ fn when_zfp_read_header_metadata_expect_proper_num_bits_read() {
 #[test]
 fn given_proper_header_when_zfp_read_header_metadata_expect_field_array_dims_set() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     let orig = field.dims;
 
@@ -369,7 +369,7 @@ fn given_proper_header_when_zfp_read_header_metadata_expect_field_array_dims_set
 #[test]
 fn given_proper_header_fixed_rate_when_zfp_read_header_mode_expect_proper_num_bits_read() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_proper_bits_read(
         &config,
@@ -384,7 +384,7 @@ fn given_proper_header_fixed_rate_when_zfp_read_header_mode_expect_proper_num_bi
 #[test]
 fn given_proper_header_fixed_precision_when_zfp_read_header_mode_expect_proper_num_bits_read() {
     let config = ZfpConfig::fixed_precision(PREC);
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_proper_bits_read(
         &config,
@@ -399,7 +399,7 @@ fn given_proper_header_fixed_precision_when_zfp_read_header_mode_expect_proper_n
 #[test]
 fn given_proper_header_fixed_accuracy_when_zfp_read_header_mode_expect_proper_num_bits_read() {
     let config = ZfpConfig::fixed_accuracy(ACC);
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_proper_bits_read(
         &config,
@@ -450,7 +450,7 @@ fn assert_compress_params_restored(
 #[test]
 fn given_proper_header_fixed_rate_when_zfp_read_header_mode_expect_stream_params_set() {
     let config = make_params();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_compress_params_restored(
         config,
@@ -464,7 +464,7 @@ fn given_proper_header_fixed_rate_when_zfp_read_header_mode_expect_stream_params
 #[test]
 fn given_proper_header_fixed_precision_when_zfp_read_header_mode_expect_stream_params_set() {
     let config = ZfpConfig::fixed_precision(PREC);
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_compress_params_restored(
         config,
@@ -478,7 +478,7 @@ fn given_proper_header_fixed_precision_when_zfp_read_header_mode_expect_stream_p
 #[test]
 fn given_proper_header_fixed_accuracy_when_zfp_read_header_mode_expect_stream_params_set() {
     let config = ZfpConfig::fixed_accuracy(ACC);
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_compress_params_restored(
         config,
@@ -494,7 +494,7 @@ fn given_custom_compress_params_set_when_zfp_read_header_mode_expect_proper_num_
     // Custom params that don't match default expert mode → 64-bit long encoding.
     let config =
         ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM).unwrap();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_proper_bits_read(
         &config,
@@ -512,7 +512,7 @@ fn given_custom_compress_params_and_proper_header_when_zfp_read_header_mode_expe
     // Custom params that don't match default expert mode → 64-bit long encoding.
     let config =
         ZfpConfig::expert(MIN_BITS, MAX_BITS_CUSTOM, MAX_PREC_CUSTOM, MIN_EXP_CUSTOM).unwrap();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     let field = make_field();
     assert_compress_params_restored(
         config,
@@ -533,7 +533,7 @@ fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_prop
         MAX_PREC_CUSTOM,
         MIN_EXP_CUSTOM,
     );
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     bs.write_bits(config.mode_bits(), ZFP_MODE_LONG_BITS);
     bs.flush();
     bs.rewind();
@@ -555,7 +555,7 @@ fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_stre
         MIN_EXP_CUSTOM,
     );
     let field = make_field();
-    let mut bs = ZfpBitStream::new(4096);
+    let mut bs = ZfpBitStream::new(4096).unwrap();
     assert_eq!(
         bs.write_header(&config, &field, ZfpHeaderMask::MODE),
         Err(ZfpCompressionError::Config(

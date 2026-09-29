@@ -24,7 +24,7 @@ pub fn run(data: &[u8]) {
 
     let mut bytes = vec![0u8; HEADER_BYTES.max(payload.len().next_multiple_of(8))];
     bytes[..payload.len()].copy_from_slice(payload);
-    let mut bs = ZfpBitStream::from_bytes(&bytes);
+    let mut bs = ZfpBitStream::from_bytes(&bytes).expect("the stream allocates");
 
     let Ok(header) = bs.read_header(mask) else {
         // Rejecting malformed headers is the correct outcome, not a finding.

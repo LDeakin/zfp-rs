@@ -339,7 +339,7 @@ mod tests {
         )
         .unwrap();
         let src: Vec<f64> = (0..64).map(f64::from).collect();
-        let mut bs = ZfpBitStream::new(4096);
+        let mut bs = ZfpBitStream::new(4096).unwrap();
         bs.compress(&config, &ZfpField::new(&src, [8usize, 8]).unwrap())
             .unwrap();
 
@@ -367,7 +367,7 @@ mod tests {
         )
         .unwrap();
         let src: Vec<f64> = (0..64).map(f64::from).collect();
-        let mut bs = ZfpBitStream::new(4096);
+        let mut bs = ZfpBitStream::new(4096).unwrap();
         let size = bs
             .compress(&config, &ZfpField::new(&src, [8usize, 8]).unwrap())
             .unwrap();
@@ -379,6 +379,7 @@ mod tests {
             let mut out = [0f64; 64];
             let mut field = ZfpFieldMut::new(&mut out, [8usize, 8]).unwrap();
             let read = ZfpBitStream::from_bytes(bytes)
+                .unwrap()
                 .decompress_with_execution(&config, &mut field, execution)
                 .unwrap();
             (read, out.map(f64::to_bits))

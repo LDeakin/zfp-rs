@@ -191,7 +191,7 @@ fn gen_header_decode(dir: &Path) -> usize {
         let field = ZfpField::new(&data, [4usize, 4, 4]).unwrap();
         let config = ZfpConfig::reversible();
 
-        let mut bs = ZfpBitStream::new(64);
+        let mut bs = ZfpBitStream::new(64).expect("the stream allocates");
         bs.write_header(&config, &field.metadata(), mask)
             .expect("write header");
         bs.flush();
@@ -262,7 +262,7 @@ fn compress_as(
     config: &ZfpConfig,
     cap: usize,
 ) -> Vec<u8> {
-    let mut bs = ZfpBitStream::new(cap);
+    let mut bs = ZfpBitStream::new(cap).expect("the stream allocates");
     match ty {
         ZfpScalarType::I32 => {
             let v: Vec<i32> = src.iter().map(|&x| x as i32).collect();

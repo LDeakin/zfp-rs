@@ -112,7 +112,7 @@ macro_rules! block_decode_compat_int {
                 c.rewind();
 
                 // Decode with Rust.
-                let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes);
+                let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes).unwrap();
                 let rs_out = $rs_decode(&mut rs_bs, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
 
                 // Decode with C
@@ -162,7 +162,7 @@ macro_rules! block_decode_compat_float {
                 c.rewind();
 
                 // Decode with Rust.
-                let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes);
+                let mut rs_bs = ZfpBitStream::from_bytes(&c_bytes).unwrap();
                 let rs_out = $rs_decode(&mut rs_bs, &ZfpConfig::expert(maxbits, maxbits, ZFP_MAX_PREC, ZFP_MIN_EXP).unwrap());
 
                 // Decode with C
@@ -377,7 +377,7 @@ macro_rules! reversible_block_decode_compat {
                 let mut c_out = vec![<$scalar>::default(); $dims.block_size()];
                 let c_bits = unsafe { $c_decode(c.zfp, c_out.as_mut_ptr()) };
 
-                let mut rs_bs = ZfpBitStream::from_bytes(c.encoded_bytes());
+                let mut rs_bs = ZfpBitStream::from_bytes(c.encoded_bytes()).unwrap();
                 let mut rs_out = vec![<$scalar>::default(); $dims.block_size()];
                 let rs_bits = unsafe {
                     decode_block_strided::<$scalar>(

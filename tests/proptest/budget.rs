@@ -58,13 +58,13 @@ fn check<T: ZfpScalar>(
 ) -> Result<Vec<T>, TestCaseError> {
     let field = ZfpField::new(data, dims).unwrap();
     let capacity = config.maximum_size(T::SCALAR_TYPE, dims).unwrap();
-    let mut serial = ZfpBitStream::new(capacity);
+    let mut serial = ZfpBitStream::new(capacity).unwrap();
     let size = serial.compress(config, &field);
     prop_assert!(size.is_ok(), "{size:?}, maximum_size {capacity}");
 
     #[cfg(feature = "rayon")]
     for (threads, chunk_size) in [(0, 0), (3, 0), (3, 1), (2, 3)] {
-        let mut parallel = ZfpBitStream::new(capacity);
+        let mut parallel = ZfpBitStream::new(capacity).unwrap();
         parallel
             .compress_with_execution(
                 config,

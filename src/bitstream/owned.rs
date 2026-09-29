@@ -1,8 +1,9 @@
 use crate::bitstream::core::{
-    BitStreamState, BitStreamStorage, BitStreamStorageMut, bytes_to_words,
+    BitStreamState, BitStreamStorage, BitStreamStorageMut, bytes_to_words, vec_with_capacity,
+    zeroed_words,
 };
 use crate::config::STREAM_WORD_BYTES;
-use crate::types::ZfpBitStreamWord;
+use crate::types::{ZfpAllocError, ZfpBitStreamWord};
 
 /// Owns a byte buffer and tracks a read/write bit cursor.
 ///
@@ -55,13 +56,14 @@ impl ZfpBitStream {
     ///
     /// The stream never grows: writes past the end are dropped and flagged,
     /// see [`overflowed`][Self::overflowed].
-    #[must_use]
-    pub fn new(capacity: usize) -> Self {
-        let nwords = capacity.div_ceil(STREAM_WORD_BYTES);
-        Self {
-            words: vec![0u64; nwords],
-            state: BitStreamState::new(),
-        }
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpAllocError`] if the storage cannot be allocated.
+    pub fn new(capacity: usize) -> Result<Self, ZfpAllocError> {
+        Ok(Self::from_words(zeroed_words(
+            capacity.div_ceil(STREAM_WORD_BYTES),
+        )?))
     }
 
     /// Wrap an existing word buffer (takes ownership).
@@ -76,9 +78,12 @@ impl ZfpBitStream {
     /// Copy a byte buffer into a new stream.
     ///
     /// A trailing partial word is zero-padded.
-    #[must_use]
-    pub fn from_bytes(buf: &[u8]) -> Self {
-        Self::from_words(bytes_to_words(buf))
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpAllocError`] if the copy cannot be allocated.
+    pub fn from_bytes(buf: &[u8]) -> Result<Self, ZfpAllocError> {
+        Ok(Self::from_words(bytes_to_words(buf)?))
     }
 
     /// Flush and consume the stream, returning the words written, as
@@ -113,11 +118,17 @@ impl ZfpBitStream {
         self.words[index]
     }
 
-    /// Flush and consume the stream, returning the bytes written, as
+    /// Flush and consume the stream, returning a copy of the bytes written, as
     /// [`as_bytes`][Self::as_bytes].
-    #[must_use]
-    pub fn into_bytes(mut self) -> Vec<u8> {
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpAllocError`] if the copy cannot be allocated.
+    pub fn into_bytes(mut self) -> Result<Vec<u8>, ZfpAllocError> {
         self.flush();
-        self.as_bytes().to_vec()
+        let bytes = self.as_bytes();
+        let mut out = vec_with_capacity(bytes.len())?;
+        out.extend_from_slice(bytes);
+        Ok(out)
     }
 }

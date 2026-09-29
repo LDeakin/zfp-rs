@@ -158,7 +158,7 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -167,8 +167,8 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(4096);
-                let mut bs2 = ZfpBitStream::new(4096);
+                let mut bs1 = ZfpBitStream::new(4096).unwrap();
+                let mut bs2 = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_strided(&mut bs1, data1.as_ptr(), SX) };
                 bs1.flush();
                 unsafe { $enc_strided(&mut bs2, data2.as_ptr(), SX) };
@@ -179,7 +179,7 @@ macro_rules! encode_block_strided_tests_1d {
             #[test]
             fn given_block_when_encode_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, &CONFIG) };
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
@@ -199,7 +199,7 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_partial_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, SX) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -208,8 +208,8 @@ macro_rules! encode_block_strided_tests_1d {
             fn given_block_when_encode_partial_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(4096);
-                let mut bs2 = ZfpBitStream::new(4096);
+                let mut bs1 = ZfpBitStream::new(4096).unwrap();
+                let mut bs2 = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, SX) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, SX) };
@@ -225,8 +225,8 @@ macro_rules! encode_block_strided_tests_1d {
                 for i in PX..BLOCK_SIDE_LEN {
                     data2[SX as usize * i] = DUMMY_VAL;
                 }
-                let mut bs1 = ZfpBitStream::new(4096);
-                let mut bs2 = ZfpBitStream::new(4096);
+                let mut bs1 = ZfpBitStream::new(4096).unwrap();
+                let mut bs2 = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, SX) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, SX) };
@@ -237,7 +237,7 @@ macro_rules! encode_block_strided_tests_1d {
             #[test]
             fn given_block_when_encode_partial_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_partial_rate(&mut bs, data.as_ptr(), PX, SX, &CONFIG) };
                 bs.flush();
                 let computed = hash_bitstream(&bs.as_bytes());
@@ -333,7 +333,7 @@ macro_rules! encode_block_strided_tests_2d {
             fn given_block_when_encode_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -342,8 +342,8 @@ macro_rules! encode_block_strided_tests_2d {
             fn given_block_when_encode_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(4096);
-                let mut bs2 = ZfpBitStream::new(4096);
+                let mut bs1 = ZfpBitStream::new(4096).unwrap();
+                let mut bs2 = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_strided(&mut bs1, data1.as_ptr(), SX, SY) };
                 bs1.flush();
                 unsafe { $enc_strided(&mut bs2, data2.as_ptr(), SX, SY) };
@@ -354,7 +354,7 @@ macro_rules! encode_block_strided_tests_2d {
             #[test]
             fn given_block_when_encode_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe {
                     $enc_strided_rate(
                         &mut bs, data.as_ptr(), SX, SY, &CONFIG,
@@ -378,7 +378,7 @@ macro_rules! encode_block_strided_tests_2d {
             fn given_block_when_encode_partial_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, SX, SY) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -387,8 +387,8 @@ macro_rules! encode_block_strided_tests_2d {
             fn given_block_when_encode_partial_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(4096);
-                let mut bs2 = ZfpBitStream::new(4096);
+                let mut bs1 = ZfpBitStream::new(4096).unwrap();
+                let mut bs2 = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, PY, SX, SY) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, PY, SX, SY) };
@@ -408,8 +408,8 @@ macro_rules! encode_block_strided_tests_2d {
                         }
                     }
                 }
-                let mut bs1 = ZfpBitStream::new(4096);
-                let mut bs2 = ZfpBitStream::new(4096);
+                let mut bs1 = ZfpBitStream::new(4096).unwrap();
+                let mut bs2 = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, PY, SX, SY) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, PY, SX, SY) };
@@ -420,7 +420,7 @@ macro_rules! encode_block_strided_tests_2d {
             #[test]
             fn given_block_when_encode_partial_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, SX, SY, &CONFIG,
@@ -528,7 +528,7 @@ macro_rules! encode_block_strided_tests_3d {
             fn given_block_when_encode_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY, SZ) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -537,8 +537,8 @@ macro_rules! encode_block_strided_tests_3d {
             fn given_block_when_encode_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(65536);
-                let mut bs2 = ZfpBitStream::new(65536);
+                let mut bs1 = ZfpBitStream::new(65536).unwrap();
+                let mut bs2 = ZfpBitStream::new(65536).unwrap();
                 unsafe { $enc_strided(&mut bs1, data1.as_ptr(), SX, SY, SZ) };
                 bs1.flush();
                 unsafe { $enc_strided(&mut bs2, data2.as_ptr(), SX, SY, SZ) };
@@ -549,7 +549,7 @@ macro_rules! encode_block_strided_tests_3d {
             #[test]
             fn given_block_when_encode_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 unsafe {
                     $enc_strided_rate(
                         &mut bs, data.as_ptr(), SX, SY, SZ, &CONFIG,
@@ -573,7 +573,7 @@ macro_rules! encode_block_strided_tests_3d {
             fn given_block_when_encode_partial_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -582,8 +582,8 @@ macro_rules! encode_block_strided_tests_3d {
             fn given_block_when_encode_partial_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(65536);
-                let mut bs2 = ZfpBitStream::new(65536);
+                let mut bs1 = ZfpBitStream::new(65536).unwrap();
+                let mut bs2 = ZfpBitStream::new(65536).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, PY, PZ, SX, SY, SZ) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, PY, PZ, SX, SY, SZ) };
@@ -606,8 +606,8 @@ macro_rules! encode_block_strided_tests_3d {
                         }
                     }
                 }
-                let mut bs1 = ZfpBitStream::new(65536);
-                let mut bs2 = ZfpBitStream::new(65536);
+                let mut bs1 = ZfpBitStream::new(65536).unwrap();
+                let mut bs2 = ZfpBitStream::new(65536).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, PY, PZ, SX, SY, SZ) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, PY, PZ, SX, SY, SZ) };
@@ -618,7 +618,7 @@ macro_rules! encode_block_strided_tests_3d {
             #[test]
             fn given_block_when_encode_partial_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ, &CONFIG,
@@ -736,7 +736,7 @@ macro_rules! encode_block_strided_tests_4d {
             fn given_block_when_encode_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 let bits_written = unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY, SZ, SW) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -745,8 +745,8 @@ macro_rules! encode_block_strided_tests_4d {
             fn given_block_when_encode_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(1 << 20);
-                let mut bs2 = ZfpBitStream::new(1 << 20);
+                let mut bs1 = ZfpBitStream::new(1 << 20).unwrap();
+                let mut bs2 = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe { $enc_strided(&mut bs1, data1.as_ptr(), SX, SY, SZ, SW) };
                 bs1.flush();
                 unsafe { $enc_strided(&mut bs2, data2.as_ptr(), SX, SY, SZ, SW) };
@@ -757,7 +757,7 @@ macro_rules! encode_block_strided_tests_4d {
             #[test]
             fn given_block_when_encode_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe {
                     $enc_strided_rate(
                         &mut bs, data.as_ptr(), SX, SY, SZ, SW, &CONFIG,
@@ -781,7 +781,7 @@ macro_rules! encode_block_strided_tests_4d {
             fn given_block_when_encode_partial_block_strided_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 let bits_written = unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW) };
                 assert_eq!(bits_written as u64, bs.write_pos());
             }
@@ -790,8 +790,8 @@ macro_rules! encode_block_strided_tests_4d {
             fn given_block_when_encode_partial_block_strided_expect_only_strided_entries_used() {
                 let data1 = make_strided_array(DUMMY_VAL);
                 let data2 = make_strided_array(DUMMY_VAL + 1 as $scalar);
-                let mut bs1 = ZfpBitStream::new(1 << 20);
-                let mut bs2 = ZfpBitStream::new(1 << 20);
+                let mut bs1 = ZfpBitStream::new(1 << 20).unwrap();
+                let mut bs2 = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW) };
@@ -818,8 +818,8 @@ macro_rules! encode_block_strided_tests_4d {
                         }
                     }
                 }
-                let mut bs1 = ZfpBitStream::new(1 << 20);
-                let mut bs2 = ZfpBitStream::new(1 << 20);
+                let mut bs1 = ZfpBitStream::new(1 << 20).unwrap();
+                let mut bs2 = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe { $enc_partial(&mut bs1, data1.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW) };
                 bs1.flush();
                 unsafe { $enc_partial(&mut bs2, data2.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW) };
@@ -830,7 +830,7 @@ macro_rules! encode_block_strided_tests_4d {
             #[test]
             fn given_block_when_encode_partial_block_strided_expect_bitstream_checksum_matches() {
                 let data = make_strided_array(DUMMY_VAL);
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW, &CONFIG,

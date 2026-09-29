@@ -146,7 +146,8 @@ pub(crate) fn compress_rayon(
     let (chunks, chunk_starts) = compute_chunk_ranges(blocks, threads, chunk_size);
 
     // Each chunk returns its words and bit count, for bit-level
-    // concatenation, or `None` if it outgrew its buffer.
+    // concatenation, or `None` if its buffer could not be allocated or it
+    // outgrew it.
     let chunk_results: Vec<Option<(u64, Vec<u64>)>> = if threads > 0 {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads as usize)
@@ -165,10 +166,10 @@ pub(crate) fn compress_rayon(
             .collect()
     };
 
-    // Chunk buffers are sized to fit every block, so none should overflow. If
-    // one does, compressing serially still gets the stream right.
+    // Chunk buffers are sized to fit every block of a valid config, so a chunk
+    // fails if its buffer cannot be allocated, or for unvalidated C parameters.
+    // Compressing serially needs no buffer, and gets the stream right.
     let Some(chunk_results) = chunk_results.into_iter().collect::<Option<Vec<_>>>() else {
-        debug_assert!(false, "a chunk outgrew its buffer");
         return compress(bs, field, config);
     };
 
@@ -200,7 +201,7 @@ fn append_bits(bs: &mut (impl ZfpBitStreamMutOps + ?Sized), words: &[u64], bits:
 }
 
 /// Compress one chunk of blocks, returning (`bits_written`, `compressed_words`),
-/// or `None` if the chunk outgrew its buffer.
+/// or `None` if the chunk's buffer cannot be allocated or the chunk outgrew it.
 ///
 /// Returns the exact bit count (before flush padding) alongside the flushed
 /// words, so the caller can copy at bit-level granularity across chunk boundaries.
@@ -227,7 +228,7 @@ fn compress_one_chunk(
     #[allow(clippy::cast_possible_truncation)]
     // chunk_bits is bounded by the field size, which fits in usize.
     let chunk_words = (chunk_bits / 64 + 1) as usize;
-    let mut local_bs = ZfpBitStream::new(chunk_words * 8);
+    let mut local_bs = ZfpBitStream::new(chunk_words * 8).ok()?;
     // SAFETY: `buf` is the field's whole data buffer, validated by `FieldPlan::new`.
     unsafe { compress_blocks(&mut local_bs, buf.as_ptr(), info, config, start..end) };
     // Record bits written before flushing (flush pads to word boundary).

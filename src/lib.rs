@@ -66,7 +66,7 @@
 //!
 //! // Compress into a stream sized for the worst case.
 //! let capacity = config.maximum_size(ZfpScalarType::F64, field.dims()).unwrap();
-//! let mut bs = ZfpBitStream::new(capacity);
+//! let mut bs = ZfpBitStream::new(capacity)?;
 //! let size = bs.compress(&config, &field)?;
 //! let compressed: &[u8] = bs.as_bytes();
 //! assert_eq!(compressed.len(), size);
@@ -108,9 +108,9 @@ pub use execution::ZfpExecution;
 pub use field::{ZfpField, ZfpFieldMetadata, ZfpFieldMut};
 pub use header::{ZfpHeader, ZfpHeaderError};
 pub use types::{
-    InvalidDimensionalityError, ZfpBitStreamWord, ZfpBlockError, ZfpCompressionError,
-    ZfpDecompressionError, ZfpDimensionality, ZfpDims, ZfpFieldError, ZfpHeaderMask,
-    ZfpMetadataError, ZfpMode, ZfpScalar, ZfpScalarType, ZfpStrides,
+    InvalidDimensionalityError, ZfpAllocError, ZfpBitStreamWord, ZfpBlockError,
+    ZfpCompressionError, ZfpDecompressionError, ZfpDimensionality, ZfpDims, ZfpFieldError,
+    ZfpHeaderMask, ZfpMetadataError, ZfpMode, ZfpScalar, ZfpScalarType, ZfpStrides,
 };
 pub use types::{
     ZFP_HEADER_MAX_BITS, ZFP_MAGIC_BITS, ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_META_BITS, ZFP_MIN_BITS,

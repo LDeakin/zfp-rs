@@ -233,7 +233,7 @@ impl Drop for CStream {
 fn bs_for_decompress(compressed: &[u8]) -> ZfpBitStream {
     let mut buf = compressed.to_vec();
     buf.extend_from_slice(&[0u8; 8]);
-    ZfpBitStream::from_bytes(&buf)
+    ZfpBitStream::from_bytes(&buf).unwrap()
 }
 
 // ---------------------------------------------------------------------------

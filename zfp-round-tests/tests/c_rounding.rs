@@ -136,7 +136,7 @@ fn stock_rounding_does_not_match_the_c_library() {
     let lens = [4usize, 4, 4];
     let mode = Mode::FixedAccuracy(-20);
 
-    let mut bs = ZfpBitStream::new(CAPACITY);
+    let mut bs = ZfpBitStream::new(CAPACITY).unwrap();
     let never = ZfpConfig::fixed_accuracy(libm::ldexp(1.0, -20));
     bs.compress(&never, &ZfpField::new(&data[..], lens).unwrap())
         .unwrap();
@@ -156,7 +156,7 @@ fn stock_rounding_does_not_match_the_c_library() {
     );
 
     // ...and the rounding config does match, so the difference is the rounding.
-    let mut bs = ZfpBitStream::new(CAPACITY);
+    let mut bs = ZfpBitStream::new(CAPACITY).unwrap();
     bs.compress(
         &never.with_rounding(ROUNDING),
         &ZfpField::new(&data[..], lens).unwrap(),
@@ -173,7 +173,7 @@ macro_rules! compat {
                 let lens = $lens;
                 let dims = ZfpDimensionality::try_from(u32::try_from(lens.len()).unwrap()).unwrap();
                 for mode in MODES {
-                    let mut bs = ZfpBitStream::new(CAPACITY);
+                    let mut bs = ZfpBitStream::new(CAPACITY).unwrap();
                     bs.compress(&rust_config(mode, $rs_ty, dims), &ZfpField::new(&data[..], lens).unwrap())
                         .unwrap();
                     let rs_bytes = bs.as_bytes().to_vec();

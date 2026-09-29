@@ -133,7 +133,7 @@ fn typed<T: FuzzScalar>(
     let src: Vec<T> = decode_scalars::<T>(payload, span);
 
     let cap = 4096;
-    let mut bs = ZfpBitStream::new(cap);
+    let mut bs = ZfpBitStream::new(cap).expect("the stream allocates");
     // SAFETY (all three call sites below): `src`/`dst` are allocated to the
     // block's exact index span and `origin` places the pointer so that every
     // offset the strides generate lands inside the allocation.

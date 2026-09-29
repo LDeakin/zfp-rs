@@ -203,7 +203,7 @@ macro_rules! encode_block_tests_int {
             fn given_block_when_encode_block_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_block();
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
                 // minbits = maxbits for fixed-rate mode (matches C: zfp_stream_set_rate)
                 let bits_written = $enc_fn(&mut bs, block, &CONFIG);
@@ -214,7 +214,7 @@ macro_rules! encode_block_tests_int {
             #[test]
             fn given_block_when_encode_block_expect_bitstream_checksum_matches() {
                 let data = make_block();
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
                 $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
@@ -295,7 +295,7 @@ macro_rules! encode_block_tests_float {
             fn given_block_when_encode_block_expect_return_val_reflects_num_bits_written_to_bitstream(
             ) {
                 let data = make_block();
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
                 // minbits = maxbits for fixed-rate mode (matches C: zfp_stream_set_rate)
                 let bits_written =
@@ -306,7 +306,7 @@ macro_rules! encode_block_tests_float {
             #[test]
             fn given_block_when_encode_block_expect_bitstream_checksum_matches() {
                 let data = make_block();
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 let block: &[$scalar; $block_size] = data.as_slice().try_into().unwrap();
                 $enc_fn(&mut bs, block, &CONFIG);
                 bs.flush();
@@ -331,7 +331,7 @@ macro_rules! encode_block_tests_float {
                 let mut failures = 0;
                 for (i, &special_bits) in $special_bits.iter().enumerate() {
                     let data = $make_special($block_size, special_bits);
-                    let mut bs = ZfpBitStream::new(65536);
+                    let mut bs = ZfpBitStream::new(65536).unwrap();
                     encode_block(&mut bs, &ZfpConfig::reversible(), &data, ZfpDimensionality::try_from($dims as u32).unwrap()).unwrap();
                     bs.flush();
                     let computed = hash_bitstream(&bs.as_bytes());

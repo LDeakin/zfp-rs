@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ZfpAllocError`, returned when a stream's buffer cannot be allocated.
 - `ZfpConfig::from_raw_params`, behind `ffi`, which holds unvalidated parameters from a C `zfp_stream`.
 - `ZfpConfig::checked_mode_bits` and `ZfpConfigError`, which report parameters that a header's mode word cannot hold.
 - `field::checked_index_span`, the overflow-checked form of `field::index_span`.
@@ -37,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `read_bit` returns `bool`, `write_bit` takes `bool`, and `write_bit` and `write_word` return nothing. `skip`, `pad` and `copy_from` take `u64` bit counts, and `flush` returns `u32`, like `align`.
 - **Breaking**: `bits_written`, `word_pos` and `size` are removed; use `write_pos` or `as_bytes().len()` (`size` remains behind `ffi`). `words` is renamed `backing_words`.
 - **Breaking**: `ZfpBitStream::from_buffer` is renamed `from_words` and `into_vec` is renamed `into_bytes`. `into_words` returns only the words written, and `from_bytes` zero-pads a trailing partial word instead of dropping it. `ZfpBitStreamRefMut::{from_words_mut, from_bytes_mut}` are renamed `from_words` and `from_bytes`.
+- **Breaking**: `ZfpBitStream::{new, from_bytes, into_bytes}` return `Result<_, ZfpAllocError>`. They panicked for a capacity beyond the address space, and aborted the process when the allocator failed. Rayon compression compresses serially if a chunk's buffer cannot be allocated, and the C ABI's `stream_open` and `stream_clone` return null, as their documentation says.
 - **Breaking**: `ZfpBitStream::write_header` takes `&ZfpFieldMetadata` instead of `&ZfpField`, and returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, writing nothing.
 - **Breaking**: `codec::block::{encode_block, decode_block}` take a `&ZfpConfig` after the stream, so blocks can be coded in any mode, not just unconstrained full precision. A reversible config codes every scalar type losslessly, and matches field compression. `{encode,decode}_block_reversible_{f32,f64}` are removed.
 - **Breaking**: `codec::block::encode_block_strided_reversible` (`ffi`) and the block functions in `codec::{encode,decode}::reversible` (`internals`) take a `&ZfpConfig` instead of nothing or a `ZfpRounding`, so they can honour its limits.

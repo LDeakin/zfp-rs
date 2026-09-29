@@ -263,7 +263,7 @@ macro_rules! compress_compat_1d_int {
                 let field = ZfpField::new(data, [nx]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D1);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();
@@ -320,7 +320,7 @@ macro_rules! compress_compat_1d_float {
                 let field = ZfpField::new(data, [nx]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D1);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();
@@ -381,7 +381,7 @@ macro_rules! compress_compat_2d_int {
                 let field = ZfpField::new(data, [nx, ny]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D2);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();
@@ -441,7 +441,7 @@ macro_rules! compress_compat_2d_float {
                 let field = ZfpField::new(data, [nx, ny]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D2);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();
@@ -504,7 +504,7 @@ macro_rules! compress_compat_3d_int {
                 let field = ZfpField::new(data, [nx, ny, nz]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D3);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();
@@ -566,7 +566,7 @@ macro_rules! compress_compat_3d_float {
                 let field = ZfpField::new(data, [nx, ny, nz]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D3);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();
@@ -631,7 +631,7 @@ macro_rules! compress_compat_4d_int {
                 let field = ZfpField::new(data, [nx, ny, nz, nw]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D4);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();
@@ -695,7 +695,7 @@ macro_rules! compress_compat_4d_float {
                 let field = ZfpField::new(data, [nx, ny, nz, nw]).unwrap();
                 let mut rs = ZfpConfig::new();
                 apply_mode_rust(&mut rs, &mode, $zfp_type, ZfpDimensionality::D4);
-                let mut bs = ZfpBitStream::new(CStream::CAPACITY);
+                let mut bs = ZfpBitStream::new(CStream::CAPACITY).unwrap();
                 bs.compress_with_execution(&rs, &field, exec).unwrap();
 
                 let rs_bytes = bs.as_bytes().to_vec();

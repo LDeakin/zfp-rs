@@ -1023,6 +1023,14 @@ fn stream_copy_reads_from_live_source_without_reparsing_bytes() {
     assert_eq!(dst_words[0] & 0xffff, 0xabcd);
 }
 
+/// C's `stream_open` returns null if `malloc` fails, and so does the C ABI.
+#[test]
+fn stream_open_returns_null_when_the_buffer_cannot_be_allocated() {
+    for bytes in [usize::MAX, isize::MAX.cast_unsigned() & !7] {
+        assert!(unsafe { ffi::stream_open(std::ptr::null_mut(), bytes) }.is_null());
+    }
+}
+
 /// C reads and writes at most 64 bits at a time, and a larger count is
 /// undefined behaviour; the C ABI reads or writes 64.
 #[test]

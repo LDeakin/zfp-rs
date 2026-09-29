@@ -142,7 +142,7 @@ macro_rules! decode_block_strided_tests_1d {
             }
 
             fn encode_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_strided(&mut bs, data.as_ptr(), SX) };
                 bs.flush();
                 bs.rewind();
@@ -150,7 +150,7 @@ macro_rules! decode_block_strided_tests_1d {
             }
 
             fn encode_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, SX) };
                 bs.flush();
                 bs.rewind();
@@ -158,7 +158,7 @@ macro_rules! decode_block_strided_tests_1d {
             }
 
             fn encode_rate_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_strided_rate(&mut bs, data.as_ptr(), SX, &CONFIG) };
                 bs.flush();
                 bs.rewind();
@@ -166,7 +166,7 @@ macro_rules! decode_block_strided_tests_1d {
             }
 
             fn encode_rate_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, SX, &CONFIG,
@@ -371,7 +371,7 @@ macro_rules! decode_block_strided_tests_2d {
             }
 
             fn encode_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY) };
                 bs.flush();
                 bs.rewind();
@@ -379,7 +379,7 @@ macro_rules! decode_block_strided_tests_2d {
             }
 
             fn encode_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, SX, SY) };
                 bs.flush();
                 bs.rewind();
@@ -387,7 +387,7 @@ macro_rules! decode_block_strided_tests_2d {
             }
 
             fn encode_rate_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe {
                     $enc_strided_rate(
                         &mut bs, data.as_ptr(), SX, SY, &CONFIG,
@@ -399,7 +399,7 @@ macro_rules! decode_block_strided_tests_2d {
             }
 
             fn encode_rate_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(4096);
+                let mut bs = ZfpBitStream::new(4096).unwrap();
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, SX, SY, &CONFIG,
@@ -645,7 +645,7 @@ macro_rules! decode_block_strided_tests_3d {
             }
 
             fn encode_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY, SZ) };
                 bs.flush();
                 bs.rewind();
@@ -653,7 +653,7 @@ macro_rules! decode_block_strided_tests_3d {
             }
 
             fn encode_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ) };
                 bs.flush();
                 bs.rewind();
@@ -661,7 +661,7 @@ macro_rules! decode_block_strided_tests_3d {
             }
 
             fn encode_rate_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 unsafe {
                     $enc_strided_rate(
                         &mut bs, data.as_ptr(), SX, SY, SZ, &CONFIG,
@@ -673,7 +673,7 @@ macro_rules! decode_block_strided_tests_3d {
             }
 
             fn encode_rate_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(65536);
+                let mut bs = ZfpBitStream::new(65536).unwrap();
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, SX, SY, SZ, &CONFIG,
@@ -954,7 +954,7 @@ macro_rules! decode_block_strided_tests_4d {
             }
 
             fn encode_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe { $enc_strided(&mut bs, data.as_ptr(), SX, SY, SZ, SW) };
                 bs.flush();
                 bs.rewind();
@@ -962,7 +962,7 @@ macro_rules! decode_block_strided_tests_4d {
             }
 
             fn encode_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe { $enc_partial(&mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW) };
                 bs.flush();
                 bs.rewind();
@@ -970,7 +970,7 @@ macro_rules! decode_block_strided_tests_4d {
             }
 
             fn encode_rate_and_rewind_strided(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe {
                     $enc_strided_rate(
                         &mut bs, data.as_ptr(), SX, SY, SZ, SW, &CONFIG,
@@ -982,7 +982,7 @@ macro_rules! decode_block_strided_tests_4d {
             }
 
             fn encode_rate_and_rewind_partial(data: &[$scalar]) -> ZfpBitStream {
-                let mut bs = ZfpBitStream::new(1 << 20);
+                let mut bs = ZfpBitStream::new(1 << 20).unwrap();
                 unsafe {
                     $enc_partial_rate(
                         &mut bs, data.as_ptr(), PX, PY, PZ, PW, SX, SY, SZ, SW, &CONFIG,

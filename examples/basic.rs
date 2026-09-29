@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     )?;
 
     // Allocate a bitstream for the compressed output.
-    let mut bs = ZfpBitStream::new(1024);
+    let mut bs = ZfpBitStream::new(1024)?;
 
     // Compress.
     let bytes = bs.compress(&config, &field)?;
