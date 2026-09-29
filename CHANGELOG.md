@@ -57,6 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Writing past the end of a bitstream no longer panics. The write is dropped, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall`.
 - Reversible expert configurations (`min_exp < ZFP_MIN_EXP`) honour `min_bits`, `max_bits` and `max_prec`, as in C, and produce the same stream. They were ignored, so every block was coded losslessly. One C bug is not reproduced: C's encoder does not pad an all-zero float block to `min_bits`, though its decoder skips the padding. zfp-rs pads it, so such streams round-trip.
 - The strided `codec::block` functions, and so the C ABI's `zfp_encode_block_*` and `zfp_decode_block_*`, use the reversible coder for a reversible config, as C does, instead of the lossy coder.
+- `ZfpConfig::maximum_size`, and so the C ABI's `zfp_stream_maximum_size`, is never less than the block headers. Expert configurations whose `max_bits` is below the header write it anyway, so compressing into a stream of that size could fail with `BufferTooSmall`. C under-reports these configurations too.
+- Rayon compression no longer loses bits when blocks are larger than `max_bits`: each chunk's buffer is sized with the same bound as `maximum_size`.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28
 

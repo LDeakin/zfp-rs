@@ -145,8 +145,9 @@ pub(crate) fn compress_rayon(
 
     let (chunks, chunk_starts) = compute_chunk_ranges(blocks, threads, chunk_size);
 
-    // Each chunk returns (bits_written, words) for bit-level concatenation.
-    let chunk_results: Vec<(u64, Vec<u64>)> = if threads > 0 {
+    // Each chunk returns its words and bit count, for bit-level
+    // concatenation, or `None` if it outgrew its buffer.
+    let chunk_results: Vec<Option<(u64, Vec<u64>)>> = if threads > 0 {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(threads as usize)
             .build()
@@ -162,6 +163,13 @@ pub(crate) fn compress_rayon(
             .into_par_iter()
             .map(|c| compress_one_chunk(&chunk_starts, &info, buf, config, blocks, c))
             .collect()
+    };
+
+    // Chunk buffers are sized to fit every block, so none should overflow. If
+    // one does, compressing serially still gets the stream right.
+    let Some(chunk_results) = chunk_results.into_iter().collect::<Option<Vec<_>>>() else {
+        debug_assert!(false, "a chunk outgrew its buffer");
+        return compress(bs, field, config);
     };
 
     // Concatenate chunks at bit-level granularity, matching C's stream_copy.
@@ -191,7 +199,8 @@ fn append_bits(bs: &mut (impl ZfpBitStreamMutOps + ?Sized), words: &[u64], bits:
     }
 }
 
-/// Compress one chunk of blocks, returning (`bits_written`, `compressed_words`).
+/// Compress one chunk of blocks, returning (`bits_written`, `compressed_words`),
+/// or `None` if the chunk outgrew its buffer.
 ///
 /// Returns the exact bit count (before flush padding) alongside the flushed
 /// words, so the caller can copy at bit-level granularity across chunk boundaries.
@@ -204,7 +213,7 @@ fn compress_one_chunk(
     config: &ZfpConfig,
     total_blocks: usize,
     chunk: usize,
-) -> (u64, Vec<u64>) {
+) -> Option<(u64, Vec<u64>)> {
     use crate::ZfpBitStream;
 
     let start = chunk_starts[chunk];
@@ -213,7 +222,8 @@ fn compress_one_chunk(
     } else {
         total_blocks
     };
-    let chunk_bits = (end - start) as u64 * u64::from(config.max_bits());
+    let chunk_bits =
+        (end - start) as u64 * u64::from(config.block_bits(info.scalar_type, info.dims_enum));
     #[allow(clippy::cast_possible_truncation)]
     // chunk_bits is bounded by the field size, which fits in usize.
     let chunk_words = (chunk_bits / 64 + 1) as usize;
@@ -222,7 +232,8 @@ fn compress_one_chunk(
     unsafe { compress_blocks(&mut local_bs, buf.as_ptr(), info, config, start..end) };
     // Record bits written before flushing (flush pads to word boundary).
     let bits_written = local_bs.write_pos();
-    (bits_written, local_bs.into_words())
+    local_bs.flush();
+    (!local_bs.overflowed()).then(|| (bits_written, local_bs.into_words()))
 }
 
 /// Compute chunk ranges following C OMP semantics.

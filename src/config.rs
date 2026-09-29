@@ -580,36 +580,9 @@ impl ZfpConfig {
             return None;
         }
         let dimensionality = crate::field::dimensionality(&dims);
-        let dims = &dims[..usize::from(dimensionality)];
-        let d = u32::from(dimensionality);
-        let reversible = self.min_exp < ZFP_MIN_EXP;
-        let values = 1u32 << (2 * d);
-        let type_prec = match ty {
-            ZfpScalarType::I32 | ZfpScalarType::F32 => 32u32,
-            ZfpScalarType::I64 | ZfpScalarType::F64 => 64u32,
-        };
-        // Extra bits for reversible mode: 1 sign + 1 exponent + M mantissa bits + E exponent bits,
-        // where M and E depend on float/double precision (mirrors zfp_reversible_size in zfp.c).
-        let mut extra_bits: u32 = if reversible {
-            match ty {
-                ZfpScalarType::I32 => 5, // 1 sign + 1 exponent + 5 mantissa + 1 exponent (min: 5 bits)
-                ZfpScalarType::I64 => 6, // 1 sign + 1 exponent + 6 mantissa + 1 exponent (min: 6 bits)
-                ZfpScalarType::F32 => 1 + 1 + 8 + 5, // sign + exp + 8 mantissa + 5 exponent
-                ZfpScalarType::F64 => 1 + 1 + 11 + 6, // sign + exp + 11 mantissa + 6 exponent
-            }
-        } else {
-            match ty {
-                // 1 sign bit + float exponent width (mirrors zfp_stream_maximum_size in zfp.c).
-                ZfpScalarType::F32 => 1 + 8,
-                // 1 sign bit + double exponent width.
-                ZfpScalarType::F64 => 1 + 11,
-                ZfpScalarType::I32 | ZfpScalarType::I64 => 0,
-            }
-        };
-        extra_bits += values - 1 + values * self.max_prec.min(type_prec);
-        let maxbits = extra_bits.min(self.max_bits).max(self.min_bits);
+        let maxbits = self.block_bits(ty, dimensionality);
 
-        let blocks = dims
+        let blocks = dims[..usize::from(dimensionality)]
             .iter()
             .try_fold(1usize, |acc, &n| acc.checked_mul(n.div_ceil(4)))?;
         // Maximum header size in bits (mirrors ZFP_HEADER_MAX_BITS / zfp_stream_maximum_size in zfp.c).
@@ -619,6 +592,40 @@ impl ZfpConfig {
             .and_then(|bits| bits.checked_add(header_max))
             .and_then(|bits| bits.checked_next_multiple_of(u64::from(STREAM_WORD_BITS)))?;
         usize::try_from(total_bits / 8).ok()
+    }
+
+    /// The most bits a block of this type and dimensionality can take.
+    ///
+    /// As C's `zfp_stream_maximum_size`, this is the most a block can need,
+    /// capped at `max_bits` and raised to `min_bits`, except that it is never
+    /// less than the headers. A block writes those whatever `max_bits` is, so
+    /// C under-reports when `max_bits` is smaller.
+    pub(crate) fn block_bits(&self, ty: ZfpScalarType, dims: ZfpDimensionality) -> u32 {
+        let d = u32::from(dims);
+        let values = 1u32 << (2 * d);
+        let type_prec = match ty {
+            ZfpScalarType::I32 | ZfpScalarType::F32 => 32u32,
+            ZfpScalarType::I64 | ZfpScalarType::F64 => 64u32,
+        };
+        let header = if self.min_exp < ZFP_MIN_EXP {
+            // Precision bits, after a zero-block bit, a path bit and the
+            // exponent for floats (mirrors zfp_stream_maximum_size in zfp.c).
+            match ty {
+                ZfpScalarType::I32 => 5,
+                ZfpScalarType::I64 => 6,
+                ZfpScalarType::F32 => 1 + 1 + 8 + 5,
+                ZfpScalarType::F64 => 1 + 1 + 11 + 6,
+            }
+        } else {
+            // A zero-block bit and the exponent for floats.
+            match ty {
+                ZfpScalarType::F32 => 1 + 8,
+                ZfpScalarType::F64 => 1 + 11,
+                ZfpScalarType::I32 | ZfpScalarType::I64 => 0,
+            }
+        };
+        let most = header + values - 1 + values * self.max_prec.min(type_prec);
+        most.min(self.max_bits).max(header).max(self.min_bits)
     }
 }
 
