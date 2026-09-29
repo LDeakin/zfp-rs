@@ -11,8 +11,8 @@ use zfp_rs::types::{
     ZfpMetadataError,
 };
 use zfp_rs::{
-    ZfpBitStream, ZfpCompressionError, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMetadata,
-    ZfpScalarType, ZfpStreamAlignment,
+    ZfpBitStream, ZfpCompressionError, ZfpConfig, ZfpConfigError, ZfpDimensionality, ZfpField,
+    ZfpFieldMetadata, ZfpHeaderError, ZfpScalarType, ZfpStreamAlignment,
 };
 
 // ---------------------------------------------------------------------------
@@ -520,7 +520,7 @@ fn given_custom_compress_params_and_proper_header_when_zfp_read_header_mode_expe
 #[cfg(feature = "ffi")]
 #[test]
 fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_proper_num_bits_read() {
-    // Invalid params (min_bits > max_bits) should be rejected on read
+    // Construct a malformed wire mode directly to exercise read rejection.
     let config = ZfpConfig::expert(
         MAX_BITS_CUSTOM + 1, // min_bits > max_bits = invalid
         MAX_BITS_CUSTOM,
@@ -528,14 +528,12 @@ fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_prop
         MIN_EXP_CUSTOM,
     );
     let mut bs = ZfpBitStream::new(4096);
-    let field = make_field();
-    assert_proper_bits_read(
-        &config,
-        &field,
-        &mut bs,
-        ZfpHeaderMask::MODE,
-        ZFP_MODE_LONG_BITS as usize,
-        0,
+    bs.write_bits(config.mode_bits(), ZFP_MODE_LONG_BITS);
+    bs.flush();
+    bs.rewind();
+    assert_eq!(
+        bs.read_header(ZfpHeaderMask::MODE),
+        Err(ZfpHeaderError::InvalidMode)
     );
 }
 
@@ -543,7 +541,7 @@ fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_prop
 #[test]
 fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_stream_params_not_set()
 {
-    // Invalid params (min_bits > max_bits) should be rejected on read
+    // Safe header writing rejects invalid parameters before writing any bits.
     let config = ZfpConfig::expert(
         MAX_BITS_CUSTOM + 1,
         MAX_BITS_CUSTOM,
@@ -552,6 +550,11 @@ fn given_invalid_compress_params_in_header_when_zfp_read_header_mode_expect_stre
     );
     let field = make_field();
     let mut bs = ZfpBitStream::new(4096);
-    // write returns 64 bits (long mode), read returns 0 (invalid params rejected)
-    assert_compress_params_restored(config, &field, &mut bs, ZFP_MODE_LONG_BITS as usize, 0);
+    assert_eq!(
+        bs.write_header(&config, &field, ZfpHeaderMask::MODE),
+        Err(ZfpCompressionError::Config(
+            ZfpConfigError::InvalidParameters
+        ))
+    );
+    assert_eq!(bs.write_pos(), 0);
 }

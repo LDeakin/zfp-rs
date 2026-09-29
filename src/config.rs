@@ -13,6 +13,33 @@ use crate::types::{
     ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_BITS, ZFP_MIN_EXP, ZfpDimensionality, ZfpDims, ZfpMode,
     ZfpScalarType,
 };
+use std::fmt;
+
+/// Errors when encoding a configuration for a stream header.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ZfpConfigError {
+    /// Expert parameters do not describe a valid codec configuration.
+    InvalidParameters,
+    /// The mode word would change at least one expert parameter.
+    UnrepresentableMode,
+}
+
+impl fmt::Display for ZfpConfigError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidParameters => write!(f, "invalid ZFP compression parameters"),
+            Self::UnrepresentableMode => {
+                write!(
+                    f,
+                    "ZFP header mode cannot preserve the compression parameters"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ZfpConfigError {}
 
 /// Number of bytes per stream word ([`crate::types::ZfpBitStreamWord`]).
 pub const STREAM_WORD_BYTES: usize = size_of::<crate::types::ZfpBitStreamWord>();
@@ -435,7 +462,11 @@ impl ZfpConfig {
     /// Expert mode with validated parameters.
     ///
     /// Returns [`None`] if `min_bits > max_bits` or `max_prec` is not in `1..=64`,
-    /// mirroring the failure case of C `zfp_stream_set_params`.
+    /// mirroring the failure case of C `zfp_stream_set_params`. This validates
+    /// the codec parameters, not their header representation. Use
+    /// [`checked_mode_bits`][Self::checked_mode_bits] to check whether a header
+    /// can preserve them; [`write_header`][crate::ZfpBitStreamMutOps::write_header]
+    /// performs that check when writing a mode.
     #[must_use]
     pub const fn try_expert(
         min_bits: u32,
@@ -556,10 +587,44 @@ impl ZfpConfig {
         (self.mode() == ZfpMode::FixedAccuracy).then(|| libm::ldexp(1.0, self.min_exp))
     }
 
-    /// Return the compact 12- or 64-bit mode encoding.
+    /// Return the C-compatible compact 12- or 64-bit mode encoding.
+    ///
+    /// This low-level encoding clamps expert parameters to the wire format's
+    /// range. Use [`checked_mode_bits`][Self::checked_mode_bits] before writing
+    /// a header whose decoded configuration must preserve the parameters.
     #[must_use]
     pub fn mode_bits(&self) -> u64 {
         mode_bits_of(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+    }
+
+    /// Encode a mode only if reading it preserves every expert parameter.
+    ///
+    /// Rounding is not included in the mode word; the decoder must receive it
+    /// separately. This check is conservative for parameters that could happen
+    /// to produce the same output for a particular field.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ZfpConfigError::InvalidParameters`] for codec-invalid
+    /// parameters, or [`ZfpConfigError::UnrepresentableMode`] if the mode word
+    /// changes any of the four expert parameters.
+    pub fn checked_mode_bits(&self) -> Result<u64, ZfpConfigError> {
+        if !valid_params(self.min_bits, self.max_bits, self.max_prec, self.min_exp) {
+            return Err(ZfpConfigError::InvalidParameters);
+        }
+        let mode = self.mode_bits();
+        let decoded = Self::from_mode_bits(mode).ok_or(ZfpConfigError::UnrepresentableMode)?;
+        if (self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+            != (
+                decoded.min_bits,
+                decoded.max_bits,
+                decoded.max_prec,
+                decoded.min_exp,
+            )
+        {
+            return Err(ZfpConfigError::UnrepresentableMode);
+        }
+        Ok(mode)
     }
 
     /// Return the maximum compressed size in bytes, header included, for a

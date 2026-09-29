@@ -169,6 +169,8 @@ pub enum ZfpCompressionError {
     },
     /// Header field metadata could not be encoded.
     Metadata(ZfpMetadataError),
+    /// Header mode cannot preserve the compression configuration.
+    Config(crate::config::ZfpConfigError),
 }
 
 impl From<ZfpFieldError> for ZfpCompressionError {
@@ -183,6 +185,12 @@ impl From<ZfpMetadataError> for ZfpCompressionError {
     }
 }
 
+impl From<crate::config::ZfpConfigError> for ZfpCompressionError {
+    fn from(e: crate::config::ZfpConfigError) -> Self {
+        Self::Config(e)
+    }
+}
+
 impl fmt::Display for ZfpCompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -192,6 +200,7 @@ impl fmt::Display for ZfpCompressionError {
                 "bitstream needs {required} bytes but holds only {capacity}"
             ),
             Self::Metadata(e) => write!(f, "cannot write header: {e}"),
+            Self::Config(e) => write!(f, "cannot write header: {e}"),
         }
     }
 }
@@ -201,6 +210,7 @@ impl std::error::Error for ZfpCompressionError {
         match self {
             Self::Field(e) => Some(e),
             Self::Metadata(e) => Some(e),
+            Self::Config(e) => Some(e),
             Self::BufferTooSmall { .. } => None,
         }
     }

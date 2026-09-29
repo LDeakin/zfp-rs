@@ -170,14 +170,21 @@ pub trait ZfpBitStreamMutOps: ZfpBitStreamOps + BitStreamStorageMut {
     /// Returns [`ZfpCompressionError::Metadata`][crate::types::ZfpCompressionError::Metadata]
     /// if `mask` includes [`ZfpHeaderMask::META`] and the field metadata cannot be
     /// encoded, or [`ZfpCompressionError::BufferTooSmall`][crate::types::ZfpCompressionError::BufferTooSmall]
-    /// if the header does not fit in the stream. Nothing is written in either case.
+    /// if the header does not fit in the stream, or
+    /// [`ZfpCompressionError::Config`][crate::types::ZfpCompressionError::Config]
+    /// if the mode cannot preserve the config's expert parameters. Nothing is
+    /// written in any of these cases.
     fn write_header(
         &mut self,
         config: &ZfpConfig,
         metadata: &ZfpFieldMetadata,
         mask: ZfpHeaderMask,
     ) -> Result<usize, crate::types::ZfpCompressionError> {
-        let mode = config.mode_bits();
+        let mode = if mask.contains(ZfpHeaderMask::MODE) {
+            config.checked_mode_bits()?
+        } else {
+            0
+        };
         crate::header::write_header_bs(self, metadata, mask, mode)
     }
 
