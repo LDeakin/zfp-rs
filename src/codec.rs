@@ -3,9 +3,9 @@
 //! [`block`] is the stable surface: [`block::encode_block`] and
 //! [`block::decode_block`] are safe and validate their input.
 //!
-//! The remaining modules are the monomorphised innards. [`encode`] and
-//! [`decode`] are public only with the `internals` feature, which the C-port
-//! and proptest suites enable; [`promote`] with `ffi`, which the C-ABI layer
+//! The remaining modules are the monomorphised innards. `encode` and
+//! `decode` are public only with the `internals` feature, which the C-port
+//! and proptest suites enable; `promote` with `ffi`, which the C-ABI layer
 //! enables. Otherwise they stay crate-internal. Their strided entry points are
 //! `unsafe`: they index through caller-supplied strides without bounds checks.
 
