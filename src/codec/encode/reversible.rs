@@ -6,8 +6,9 @@
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::bitplane::{PlaneBlock, encode_ints};
 use crate::codec::encode::core::{
-    Budget, PERM_1, PERM_2, PERM_3, PERM_4, exponent_block_f32, exponent_block_f64, fwd_cast_f32,
-    fwd_cast_f64, fwd_order_i32, fwd_order_i64, with_maxbits,
+    Budget, MIN_CAST_EMAX_F32, MIN_CAST_EMAX_F64, PERM_1, PERM_2, PERM_3, PERM_4,
+    exponent_block_f32, exponent_block_f64, fwd_cast_f32, fwd_cast_f64, fwd_order_i32,
+    fwd_order_i64, with_maxbits,
 };
 use crate::codec::transform::rev_fwd_xform;
 use crate::config::ZfpConfig;
@@ -205,13 +206,21 @@ fn rev_encode_float_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
     let emax = exponent_block_f32(fblock);
     let e = (emax + EBIAS_F32) as u32;
 
+    // C's cast of a nonzero block below `MIN_CAST_EMAX_F32` overflows (see
+    // `fwd_cast_f32`), and gives integers that reconstruct to about
+    // `±2^(emax+1)`, or zero once the inverse scale underflows. Neither is the
+    // block's largest value, which is nonzero and below `2^emax`, so C always
+    // reinterprets such a block. Do the same without casting, since
+    // `fwd_cast_f32` no longer overflows.
+    let tiny = e != 0 && emax < MIN_CAST_EMAX_F32;
+
     // BFP cast: if emax == -EBIAS, all iblock[i] = 0
     let mut iblock = [0i32; N];
-    if e != 0 {
+    if e != 0 && !tiny {
         fwd_cast_f32(&mut iblock, fblock, emax);
     }
 
-    let bits = if rev_inv_cast_f32(&iblock, fblock, emax) {
+    let bits = if !tiny && rev_inv_cast_f32(&iblock, fblock, emax) {
         // BFP path is reversible
         if e != 0 {
             // Non-zero block: write "01" header + EBITS exponent
@@ -251,13 +260,15 @@ fn rev_encode_double_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
 ) -> usize {
     let emax = exponent_block_f64(fblock);
     let e = (emax + EBIAS_F64) as u32;
+    // As in `rev_encode_float_block`.
+    let tiny = e != 0 && emax < MIN_CAST_EMAX_F64;
 
     let mut iblock = [0i64; N];
-    if e != 0 {
+    if e != 0 && !tiny {
         fwd_cast_f64(&mut iblock, fblock, emax);
     }
 
-    let bits = if rev_inv_cast_f64(&iblock, fblock, emax) {
+    let bits = if !tiny && rev_inv_cast_f64(&iblock, fblock, emax) {
         if e != 0 {
             bs.write_bits(0b01, 2);
             bs.write_bits(u64::from(e), EBITS_F64);

@@ -15,18 +15,29 @@ use zfp_rs::{
 };
 
 // ---------------------------------------------------------------------------
-// Proptest strategies for normal (non-subnormal) floats
+// Float strategies
 //
-// Subnormal inputs overflow fwd_cast (scale factor 2^1084 → infinity) so the
-// C's implementation-defined cast diverges from Rust's saturating `as`.
+// C's scale factor overflows for a block whose largest magnitude is below
+// 2^-98 (`f32`) or 2^-962 (`f64`), so every value casts to the minimum
+// integer. zfp-rs scales such blocks exactly, and its bytes differ. Nonzero
+// values are at least that large here, subnormals included, so no block is
+// below it.
 // ---------------------------------------------------------------------------
 
-fn normal_f32() -> impl Strategy<Value = f32> {
-    any::<f32>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
+fn comparable_f32() -> impl Strategy<Value = f32> {
+    // 2^-98
+    let min = f32::from_bits(29 << 23);
+    any::<f32>().prop_filter("zero, NaN or at least 2^-98", move |f| {
+        *f == 0.0 || f.is_nan() || f.abs() >= min
+    })
 }
 
-fn normal_f64() -> impl Strategy<Value = f64> {
-    any::<f64>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
+fn comparable_f64() -> impl Strategy<Value = f64> {
+    // 2^-962
+    let min = f64::from_bits(61 << 52);
+    any::<f64>().prop_filter("zero, NaN or at least 2^-962", move |f| {
+        *f == 0.0 || f.is_nan() || f.abs() >= min
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -336,14 +347,14 @@ compress_compat_1d_float!(
     f32,
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
-    normal_f32()
+    comparable_f32()
 );
 compress_compat_1d_float!(
     compress_1d_f64,
     f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
-    normal_f64()
+    comparable_f64()
 );
 
 // ---------------------------------------------------------------------------
@@ -457,14 +468,14 @@ compress_compat_2d_float!(
     f32,
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
-    normal_f32()
+    comparable_f32()
 );
 compress_compat_2d_float!(
     compress_2d_f64,
     f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
-    normal_f64()
+    comparable_f64()
 );
 
 // ---------------------------------------------------------------------------
@@ -582,14 +593,14 @@ compress_compat_3d_float!(
     f32,
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
-    normal_f32()
+    comparable_f32()
 );
 compress_compat_3d_float!(
     compress_3d_f64,
     f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
-    normal_f64()
+    comparable_f64()
 );
 
 // ---------------------------------------------------------------------------
@@ -711,12 +722,12 @@ compress_compat_4d_float!(
     f32,
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
-    normal_f32()
+    comparable_f32()
 );
 compress_compat_4d_float!(
     compress_4d_f64,
     f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
-    normal_f64()
+    comparable_f64()
 );

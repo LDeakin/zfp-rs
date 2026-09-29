@@ -37,15 +37,18 @@ fn execution_strategy() -> impl Strategy<Value = ZfpExecution> {
 }
 
 // ---------------------------------------------------------------------------
-// Normal (non-subnormal) float strategies
+// Float strategies
+//
+// Unfiltered: C compresses, so blocks too small for C's encoder, whose scale
+// factor overflows, check that zfp-rs decodes C's broken blocks as C does.
 // ---------------------------------------------------------------------------
 
-fn normal_f32() -> impl Strategy<Value = f32> {
-    any::<f32>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
+fn any_f32() -> impl Strategy<Value = f32> {
+    any::<f32>()
 }
 
-fn normal_f64() -> impl Strategy<Value = f64> {
-    any::<f64>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
+fn any_f64() -> impl Strategy<Value = f64> {
+    any::<f64>()
 }
 
 // ---------------------------------------------------------------------------
@@ -368,7 +371,7 @@ decompress_compat_1d_float!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
-    normal_f32()
+    any_f32()
 );
 decompress_compat_1d_float!(
     decompress_1d_f64,
@@ -376,7 +379,7 @@ decompress_compat_1d_float!(
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
-    normal_f64()
+    any_f64()
 );
 
 // ---------------------------------------------------------------------------
@@ -514,7 +517,7 @@ decompress_compat_2d_float!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
-    normal_f32()
+    any_f32()
 );
 decompress_compat_2d_float!(
     decompress_2d_f64,
@@ -522,7 +525,7 @@ decompress_compat_2d_float!(
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
-    normal_f64()
+    any_f64()
 );
 
 // ---------------------------------------------------------------------------
@@ -664,7 +667,7 @@ decompress_compat_3d_float!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
-    normal_f32()
+    any_f32()
 );
 decompress_compat_3d_float!(
     decompress_3d_f64,
@@ -672,7 +675,7 @@ decompress_compat_3d_float!(
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
-    normal_f64()
+    any_f64()
 );
 
 // ---------------------------------------------------------------------------
@@ -818,7 +821,7 @@ decompress_compat_4d_float!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     |f: &f32| f.to_bits(),
-    normal_f32()
+    any_f32()
 );
 decompress_compat_4d_float!(
     decompress_4d_f64,
@@ -826,5 +829,5 @@ decompress_compat_4d_float!(
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     |f: &f64| f.to_bits(),
-    normal_f64()
+    any_f64()
 );

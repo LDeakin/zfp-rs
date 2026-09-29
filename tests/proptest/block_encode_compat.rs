@@ -21,22 +21,29 @@ use zfp_rs::codec::block::encode_block_strided;
 use zfp_rs::codec::encode::{float as efloat, integer as einteger};
 
 // ---------------------------------------------------------------------------
-// Proptest strategies for normal (non-subnormal) floats
+// Float strategies
 //
-// Subnormal inputs cause overflow in fwd_cast (scale factor 2^(62-emax) with
-// emax = -1022 clamp → s = 2^1084 which overflows f64 to infinity). The C
-// library comment in encodef.c warns about this and the ZFP_WITH_DAZ flag
-// exists precisely to treat subnormals as zero. Since C's cast of infinity
-// to integer is implementation-defined while Rust's `as` saturates, the two
-// implementations diverge on subnormal inputs. We exclude them.
+// C's scale factor overflows for a block whose largest magnitude is below
+// 2^-98 (`f32`) or 2^-962 (`f64`), so every value casts to the minimum
+// integer. zfp-rs scales such blocks exactly, and its bytes differ. Nonzero
+// values are at least that large here, subnormals included, so no block is
+// below it.
 // ---------------------------------------------------------------------------
 
-fn normal_f32() -> impl Strategy<Value = f32> {
-    any::<f32>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
+fn comparable_f32() -> impl Strategy<Value = f32> {
+    // 2^-98
+    let min = f32::from_bits(29 << 23);
+    any::<f32>().prop_filter("zero, NaN or at least 2^-98", move |f| {
+        *f == 0.0 || f.is_nan() || f.abs() >= min
+    })
 }
 
-fn normal_f64() -> impl Strategy<Value = f64> {
-    any::<f64>().prop_filter("must be normal or zero", |f| !f.is_subnormal())
+fn comparable_f64() -> impl Strategy<Value = f64> {
+    // 2^-962
+    let min = f64::from_bits(61 << 52);
+    any::<f64>().prop_filter("zero, NaN or at least 2^-962", move |f| {
+        *f == 0.0 || f.is_nan() || f.abs() >= min
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -209,7 +216,7 @@ block_encode_compat_float!(
     f32,
     4,
     f32,
-    normal_f32(),
+    comparable_f32(),
     efloat::encode_block_1d_f32,
     zfp_sys::zfp_encode_block_float_1
 );
@@ -218,7 +225,7 @@ block_encode_compat_float!(
     f64,
     4,
     f64,
-    normal_f64(),
+    comparable_f64(),
     efloat::encode_block_1d_f64,
     zfp_sys::zfp_encode_block_double_1
 );
@@ -248,7 +255,7 @@ block_encode_compat_float!(
     f32,
     16,
     f32,
-    normal_f32(),
+    comparable_f32(),
     efloat::encode_block_2d_f32,
     zfp_sys::zfp_encode_block_float_2
 );
@@ -257,7 +264,7 @@ block_encode_compat_float!(
     f64,
     16,
     f64,
-    normal_f64(),
+    comparable_f64(),
     efloat::encode_block_2d_f64,
     zfp_sys::zfp_encode_block_double_2
 );
@@ -287,7 +294,7 @@ block_encode_compat_float!(
     f32,
     64,
     f32,
-    normal_f32(),
+    comparable_f32(),
     efloat::encode_block_3d_f32,
     zfp_sys::zfp_encode_block_float_3
 );
@@ -296,7 +303,7 @@ block_encode_compat_float!(
     f64,
     64,
     f64,
-    normal_f64(),
+    comparable_f64(),
     efloat::encode_block_3d_f64,
     zfp_sys::zfp_encode_block_double_3
 );
@@ -326,7 +333,7 @@ block_encode_compat_float!(
     f32,
     256,
     f32,
-    normal_f32(),
+    comparable_f32(),
     efloat::encode_block_4d_f32,
     zfp_sys::zfp_encode_block_float_4
 );
@@ -335,7 +342,7 @@ block_encode_compat_float!(
     f64,
     256,
     f64,
-    normal_f64(),
+    comparable_f64(),
     efloat::encode_block_4d_f64,
     zfp_sys::zfp_encode_block_double_4
 );
@@ -397,7 +404,7 @@ reversible_block_encode_compat!(
 reversible_block_encode_compat!(
     reversible_encode_block_3d_f32,
     f32,
-    normal_f32(),
+    comparable_f32(),
     ZfpDimensionality::D3,
     [1, 4, 16],
     zfp_sys::zfp_encode_block_float_3
@@ -405,7 +412,7 @@ reversible_block_encode_compat!(
 reversible_block_encode_compat!(
     reversible_encode_block_4d_f64,
     f64,
-    normal_f64(),
+    comparable_f64(),
     ZfpDimensionality::D4,
     [1, 4, 16, 64],
     zfp_sys::zfp_encode_block_double_4

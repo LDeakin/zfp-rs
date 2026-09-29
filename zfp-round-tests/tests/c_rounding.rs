@@ -186,14 +186,23 @@ macro_rules! compat {
     };
 }
 
-// Subnormals are excluded for the same reason as in the `zfp-rs` proptest
-// suite: they overflow `fwd_cast`, where C's cast is implementation-defined.
-fn normal_f32() -> impl Strategy<Value = f32> {
-    any::<f32>().prop_filter("normal or zero", |f| !f.is_subnormal())
+// Blocks below C's overflow threshold are excluded for the same reason as in
+// the `zfp-rs` proptest suite: C's scale factor overflows for them, and
+// zfp-rs's does not.
+fn comparable_f32() -> impl Strategy<Value = f32> {
+    // 2^-98
+    let min = f32::from_bits(29 << 23);
+    any::<f32>().prop_filter("zero, NaN or at least 2^-98", move |f| {
+        *f == 0.0 || f.is_nan() || f.abs() >= min
+    })
 }
 
-fn normal_f64() -> impl Strategy<Value = f64> {
-    any::<f64>().prop_filter("normal or zero", |f| !f.is_subnormal())
+fn comparable_f64() -> impl Strategy<Value = f64> {
+    // 2^-962
+    let min = f64::from_bits(61 << 52);
+    any::<f64>().prop_filter("zero, NaN or at least 2^-962", move |f| {
+        *f == 0.0 || f.is_nan() || f.abs() >= min
+    })
 }
 
 compat!(
@@ -215,14 +224,14 @@ compat!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [37usize],
-    normal_f32()
+    comparable_f32()
 );
 compat!(
     rounding_1d_f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [37usize],
-    normal_f64()
+    comparable_f64()
 );
 
 compat!(
@@ -237,14 +246,14 @@ compat!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [7usize, 5],
-    normal_f32()
+    comparable_f32()
 );
 compat!(
     rounding_2d_f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [7usize, 5],
-    normal_f64()
+    comparable_f64()
 );
 
 compat!(
@@ -259,14 +268,14 @@ compat!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [5usize, 3, 6],
-    normal_f32()
+    comparable_f32()
 );
 compat!(
     rounding_3d_f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [5usize, 3, 6],
-    normal_f64()
+    comparable_f64()
 );
 
 // 4-D exercises the `*_many_ints_*` encoders (block size 256 > 64).
@@ -282,12 +291,12 @@ compat!(
     ZfpScalarType::F32,
     zfp_sys::zfp_type_zfp_type_float,
     [5usize, 3, 2, 6],
-    normal_f32()
+    comparable_f32()
 );
 compat!(
     rounding_4d_f64,
     ZfpScalarType::F64,
     zfp_sys::zfp_type_zfp_type_double,
     [5usize, 3, 2, 6],
-    normal_f64()
+    comparable_f64()
 );

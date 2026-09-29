@@ -6,9 +6,9 @@ The existing test suite is strong on *conformance*: `tests/c/` ports the upstrea
 with its checksum tables, and `tests/proptest/` compares byte-for-byte against the real C library
 through `zfp-sys`. What none of it does is feed the decoder bytes the encoder did not write.
 These targets do, plus two things proptest structurally cannot reach: deep randomised operation
-*sequences*, and float values the differential tests must exclude (subnormals are filtered out in
-four proptest files because C's `fwd_cast` overflow is implementation-defined — here they are
-squarely in scope).
+*sequences*, and float values the differential tests must exclude (the encoding proptests filter
+out blocks below 2^-98 for `f32` and 2^-962 for `f64`, where C's `fwd_cast` overflows and zfp-rs
+deliberately differs — here they are squarely in scope).
 
 ## Layout
 

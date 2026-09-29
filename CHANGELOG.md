@@ -59,6 +59,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The strided `codec::block` functions, and so the C ABI's `zfp_encode_block_*` and `zfp_decode_block_*`, use the reversible coder for a reversible config, as C does, instead of the lossy coder.
 - `ZfpConfig::maximum_size`, and so the C ABI's `zfp_stream_maximum_size`, is never less than the block headers. Expert configurations whose `max_bits` is below the header write it anyway, so compressing into a stream of that size could fail with `BufferTooSmall`. C under-reports these configurations too.
 - Rayon compression no longer loses bits when blocks are larger than `max_bits`: each chunk's buffer is sized with the same bound as `maximum_size`.
+- Lossy compression no longer destroys float blocks whose largest magnitude is below 2^-98 (`f32`) or 2^-962 (`f64`). Their scale factor overflowed, as in C (zfp issue #119), and the block decoded to values unrelated to its input. Such blocks are now scaled exactly. Their bytes differ from C's, but the stream format is unchanged, so C decodes them. Reversible mode was unaffected, and still matches C.
 - `ZfpRounding::Last` no longer biases reversible decoding, which made it lossy, as in a C build with `ZFP_ROUND_LAST`. Streams are unchanged.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28
