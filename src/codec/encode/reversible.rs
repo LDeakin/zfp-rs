@@ -230,15 +230,14 @@ fn rev_encode_float_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
         }
     } else {
         // BFP is not reversible; reinterpret float bits as two's complement integers
-        let mut iblock_tc = [0i32; N];
-        for i in 0..N {
-            let bits = fblock[i].to_bits();
-            iblock_tc[i] = if bits >> 31 != 0 {
+        let mut iblock_tc = fblock.map(|f| {
+            let bits = f.to_bits();
+            if bits >> 31 != 0 {
                 (bits ^ TCMASK_F32) as i32
             } else {
                 bits as i32
-            };
-        }
+            }
+        });
         // Write "11" header
         bs.write_bits(0b11, 2);
         2 + rev_encode_int(bs, &mut iblock_tc, budget.after(2).max)
@@ -274,15 +273,14 @@ fn rev_encode_double_block<B: ZfpBitStreamMutOps + ?Sized, const N: usize>(
             1
         }
     } else {
-        let mut iblock_tc = [0i64; N];
-        for i in 0..N {
-            let bits = fblock[i].to_bits();
-            iblock_tc[i] = if bits >> 63 != 0 {
+        let mut iblock_tc = fblock.map(|f| {
+            let bits = f.to_bits();
+            if bits >> 63 != 0 {
                 (bits ^ TCMASK_F64) as i64
             } else {
                 bits as i64
-            };
-        }
+            }
+        });
         bs.write_bits(0b11, 2);
         2 + rev_encode_int(bs, &mut iblock_tc, budget.after(2).max)
     };
@@ -393,106 +391,106 @@ pub fn encode_block_reversible_4d_f64(
 // Reversible encode for integers: direct (no BFP step)
 // ---------------------------------------------------------------------------
 
-/// Reversible encode of a 1-D block of `i32` values; return bits written.
+/// Reversible encode of a 1-D block of `i32` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_1d_i32(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i32; 4],
+    block: &mut [i32; 4],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u32(bs, &b, budget.max, config.max_prec(), &PERM_1);
+    let bits = rev_encode_int_block_u32(bs, block, budget.max, config.max_prec(), &PERM_1);
     pad_to(bs, bits, budget.min)
 }
 
-/// Reversible encode of a 1-D block of `i64` values; return bits written.
+/// Reversible encode of a 1-D block of `i64` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_1d_i64(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i64; 4],
+    block: &mut [i64; 4],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u64(bs, &b, budget.max, config.max_prec(), &PERM_1);
+    let bits = rev_encode_int_block_u64(bs, block, budget.max, config.max_prec(), &PERM_1);
     pad_to(bs, bits, budget.min)
 }
 
-/// Reversible encode of a 2-D block of `i32` values; return bits written.
+/// Reversible encode of a 2-D block of `i32` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_2d_i32(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i32; 16],
+    block: &mut [i32; 16],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u32(bs, &b, budget.max, config.max_prec(), &PERM_2);
+    let bits = rev_encode_int_block_u32(bs, block, budget.max, config.max_prec(), &PERM_2);
     pad_to(bs, bits, budget.min)
 }
 
-/// Reversible encode of a 2-D block of `i64` values; return bits written.
+/// Reversible encode of a 2-D block of `i64` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_2d_i64(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i64; 16],
+    block: &mut [i64; 16],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u64(bs, &b, budget.max, config.max_prec(), &PERM_2);
+    let bits = rev_encode_int_block_u64(bs, block, budget.max, config.max_prec(), &PERM_2);
     pad_to(bs, bits, budget.min)
 }
 
-/// Reversible encode of a 3-D block of `i32` values; return bits written.
+/// Reversible encode of a 3-D block of `i32` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_3d_i32(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i32; 64],
+    block: &mut [i32; 64],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u32(bs, &b, budget.max, config.max_prec(), &PERM_3);
+    let bits = rev_encode_int_block_u32(bs, block, budget.max, config.max_prec(), &PERM_3);
     pad_to(bs, bits, budget.min)
 }
 
-/// Reversible encode of a 3-D block of `i64` values; return bits written.
+/// Reversible encode of a 3-D block of `i64` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_3d_i64(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i64; 64],
+    block: &mut [i64; 64],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u64(bs, &b, budget.max, config.max_prec(), &PERM_3);
+    let bits = rev_encode_int_block_u64(bs, block, budget.max, config.max_prec(), &PERM_3);
     pad_to(bs, bits, budget.min)
 }
 
-/// Reversible encode of a 4-D block of `i32` values; return bits written.
+/// Reversible encode of a 4-D block of `i32` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_4d_i32(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i32; 256],
+    block: &mut [i32; 256],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u32(bs, &b, budget.max, config.max_prec(), &PERM_4);
+    let bits = rev_encode_int_block_u32(bs, block, budget.max, config.max_prec(), &PERM_4);
     pad_to(bs, bits, budget.min)
 }
 
-/// Reversible encode of a 4-D block of `i64` values; return bits written.
+/// Reversible encode of a 4-D block of `i64` values, which it transforms
+/// in place; return bits written.
 pub fn encode_block_reversible_4d_i64(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i64; 256],
+    block: &mut [i64; 256],
     config: &ZfpConfig,
 ) -> usize {
-    let mut b = *block;
-    crate::codec::transform::rev_fwd_xform(&mut b);
+    rev_fwd_xform(block);
     let budget = Budget::of(config);
-    let bits = rev_encode_int_block_u64(bs, &b, budget.max, config.max_prec(), &PERM_4);
+    let bits = rev_encode_int_block_u64(bs, block, budget.max, config.max_prec(), &PERM_4);
     pad_to(bs, bits, budget.min)
 }

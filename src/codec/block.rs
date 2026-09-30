@@ -97,25 +97,12 @@ pub fn decode_block<T: ZfpScalar>(
 // Slice-to-array conversion helpers
 // ---------------------------------------------------------------------------
 
-/// Reinterpret a `&[T]` slice as a `[U; 4]` array via bytemuck casting for 1-D blocks.
-///
-/// Performs two conversions:
-/// 1. `bytemuck::try_cast_slice` reinterprets `&[T]` → `&[U]`
-/// 2. `try_into()` converts `&[U]` → `&[U; 4]`
+/// Reinterpret a `&mut [T]` slice as a `[U; 4]` array for 1-D blocks.
 ///
 /// # Errors
 ///
 /// Returns [`ZfpBlockError`] if `data.len()` is not 4, or `T` and `U` differ
 /// in size or alignment.
-#[inline]
-pub(crate) fn as_typed_block_1d<T: bytemuck::Pod, U: bytemuck::Pod>(
-    data: &[T],
-) -> Result<&'_ [U; 4], ZfpBlockError> {
-    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
-    slice.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_typed_block_1d`].
 #[inline]
 pub(crate) fn as_typed_block_1d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
@@ -124,18 +111,7 @@ pub(crate) fn as_typed_block_1d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
-/// Reinterpret a `&[T]` slice as a `[U; 16]` array via bytemuck casting for 2-D blocks.
-///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 16.
-#[inline]
-pub(crate) fn as_typed_block_2d<T: bytemuck::Pod, U: bytemuck::Pod>(
-    data: &[T],
-) -> Result<&'_ [U; 16], ZfpBlockError> {
-    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
-    slice.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_typed_block_2d`].
+/// As [`as_typed_block_1d_mut`], for a `[U; 16]` array for 2-D blocks.
 #[inline]
 pub(crate) fn as_typed_block_2d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
@@ -144,18 +120,7 @@ pub(crate) fn as_typed_block_2d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
-/// Reinterpret a `&[T]` slice as a `[U; 64]` array via bytemuck casting for 3-D blocks.
-///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 64.
-#[inline]
-pub(crate) fn as_typed_block_3d<T: bytemuck::Pod, U: bytemuck::Pod>(
-    data: &[T],
-) -> Result<&'_ [U; 64], ZfpBlockError> {
-    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
-    slice.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_typed_block_3d`].
+/// As [`as_typed_block_1d_mut`], for a `[U; 64]` array for 3-D blocks.
 #[inline]
 pub(crate) fn as_typed_block_3d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
@@ -164,18 +129,7 @@ pub(crate) fn as_typed_block_3d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
-/// Reinterpret a `&[T]` slice as a `[U; 256]` array via bytemuck casting for 4-D blocks.
-///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 256.
-#[inline]
-pub(crate) fn as_typed_block_4d<T: bytemuck::Pod, U: bytemuck::Pod>(
-    data: &[T],
-) -> Result<&'_ [U; 256], ZfpBlockError> {
-    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
-    slice.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// Mutable variant of [`as_typed_block_4d`].
+/// As [`as_typed_block_1d_mut`], for a `[U; 256]` array for 4-D blocks.
 #[inline]
 pub(crate) fn as_typed_block_4d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
