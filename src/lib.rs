@@ -153,13 +153,6 @@ pub use types::{
 // FFI feature: low-level APIs for the C-ABI bindings layer
 // ---------------------------------------------------------------------------
 
-// Re-export FFI-specific helper functions at the crate root.
-#[cfg(feature = "ffi")]
-pub use config::{
-    accuracy_from_params, compression_mode_from_params, mode_bits_from_params,
-    precision_from_params, rate_from_params,
-};
-
 /// Compress through any writable bitstream implementation.
 ///
 /// # Errors

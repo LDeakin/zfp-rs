@@ -173,143 +173,6 @@ pub struct ZfpConfig {
     rounding: ZfpRounding,
 }
 
-// ---------------------------------------------------------------------------
-// Free functions: compute results from (min_bits, max_bits, max_prec, min_exp)
-// ---------------------------------------------------------------------------
-
-/// Compute the compression mode from expert parameters.
-fn mode_of(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> ZfpMode {
-    if !valid_params(min_bits, max_bits, max_prec) {
-        return ZfpMode::Null;
-    }
-
-    // Default expert-mode values
-    if min_bits == ZFP_MIN_BITS
-        && max_bits == ZFP_MAX_BITS
-        && max_prec == ZFP_MAX_PREC
-        && min_exp == ZFP_MIN_EXP
-    {
-        return ZfpMode::Expert;
-    }
-
-    // Fixed rate: minbits == maxbits, maxprec >= ZFP_MAX_PREC, minexp == ZFP_MIN_EXP
-    if min_bits == max_bits
-        && (1..=ZFP_MAX_BITS).contains(&max_bits)
-        && max_prec >= ZFP_MAX_PREC
-        && min_exp == ZFP_MIN_EXP
-    {
-        return ZfpMode::FixedRate;
-    }
-
-    // Fixed precision: minbits <= ZFP_MIN_BITS, maxbits >= ZFP_MAX_BITS, maxprec in [1..], minexp == ZFP_MIN_EXP
-    if min_bits <= ZFP_MIN_BITS
-        && max_bits >= ZFP_MAX_BITS
-        && max_prec >= 1
-        && min_exp == ZFP_MIN_EXP
-    {
-        return ZfpMode::FixedPrecision;
-    }
-
-    // Fixed accuracy: minbits <= ZFP_MIN_BITS, maxbits >= ZFP_MAX_BITS, maxprec >= ZFP_MAX_PREC, minexp >= ZFP_MIN_EXP
-    if min_bits <= ZFP_MIN_BITS
-        && max_bits >= ZFP_MAX_BITS
-        && max_prec >= ZFP_MAX_PREC
-        && min_exp >= ZFP_MIN_EXP
-    {
-        return ZfpMode::FixedAccuracy;
-    }
-
-    // Reversible: minbits <= ZFP_MIN_BITS, maxbits >= ZFP_MAX_BITS, maxprec >= ZFP_MAX_PREC, minexp < ZFP_MIN_EXP
-    if min_bits <= ZFP_MIN_BITS
-        && max_bits >= ZFP_MAX_BITS
-        && max_prec >= ZFP_MAX_PREC
-        && min_exp < ZFP_MIN_EXP
-    {
-        return ZfpMode::Reversible;
-    }
-
-    ZfpMode::Expert
-}
-
-/// Compute the compact mode encoding from expert parameters.
-#[allow(clippy::cast_sign_loss)] // i32→u64 for mode encoding
-#[expect(
-    clippy::arithmetic_side_effects,
-    reason = "`mode_of` gives these modes only for `max_bits`, `max_prec` >= 1 and `min_exp` >= `ZFP_MIN_EXP`, and the guards bound them above"
-)]
-fn mode_bits_of(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u64 {
-    match mode_of(min_bits, max_bits, max_prec, min_exp) {
-        ZfpMode::FixedRate if max_bits <= 2048 => u64::from(max_bits - 1),
-        ZfpMode::FixedPrecision if max_prec <= 128 => u64::from(max_prec - 1) + 2048,
-        ZfpMode::Reversible => 2048 + 128,
-        ZfpMode::FixedAccuracy if min_exp <= 843 => {
-            (min_exp - ZFP_MIN_EXP) as u64 + (2048 + 128 + 1)
-        }
-        ZfpMode::Null | ZfpMode::Expert => {
-            encode_expert_mode(min_bits, max_bits, max_prec, min_exp)
-        }
-        _ => {
-            // Fallback for modes whose guard conditions are not met
-            // (e.g. FixedRate with max_bits > 2048, FixedPrecision with
-            // max_prec > 128, FixedAccuracy with min_exp > 843). All fall
-            // through to the long-form 64-bit expert encoding.
-            encode_expert_mode(min_bits, max_bits, max_prec, min_exp)
-        }
-    }
-}
-
-/// [`ZfpConfig::mode`] of the expert parameters, for the C ABI.
-#[cfg(feature = "ffi")]
-#[must_use]
-pub fn compression_mode_from_params(
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
-) -> ZfpMode {
-    mode_of(min_bits, max_bits, max_prec, min_exp)
-}
-
-/// [`ZfpConfig::rate`] of the expert parameters, or `0.0` as in C.
-#[cfg(feature = "ffi")]
-#[must_use]
-pub fn rate_from_params(
-    min_bits: u32,
-    max_bits: u32,
-    max_prec: u32,
-    min_exp: i32,
-    dims: ZfpDimensionality,
-) -> f64 {
-    ZfpConfig::raw(min_bits, max_bits, max_prec, min_exp)
-        .rate(dims)
-        .unwrap_or(0.0)
-}
-
-/// [`ZfpConfig::precision`] of the expert parameters, or `0` as in C.
-#[cfg(feature = "ffi")]
-#[must_use]
-pub fn precision_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u32 {
-    ZfpConfig::raw(min_bits, max_bits, max_prec, min_exp)
-        .precision()
-        .unwrap_or(0)
-}
-
-/// [`ZfpConfig::accuracy`] of the expert parameters, or `0.0` as in C.
-#[cfg(feature = "ffi")]
-#[must_use]
-pub fn accuracy_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> f64 {
-    ZfpConfig::raw(min_bits, max_bits, max_prec, min_exp)
-        .accuracy()
-        .unwrap_or(0.0)
-}
-
-/// [`ZfpConfig::mode_bits`] of the expert parameters, for the C ABI.
-#[cfg(feature = "ffi")]
-#[must_use]
-pub fn mode_bits_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u64 {
-    mode_bits_of(min_bits, max_bits, max_prec, min_exp)
-}
-
 /// Encode expert-mode parameters into the 64-bit long-form mode word.
 #[allow(clippy::cast_sign_loss)] // i32→u64 for mode encoding
 #[expect(
@@ -602,7 +465,63 @@ impl ZfpConfig {
     /// Return the compression mode these parameters select.
     #[must_use]
     pub fn mode(&self) -> ZfpMode {
-        mode_of(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+        let Self {
+            min_bits,
+            max_bits,
+            max_prec,
+            min_exp,
+            ..
+        } = *self;
+        if !valid_params(min_bits, max_bits, max_prec) {
+            return ZfpMode::Null;
+        }
+
+        // Default expert-mode values
+        if min_bits == ZFP_MIN_BITS
+            && max_bits == ZFP_MAX_BITS
+            && max_prec == ZFP_MAX_PREC
+            && min_exp == ZFP_MIN_EXP
+        {
+            return ZfpMode::Expert;
+        }
+
+        // Fixed rate: minbits == maxbits, maxprec >= ZFP_MAX_PREC, minexp == ZFP_MIN_EXP
+        if min_bits == max_bits
+            && (1..=ZFP_MAX_BITS).contains(&max_bits)
+            && max_prec >= ZFP_MAX_PREC
+            && min_exp == ZFP_MIN_EXP
+        {
+            return ZfpMode::FixedRate;
+        }
+
+        // Fixed precision: minbits <= ZFP_MIN_BITS, maxbits >= ZFP_MAX_BITS, maxprec in [1..], minexp == ZFP_MIN_EXP
+        if min_bits <= ZFP_MIN_BITS
+            && max_bits >= ZFP_MAX_BITS
+            && max_prec >= 1
+            && min_exp == ZFP_MIN_EXP
+        {
+            return ZfpMode::FixedPrecision;
+        }
+
+        // Fixed accuracy: minbits <= ZFP_MIN_BITS, maxbits >= ZFP_MAX_BITS, maxprec >= ZFP_MAX_PREC, minexp >= ZFP_MIN_EXP
+        if min_bits <= ZFP_MIN_BITS
+            && max_bits >= ZFP_MAX_BITS
+            && max_prec >= ZFP_MAX_PREC
+            && min_exp >= ZFP_MIN_EXP
+        {
+            return ZfpMode::FixedAccuracy;
+        }
+
+        // Reversible: minbits <= ZFP_MIN_BITS, maxbits >= ZFP_MAX_BITS, maxprec >= ZFP_MAX_PREC, minexp < ZFP_MIN_EXP
+        if min_bits <= ZFP_MIN_BITS
+            && max_bits >= ZFP_MAX_BITS
+            && max_prec >= ZFP_MAX_PREC
+            && min_exp < ZFP_MIN_EXP
+        {
+            return ZfpMode::Reversible;
+        }
+
+        ZfpMode::Expert
     }
 
     /// Whether these parameters select the reversible coder, as C's
@@ -641,8 +560,37 @@ impl ZfpConfig {
     /// range. Use [`checked_mode_bits`][Self::checked_mode_bits] before writing
     /// a header whose decoded configuration must preserve the parameters.
     #[must_use]
+    #[allow(clippy::cast_sign_loss)] // i32→u64 for mode encoding
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "`mode` gives these modes only for `max_bits`, `max_prec` >= 1 and `min_exp` >= `ZFP_MIN_EXP`, and the guards bound them above"
+    )]
     pub fn mode_bits(&self) -> u64 {
-        mode_bits_of(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
+        let Self {
+            min_bits,
+            max_bits,
+            max_prec,
+            min_exp,
+            ..
+        } = *self;
+        match self.mode() {
+            ZfpMode::FixedRate if max_bits <= 2048 => u64::from(max_bits - 1),
+            ZfpMode::FixedPrecision if max_prec <= 128 => u64::from(max_prec - 1) + 2048,
+            ZfpMode::Reversible => 2048 + 128,
+            ZfpMode::FixedAccuracy if min_exp <= 843 => {
+                (min_exp - ZFP_MIN_EXP) as u64 + (2048 + 128 + 1)
+            }
+            ZfpMode::Null | ZfpMode::Expert => {
+                encode_expert_mode(min_bits, max_bits, max_prec, min_exp)
+            }
+            _ => {
+                // Fallback for modes whose guard conditions are not met
+                // (e.g. FixedRate with max_bits > 2048, FixedPrecision with
+                // max_prec > 128, FixedAccuracy with min_exp > 843). All fall
+                // through to the long-form 64-bit expert encoding.
+                encode_expert_mode(min_bits, max_bits, max_prec, min_exp)
+            }
+        }
     }
 
     /// Encode a mode only if reading it preserves every expert parameter.

@@ -7,15 +7,6 @@ use crate::abi::{
 use crate::util::c_dims_to_rust;
 use zfp_rs::{ZfpConfig, ZfpExecution, ZfpHeaderMask, ZfpRounding, ZfpStreamAlignment};
 
-fn params_from_c(stream: &zfp_stream) -> (uint, uint, uint, i32) {
-    (
-        stream.minbits,
-        stream.maxbits,
-        stream.maxprec,
-        stream.minexp,
-    )
-}
-
 /// Rounding for every entry point: the C `zfp_stream` has no field for it, so
 /// it is fixed at build time as in C zfp. Selected by the crate's features.
 pub const FFI_ROUNDING: ZfpRounding = if cfg!(feature = "round-tight-error") {
@@ -103,10 +94,7 @@ pub unsafe extern "C" fn zfp_stream_compression_mode(stream: *const zfp_stream) 
     if stream.is_null() {
         return zfp_mode::zfp_mode_null;
     }
-    let (minbits, maxbits, maxprec, minexp) = params_from_c(unsafe { &*stream });
-    crate::util::rust_mode_to_zfp(zfp_rs::compression_mode_from_params(
-        minbits, maxbits, maxprec, minexp,
-    ))
+    crate::util::rust_mode_to_zfp(stream_with_c_state(unsafe { &*stream }).mode())
 }
 
 #[unsafe(no_mangle)]
@@ -115,11 +103,9 @@ pub unsafe extern "C" fn zfp_stream_rate(stream: *const zfp_stream, dims: uint) 
     if stream.is_null() {
         return 0.0;
     }
-    let (minbits, maxbits, maxprec, minexp) = params_from_c(unsafe { &*stream });
-    match c_dims_to_rust(dims) {
-        Some(d) => zfp_rs::rate_from_params(minbits, maxbits, maxprec, minexp, d),
-        None => 0.0,
-    }
+    c_dims_to_rust(dims)
+        .and_then(|d| stream_with_c_state(unsafe { &*stream }).rate(d))
+        .unwrap_or(0.0)
 }
 
 #[unsafe(no_mangle)]
@@ -128,8 +114,9 @@ pub unsafe extern "C" fn zfp_stream_precision(stream: *const zfp_stream) -> uint
     if stream.is_null() {
         0
     } else {
-        let (minbits, maxbits, maxprec, minexp) = params_from_c(unsafe { &*stream });
-        zfp_rs::precision_from_params(minbits, maxbits, maxprec, minexp)
+        stream_with_c_state(unsafe { &*stream })
+            .precision()
+            .unwrap_or(0)
     }
 }
 
@@ -139,8 +126,9 @@ pub unsafe extern "C" fn zfp_stream_accuracy(stream: *const zfp_stream) -> f64 {
     if stream.is_null() {
         0.0
     } else {
-        let (minbits, maxbits, maxprec, minexp) = params_from_c(unsafe { &*stream });
-        zfp_rs::accuracy_from_params(minbits, maxbits, maxprec, minexp)
+        stream_with_c_state(unsafe { &*stream })
+            .accuracy()
+            .unwrap_or(0.0)
     }
 }
 
@@ -150,8 +138,7 @@ pub unsafe extern "C" fn zfp_stream_mode(stream: *const zfp_stream) -> uint64 {
     if stream.is_null() {
         0
     } else {
-        let (minbits, maxbits, maxprec, minexp) = params_from_c(unsafe { &*stream });
-        zfp_rs::mode_bits_from_params(minbits, maxbits, maxprec, minexp)
+        stream_with_c_state(unsafe { &*stream }).mode_bits()
     }
 }
 
