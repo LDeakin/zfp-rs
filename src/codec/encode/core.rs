@@ -143,6 +143,34 @@ impl Budget {
     }
 }
 
+/// Pad a block of `bits` bits with zeros to `minbits`; return its size.
+pub(crate) fn pad_to(
+    bs: &mut (impl crate::bitstream::ZfpBitStreamMutOps + ?Sized),
+    bits: u32,
+    minbits: u32,
+) -> usize {
+    if bits < minbits {
+        bs.pad(u64::from(minbits - bits));
+        minbits as usize
+    } else {
+        bits as usize
+    }
+}
+
+/// Skip a block of `bits` bits to `minbits`; return its size.
+pub(crate) fn skip_to(
+    bs: &mut (impl crate::bitstream::ZfpBitStreamOps + ?Sized),
+    bits: u32,
+    minbits: u32,
+) -> usize {
+    if bits < minbits {
+        bs.skip(u64::from(minbits - bits));
+        minbits as usize
+    } else {
+        bits as usize
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Rate-constraint predicate
 // ---------------------------------------------------------------------------

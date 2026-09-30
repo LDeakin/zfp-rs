@@ -6,8 +6,8 @@
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::bitplane::PlaneBlock;
 use crate::codec::encode::core::{
-    EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, exponent_block_f32, exponent_block_f64,
-    fwd_cast_f32, fwd_cast_f64, precision_f,
+    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, exponent_block_f32, exponent_block_f64,
+    fwd_cast_f32, fwd_cast_f64, pad_to, precision_f,
 };
 use crate::codec::encode::integer::{
     Dim1, Dim2, Dim3, Dim4, Perm, encode_int_block_32, encode_int_block_64,
@@ -27,7 +27,6 @@ fn encode_float_block<P: Perm<N>, const N: usize>(
 where
     [u32; N]: PlaneBlock,
 {
-    let minbits = config.min_bits();
     // Compute the number of dimensions from the block size N (4=1D, 16=2D, 64=3D, 256=4D).
     // SAFETY: N is always 4, 16, 64, or 256 (powers of 4), so trailing_zeros is even and ≥ 2.
     let dims = N.trailing_zeros() / 2;
@@ -47,6 +46,7 @@ where
 
     if e != 0 {
         let header_bits = EBITS_F32 + 1;
+        let budget = Budget::of(config).after(header_bits);
         bs.write_bits(2 * u64::from(e) + 1, header_bits);
         let mut iblock = [0i32; N];
         fwd_cast_f32(&mut iblock, fblock, emax);
@@ -54,20 +54,14 @@ where
             + encode_int_block_32::<P, N>(
                 bs,
                 &iblock,
-                minbits.saturating_sub(header_bits),
-                config.max_bits().saturating_sub(header_bits),
+                budget.min,
+                budget.max,
                 prec,
                 config.rounding(),
             )
     } else {
         bs.put_bit(0);
-        let bits = 1u32;
-        if bits < minbits {
-            bs.pad(u64::from(minbits - bits));
-            minbits as usize
-        } else {
-            bits as usize
-        }
+        pad_to(bs, 1, config.min_bits())
     }
 }
 
@@ -80,7 +74,6 @@ fn encode_double_block<P: Perm<N>, const N: usize>(
 where
     [u64; N]: PlaneBlock,
 {
-    let minbits = config.min_bits();
     // Compute the number of dimensions from the block size N (4=1D, 16=2D, 64=3D, 256=4D).
     // SAFETY: N is always 4, 16, 64, or 256 (powers of 4), so trailing_zeros is even and ≥ 2.
     let dims = N.trailing_zeros() / 2;
@@ -100,6 +93,7 @@ where
 
     if e != 0 {
         let header_bits = EBITS_F64 + 1;
+        let budget = Budget::of(config).after(header_bits);
         bs.write_bits(2 * u64::from(e) + 1, header_bits);
         let mut iblock = [0i64; N];
         fwd_cast_f64(&mut iblock, fblock, emax);
@@ -107,20 +101,14 @@ where
             + encode_int_block_64::<P, N>(
                 bs,
                 &iblock,
-                minbits.saturating_sub(header_bits),
-                config.max_bits().saturating_sub(header_bits),
+                budget.min,
+                budget.max,
                 prec,
                 config.rounding(),
             )
     } else {
         bs.put_bit(0);
-        let bits = 1u32;
-        if bits < minbits {
-            bs.pad(u64::from(minbits - bits));
-            minbits as usize
-        } else {
-            bits as usize
-        }
+        pad_to(bs, 1, config.min_bits())
     }
 }
 

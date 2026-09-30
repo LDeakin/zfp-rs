@@ -8,7 +8,7 @@ use crate::codec::bitplane::{PlaneBlock, encode_ints};
 use crate::codec::encode::core::{
     Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, MIN_CAST_EMAX_F32, MIN_CAST_EMAX_F64,
     PERM_1, PERM_2, PERM_3, PERM_4, exponent_block_f32, exponent_block_f64, fwd_cast_f32,
-    fwd_cast_f64, fwd_order_i32, fwd_order_i64, with_maxbits,
+    fwd_cast_f64, fwd_order_i32, fwd_order_i64, pad_to, with_maxbits,
 };
 use crate::codec::transform::rev_fwd_xform;
 use crate::config::ZfpConfig;
@@ -151,16 +151,6 @@ fn encode_bounded<B: PlaneBlock>(
     block: &B,
 ) -> u32 {
     encode_ints::<_, true>(bs, maxbits, prec, block)
-}
-
-/// Pad a block of `bits` bits with zeros to `minbits`; return its size.
-fn pad_to(bs: &mut (impl ZfpBitStreamMutOps + ?Sized), bits: u32, minbits: u32) -> usize {
-    if bits < minbits {
-        bs.pad(u64::from(minbits - bits));
-        minbits as usize
-    } else {
-        bits as usize
-    }
 }
 
 // ---------------------------------------------------------------------------

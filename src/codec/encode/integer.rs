@@ -6,6 +6,7 @@ use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::bitplane::{PlaneBlock, encode_ints};
 use crate::codec::encode::core::{
     PERM_1, PERM_2, PERM_3, PERM_4, fwd_order_i32, fwd_order_i64, fwd_round_i32, fwd_round_i64,
+    pad_to,
 };
 use crate::codec::transform::fwd_xform;
 use crate::config::{ZfpConfig, ZfpRounding};
@@ -65,13 +66,7 @@ where
     let mut ublock = [0u32; N];
     fwd_order_i32(&mut ublock, &block, P::PERM);
     let bits = encode_ints::<_, true>(bs, maxbits, maxprec, &ublock);
-    let bits = if bits < minbits {
-        bs.pad(u64::from(minbits - bits));
-        minbits
-    } else {
-        bits
-    };
-    bits as usize
+    pad_to(bs, bits, minbits)
 }
 
 /// Generic integer encode for 64-bit values.
@@ -94,13 +89,7 @@ where
     let mut ublock = [0u64; N];
     fwd_order_i64(&mut ublock, &block, P::PERM);
     let bits = encode_ints::<_, true>(bs, maxbits, maxprec, &ublock);
-    let bits = if bits < minbits {
-        bs.pad(u64::from(minbits - bits));
-        minbits
-    } else {
-        bits
-    };
-    bits as usize
+    pad_to(bs, bits, minbits)
 }
 
 // ---------------------------------------------------------------------------

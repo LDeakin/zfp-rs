@@ -11,7 +11,7 @@ use crate::codec::bitplane::{PlaneBlock, decode_ints};
 use crate::codec::decode::core::{inv_cast_f32, inv_cast_f64};
 use crate::codec::decode::core::{inv_order_i32, inv_order_i64};
 use crate::codec::encode::core::{
-    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, PERM_1, PERM_2, PERM_3, PERM_4,
+    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, PERM_1, PERM_2, PERM_3, PERM_4, skip_to,
     with_maxbits,
 };
 use crate::codec::transform::rev_inv_xform;
@@ -94,16 +94,6 @@ fn decode_bounded<B: PlaneBlock>(
 ) -> (B, u32) {
     let (ublock, ubits, _) = decode_ints::<B, true>(bs, maxbits, prec, NO_ROUNDING);
     (ublock, ubits)
-}
-
-/// Skip a block of `bits` bits to `minbits`; return its size.
-fn skip_to(bs: &mut (impl ZfpBitStreamOps + ?Sized), bits: u32, minbits: u32) -> usize {
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-        minbits as usize
-    } else {
-        bits as usize
-    }
 }
 
 // ---------------------------------------------------------------------------

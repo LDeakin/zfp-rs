@@ -8,8 +8,8 @@
 use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::bitplane::decode_ints;
 use crate::codec::encode::core::{
-    EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, NBMASK_U32, NBMASK_U64, PERM_1, PERM_2, PERM_3,
-    PERM_4, precision_f,
+    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, NBMASK_U32, NBMASK_U64, PERM_1, PERM_2,
+    PERM_3, PERM_4, precision_f, skip_to,
 };
 use crate::config::{ZfpConfig, ZfpRounding};
 use crate::types::ZfpDimensionality;
@@ -109,9 +109,7 @@ macro_rules! decode_int_block {
         ) -> [$int; $n] {
             let (ublock, bits, zero) =
                 decode_ints::<[$uint; $n], true>(bs, maxbits, maxprec, rounding);
-            if bits < minbits {
-                bs.skip(u64::from(minbits - bits));
-            }
+            skip_to(bs, bits, minbits);
             let mut iblock = [0; $n];
             // An all-zero block transforms to zeros.
             if !zero {
@@ -197,8 +195,7 @@ macro_rules! decode_float_block {
         ) -> [$float; N] {
             const EBITS: u32 = $ebits;
             const EBIAS: i32 = $ebias;
-            let (minbits, maxbits, rounding) =
-                (config.min_bits(), config.max_bits(), config.rounding());
+            let rounding = config.rounding();
             let mut fblock: [$float; N] = [0.0; N];
             if bs.get_bit() != 0 {
                 // The block has nonzero values, and a header of a bit and the
@@ -212,29 +209,28 @@ macro_rules! decode_float_block {
                     u32::from(dims),
                     rounding.tight_error(),
                 );
-                let remaining_min = minbits.saturating_sub(bits);
-                let remaining_max = maxbits.saturating_sub(bits);
+                let remaining = Budget::of(config).after(bits);
                 match dims {
                     ZfpDimensionality::D1 => {
-                        let iblock = $core1(bs, remaining_min, remaining_max, prec, rounding);
+                        let iblock = $core1(bs, remaining.min, remaining.max, prec, rounding);
                         $inv_cast(&iblock, &mut fblock, emax);
                     }
                     ZfpDimensionality::D2 => {
-                        let iblock = $core2(bs, remaining_min, remaining_max, prec, rounding);
+                        let iblock = $core2(bs, remaining.min, remaining.max, prec, rounding);
                         $inv_cast(&iblock, &mut fblock, emax);
                     }
                     ZfpDimensionality::D3 => {
-                        let iblock = $core3(bs, remaining_min, remaining_max, prec, rounding);
+                        let iblock = $core3(bs, remaining.min, remaining.max, prec, rounding);
                         $inv_cast(&iblock, &mut fblock, emax);
                     }
                     ZfpDimensionality::D4 => {
-                        let iblock = $core4(bs, remaining_min, remaining_max, prec, rounding);
+                        let iblock = $core4(bs, remaining.min, remaining.max, prec, rounding);
                         $inv_cast(&iblock, &mut fblock, emax);
                     }
                 }
-            } else if minbits > 1 {
+            } else {
                 // An all-zero block is its one-bit header, padded to `minbits`.
-                bs.skip(u64::from(minbits - 1));
+                skip_to(bs, 1, config.min_bits());
             }
             fblock
         }
