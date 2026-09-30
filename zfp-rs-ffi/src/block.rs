@@ -7,42 +7,46 @@
 //! using the stream's compression parameters.
 
 use crate::abi::zfp_stream;
-use zfp_rs::{ZfpBitStreamMutOps, ZfpConfig, ZfpDimensionality};
+use crate::bitstream_api::ZfpBitStreamHandleInner;
+use zfp_rs::ZfpDimensionality;
 
-/// Get the bitstream and params from a `zfp_stream`.
-struct StreamContext<'a> {
-    bs: &'a mut dyn ZfpBitStreamMutOps,
-    config: ZfpConfig,
-}
-
-fn get_ctx(stream: *mut zfp_stream) -> Option<StreamContext<'static>> {
-    if stream.is_null() {
-        return None;
-    }
-    let (config, bitstream) = unsafe { crate::stream::stream_params(stream)? };
-    let bs = unsafe {
-        crate::bitstream_api::get_handle_mut(bitstream)?
-            .inner
-            .as_ops_mut()
-    };
-    Some(StreamContext { bs, config })
+/// Evaluate `$body` with `$bs` bound to the stream's bitstream and `$config`
+/// to its parameters, or return 0 if either is missing.
+///
+/// Matching on the handle, rather than coding through `dyn`, dispatches the
+/// block codec statically.
+macro_rules! with_stream {
+    ($stream:ident, |$bs:ident, $config:ident| $body:expr) => {{
+        let Some((config, bitstream)) = (unsafe { crate::stream::stream_params($stream) }) else {
+            return 0;
+        };
+        let Some(handle) = (unsafe { crate::bitstream_api::get_handle_mut(bitstream) }) else {
+            return 0;
+        };
+        let $config = &config;
+        match &mut handle.inner {
+            ZfpBitStreamHandleInner::Owned($bs) => $body,
+            ZfpBitStreamHandleInner::BorrowedMut($bs) => $body,
+        }
+    }};
 }
 
 macro_rules! impl_encode_block_1d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *const $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D1,
-                &[1, 0, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D1,
+                    &[1, 0, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -56,17 +60,18 @@ macro_rules! impl_encode_block_2d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *const $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D2,
-                &[1, 4, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D2,
+                    &[1, 4, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -80,17 +85,18 @@ macro_rules! impl_encode_block_3d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *const $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D3,
-                &[1, 4, 16, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D3,
+                    &[1, 4, 16, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -104,17 +110,18 @@ macro_rules! impl_encode_block_4d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *const $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D4,
-                &[1, 4, 16, 64],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D4,
+                    &[1, 4, 16, 64],
+                    config,
+                )
+            })
         }
     };
 }
@@ -132,17 +139,18 @@ macro_rules! impl_decode_block_1d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *mut $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D1,
-                &[1, 0, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D1,
+                    &[1, 0, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -156,17 +164,18 @@ macro_rules! impl_decode_block_2d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *mut $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D2,
-                &[1, 4, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D2,
+                    &[1, 4, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -180,17 +189,18 @@ macro_rules! impl_decode_block_3d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *mut $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D3,
-                &[1, 4, 16, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D3,
+                    &[1, 4, 16, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -204,17 +214,18 @@ macro_rules! impl_decode_block_4d {
     ($fn_name:ident, $ty:ty) => {
         #[unsafe(no_mangle)]
         pub unsafe extern "C" fn $fn_name(stream: *mut zfp_stream, block: *mut $ty) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D4,
-                &[1, 4, 16, 64],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D4,
+                    &[1, 4, 16, 64],
+                    config,
+                )
+            })
         }
     };
 }
@@ -236,17 +247,18 @@ macro_rules! impl_encode_block_strided_1d {
             block: *const $ty,
             stride: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D1,
-                &[stride, 0, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D1,
+                    &[stride, 0, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -265,17 +277,18 @@ macro_rules! impl_encode_block_strided_2d {
             stride_x: isize,
             stride_y: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D2,
-                &[stride_x, stride_y, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D2,
+                    &[stride_x, stride_y, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -295,17 +308,18 @@ macro_rules! impl_encode_block_strided_3d {
             stride_y: isize,
             stride_z: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D3,
-                &[stride_x, stride_y, stride_z, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D3,
+                    &[stride_x, stride_y, stride_z, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -326,17 +340,18 @@ macro_rules! impl_encode_block_strided_4d {
             stride_z: isize,
             stride_w: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D4,
-                &[stride_x, stride_y, stride_z, stride_w],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D4,
+                    &[stride_x, stride_y, stride_z, stride_w],
+                    config,
+                )
+            })
         }
     };
 }
@@ -359,19 +374,20 @@ macro_rules! impl_encode_partial_block_strided_1d {
             lx: usize,
             stride: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D1,
-                [lx, 0, 0, 0],
-                &[stride, 0, 0, 0],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D1,
+                    [lx, 0, 0, 0],
+                    &[stride, 0, 0, 0],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
@@ -392,19 +408,20 @@ macro_rules! impl_encode_partial_block_strided_2d {
             stride_x: isize,
             stride_y: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D2,
-                [lx, ly, 0, 0],
-                &[stride_x, stride_y, 0, 0],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D2,
+                    [lx, ly, 0, 0],
+                    &[stride_x, stride_y, 0, 0],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
@@ -427,19 +444,20 @@ macro_rules! impl_encode_partial_block_strided_3d {
             stride_y: isize,
             stride_z: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D3,
-                [lx, ly, lz, 0],
-                &[stride_x, stride_y, stride_z, 0],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D3,
+                    [lx, ly, lz, 0],
+                    &[stride_x, stride_y, stride_z, 0],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
@@ -464,19 +482,20 @@ macro_rules! impl_encode_partial_block_strided_4d {
             stride_z: isize,
             stride_w: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D4,
-                [lx, ly, lz, lw],
-                &[stride_x, stride_y, stride_z, stride_w],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D4,
+                    [lx, ly, lz, lw],
+                    &[stride_x, stride_y, stride_z, stride_w],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
@@ -498,17 +517,18 @@ macro_rules! impl_decode_block_strided_1d {
             block: *mut $ty,
             stride: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D1,
-                &[stride, 0, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D1,
+                    &[stride, 0, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -527,17 +547,18 @@ macro_rules! impl_decode_block_strided_2d {
             stride_x: isize,
             stride_y: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D2,
-                &[stride_x, stride_y, 0, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D2,
+                    &[stride_x, stride_y, 0, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -557,17 +578,18 @@ macro_rules! impl_decode_block_strided_3d {
             stride_y: isize,
             stride_z: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D3,
-                &[stride_x, stride_y, stride_z, 0],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D3,
+                    &[stride_x, stride_y, stride_z, 0],
+                    config,
+                )
+            })
         }
     };
 }
@@ -588,17 +610,18 @@ macro_rules! impl_decode_block_strided_4d {
             stride_z: isize,
             stride_w: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D4,
-                &[stride_x, stride_y, stride_z, stride_w],
-                &ctx.config,
-            )
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D4,
+                    &[stride_x, stride_y, stride_z, stride_w],
+                    config,
+                )
+            })
         }
     };
 }
@@ -621,19 +644,20 @@ macro_rules! impl_decode_partial_block_strided_1d {
             lx: usize,
             stride: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D1,
-                [lx, 0, 0, 0],
-                &[stride, 0, 0, 0],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D1,
+                    [lx, 0, 0, 0],
+                    &[stride, 0, 0, 0],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
@@ -654,19 +678,20 @@ macro_rules! impl_decode_partial_block_strided_2d {
             stride_x: isize,
             stride_y: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D2,
-                [lx, ly, 0, 0],
-                &[stride_x, stride_y, 0, 0],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D2,
+                    [lx, ly, 0, 0],
+                    &[stride_x, stride_y, 0, 0],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
@@ -689,19 +714,20 @@ macro_rules! impl_decode_partial_block_strided_3d {
             stride_y: isize,
             stride_z: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D3,
-                [lx, ly, lz, 0],
-                &[stride_x, stride_y, stride_z, 0],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D3,
+                    [lx, ly, lz, 0],
+                    &[stride_x, stride_y, stride_z, 0],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
@@ -726,19 +752,20 @@ macro_rules! impl_decode_partial_block_strided_4d {
             stride_z: isize,
             stride_w: isize,
         ) -> usize {
-            let Some(ctx) = get_ctx(stream) else { return 0 };
             if block.is_null() {
                 return 0;
             }
-            zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
-                ctx.bs,
-                block,
-                ZfpDimensionality::D4,
-                [lx, ly, lz, lw],
-                &[stride_x, stride_y, stride_z, stride_w],
-                &ctx.config,
-            )
-            .unwrap_or(0)
+            with_stream!(stream, |bs, config| {
+                zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
+                    bs,
+                    block,
+                    ZfpDimensionality::D4,
+                    [lx, ly, lz, lw],
+                    &[stride_x, stride_y, stride_z, stride_w],
+                    config,
+                )
+                .unwrap_or(0)
+            })
         }
     };
 }
