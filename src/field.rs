@@ -1,4 +1,3 @@
-#![allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
 //! `ZfpField` and `ZfpFieldMut`: uncompressed array descriptors.
 
 // The API and validation layer computes with caller-supplied sizes, so its
@@ -624,7 +623,6 @@ pub(crate) fn field_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isiz
 }
 
 /// Overflow-checked index span, including natural strides for zero entries.
-#[cfg_attr(not(feature = "ffi"), allow(dead_code))]
 #[must_use]
 pub fn checked_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> Option<(isize, isize)> {
     let mut imin: isize = 0;

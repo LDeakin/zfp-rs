@@ -24,7 +24,6 @@ pub(crate) unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: *mut T, sx: isiz
 
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
-#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
 pub(crate) unsafe fn scatter_partial_2d<T: Copy>(
     block: &[T; 16],
     data: *mut T,

@@ -1,5 +1,4 @@
 #![allow(clippy::cast_sign_loss)] // i32→u32 for exponent encoding
-#![allow(clippy::cast_precision_loss)] // i32→f32 and i64→f64 for reconstruction (intentional loss)
 //! Floating-point-specific encode path (exponent extraction + significand coding).
 //!
 //! Reference: `zfp/src/template/encodef.c`, `codecf.c`
@@ -32,7 +31,6 @@ where
     let minbits = config.min_bits();
     // Compute the number of dimensions from the block size N (4=1D, 16=2D, 64=3D, 256=4D).
     // SAFETY: N is always 4, 16, 64, or 256 (powers of 4), so trailing_zeros is even and ≥ 2.
-    #[allow(clippy::cast_possible_truncation)]
     let dims = N.trailing_zeros() / 2;
     let emax = exponent_block_f32(fblock);
     let prec = precision_f(
@@ -86,7 +84,6 @@ where
     let minbits = config.min_bits();
     // Compute the number of dimensions from the block size N (4=1D, 16=2D, 64=3D, 256=4D).
     // SAFETY: N is always 4, 16, 64, or 256 (powers of 4), so trailing_zeros is even and ≥ 2.
-    #[allow(clippy::cast_possible_truncation)]
     let dims = N.trailing_zeros() / 2;
     let emax = exponent_block_f64(fblock);
     let prec = precision_f(

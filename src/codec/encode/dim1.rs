@@ -35,7 +35,6 @@ pub(crate) unsafe fn gather_1d<T: Copy + Default>(data: *const T, sx: isize) -> 
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
-#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
 pub(crate) unsafe fn gather_partial_1d<T: Copy + Default>(
     data: *const T,
     nx: usize,
