@@ -84,171 +84,52 @@ inv_round!(inv_round_u64, u64, NBMASK_U64);
 // Block decode: integer (matches C `decode_block_Int_DIMS`)
 // ---------------------------------------------------------------------------
 
-#[inline]
-pub(crate) fn decode_block_1d_i32_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i32; 4] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 4], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i32; 4];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i32(&ublock, &mut iblock, &PERM_1);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
+/// Define a per-dimension integer block decoder, as C's `decode_block_Int_DIMS`:
+/// `decode_ints`, the skip to `minbits`, then the inverse permutation and
+/// transform.
+///
+/// These are eight functions rather than one generic over the block size and
+/// word width, because that changed what LLVM inlines around them. Decoding
+/// took up to 15% more cycles, most for 1-D fields, with each function's
+/// callers inlining a different amount of `decode_ints`. Generated from one
+/// definition, each compiles as when written out by hand.
+macro_rules! decode_int_block {
+    (
+        $(#[$attr:meta])*
+        $name:ident, $int:ty, $uint:ty, $n:literal, $perm:ident, $inv_order:ident
+    ) => {
+        $(#[$attr])*
+        pub(crate) fn $name(
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
+            minbits: u32,
+            maxbits: u32,
+            maxprec: u32,
+            rounding: ZfpRounding,
+        ) -> [$int; $n] {
+            let (ublock, bits, zero) =
+                decode_ints::<[$uint; $n], true>(bs, maxbits, maxprec, rounding);
+            if bits < minbits {
+                bs.skip(u64::from(minbits - bits));
+            }
+            let mut iblock = [0; $n];
+            // An all-zero block transforms to zeros.
+            if !zero {
+                $inv_order(&ublock, &mut iblock, &$perm);
+                crate::codec::transform::inv_xform(&mut iblock);
+            }
+            iblock
+        }
+    };
 }
 
-#[inline]
-pub(crate) fn decode_block_1d_i64_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i64; 4] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 4], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i64; 4];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i64(&ublock, &mut iblock, &PERM_1);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
-}
-
-#[inline]
-pub(crate) fn decode_block_2d_i32_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i32; 16] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 16], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i32; 16];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i32(&ublock, &mut iblock, &PERM_2);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
-}
-
-#[inline]
-pub(crate) fn decode_block_2d_i64_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i64; 16] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 16], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i64; 16];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i64(&ublock, &mut iblock, &PERM_2);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
-}
-
-#[inline]
-pub(crate) fn decode_block_3d_i32_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i32; 64] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 64], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i32; 64];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i32(&ublock, &mut iblock, &PERM_3);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
-}
-
-#[inline]
-pub(crate) fn decode_block_3d_i64_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i64; 64] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 64], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i64; 64];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i64(&ublock, &mut iblock, &PERM_3);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
-}
-
-pub(crate) fn decode_block_4d_i32_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i32; 256] {
-    let (ublock, bits, zero) = decode_ints::<[u32; 256], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i32; 256];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i32(&ublock, &mut iblock, &PERM_4);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
-}
-
-pub(crate) fn decode_block_4d_i64_core(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    minbits: u32,
-    maxbits: u32,
-    maxprec: u32,
-    rounding: ZfpRounding,
-) -> [i64; 256] {
-    let (ublock, bits, zero) = decode_ints::<[u64; 256], true>(bs, maxbits, maxprec, rounding);
-    if bits < minbits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    let mut iblock = [0i64; 256];
-    // An all-zero block transforms to zeros.
-    if !zero {
-        inv_order_i64(&ublock, &mut iblock, &PERM_4);
-        crate::codec::transform::inv_xform(&mut iblock);
-    }
-    iblock
-}
+decode_int_block! { #[inline] decode_block_1d_i32_core, i32, u32, 4, PERM_1, inv_order_i32 }
+decode_int_block! { #[inline] decode_block_1d_i64_core, i64, u64, 4, PERM_1, inv_order_i64 }
+decode_int_block! { #[inline] decode_block_2d_i32_core, i32, u32, 16, PERM_2, inv_order_i32 }
+decode_int_block! { #[inline] decode_block_2d_i64_core, i64, u64, 16, PERM_2, inv_order_i64 }
+decode_int_block! { #[inline] decode_block_3d_i32_core, i32, u32, 64, PERM_3, inv_order_i32 }
+decode_int_block! { #[inline] decode_block_3d_i64_core, i64, u64, 64, PERM_3, inv_order_i64 }
+decode_int_block! { decode_block_4d_i32_core, i32, u32, 256, PERM_4, inv_order_i32 }
+decode_int_block! { decode_block_4d_i64_core, i64, u64, 256, PERM_4, inv_order_i64 }
 
 // ---------------------------------------------------------------------------
 // Strided row access (used by the full-block scatters)
