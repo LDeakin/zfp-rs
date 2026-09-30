@@ -15,16 +15,14 @@ pub fn decode_block_1d_f32(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f32; 4] {
-    let (block, _) = decode_float_block::<4>(bs, config, ZfpDimensionality::D1);
-    block
+    decode_float_block::<4>(bs, config, ZfpDimensionality::D1)
 }
 
 pub fn decode_block_1d_f64(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f64; 4] {
-    let (block, _) = decode_double_block::<4>(bs, config, ZfpDimensionality::D1);
-    block
+    decode_double_block::<4>(bs, config, ZfpDimensionality::D1)
 }
 
 // ---------------------------------------------------------------------------
@@ -35,16 +33,14 @@ pub fn decode_block_2d_f32(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f32; 16] {
-    let (block, _) = decode_float_block::<16>(bs, config, ZfpDimensionality::D2);
-    block
+    decode_float_block::<16>(bs, config, ZfpDimensionality::D2)
 }
 
 pub fn decode_block_2d_f64(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f64; 16] {
-    let (block, _) = decode_double_block::<16>(bs, config, ZfpDimensionality::D2);
-    block
+    decode_double_block::<16>(bs, config, ZfpDimensionality::D2)
 }
 
 // ---------------------------------------------------------------------------
@@ -55,16 +51,14 @@ pub fn decode_block_3d_f32(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f32; 64] {
-    let (block, _) = decode_float_block::<64>(bs, config, ZfpDimensionality::D3);
-    block
+    decode_float_block::<64>(bs, config, ZfpDimensionality::D3)
 }
 
 pub fn decode_block_3d_f64(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f64; 64] {
-    let (block, _) = decode_double_block::<64>(bs, config, ZfpDimensionality::D3);
-    block
+    decode_double_block::<64>(bs, config, ZfpDimensionality::D3)
 }
 
 // ---------------------------------------------------------------------------
@@ -75,14 +69,12 @@ pub fn decode_block_4d_f32(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f32; 256] {
-    let (block, _) = decode_float_block::<256>(bs, config, ZfpDimensionality::D4);
-    block
+    decode_float_block::<256>(bs, config, ZfpDimensionality::D4)
 }
 
 pub fn decode_block_4d_f64(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
 ) -> [f64; 256] {
-    let (block, _) = decode_double_block::<256>(bs, config, ZfpDimensionality::D4);
-    block
+    decode_double_block::<256>(bs, config, ZfpDimensionality::D4)
 }

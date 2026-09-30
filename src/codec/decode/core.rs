@@ -295,13 +295,11 @@ pub(crate) fn inv_cast_f64(iblock: &[i64], fblock: &mut [f64], emax: i32) {
 }
 
 /// Decode a float block: read exponent, then integer block, then `inv_cast`.
-///
-/// Returns (decoded values, bits read).
 pub(crate) fn decode_float_block<const N: usize>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
     dims: ZfpDimensionality,
-) -> ([f32; N], usize) {
+) -> [f32; N] {
     const EBITS: u32 = 8;
     const EBIAS: i32 = 127;
     let (minbits, maxbits, rounding) = (config.min_bits(), config.max_bits(), config.rounding());
@@ -320,39 +318,32 @@ pub(crate) fn decode_float_block<const N: usize>(
         );
         let remaining_min = minbits.saturating_sub(bits);
         let remaining_max = maxbits.saturating_sub(bits);
-        let iblock_bits = match dims {
+        match dims {
             ZfpDimensionality::D1 => {
                 let iblock =
                     decode_block_1d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
-                iblock.len()
             }
             ZfpDimensionality::D2 => {
                 let iblock =
                     decode_block_2d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
-                iblock.len()
             }
             ZfpDimensionality::D3 => {
                 let iblock =
                     decode_block_3d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
-                iblock.len()
             }
             ZfpDimensionality::D4 => {
                 let iblock =
                     decode_block_4d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
                 inv_cast_f32(&iblock, &mut fblock, emax);
-                iblock.len()
             }
-        };
-        let _ = iblock_bits;
-        bits = maxbits; // consumed up to maxbits
+        }
     } else if minbits > bits {
         bs.skip(u64::from(minbits - bits));
-        bits = minbits;
     }
-    (fblock, bits as usize)
+    fblock
 }
 
 /// Decode a double block: read exponent, then integer block, then `inv_cast`.
@@ -360,7 +351,7 @@ pub(crate) fn decode_double_block<const N: usize>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     config: &ZfpConfig,
     dims: ZfpDimensionality,
-) -> ([f64; N], usize) {
+) -> [f64; N] {
     const EBITS: u32 = 11;
     const EBIAS: i32 = 1023;
     let (minbits, maxbits, rounding) = (config.min_bits(), config.max_bits(), config.rounding());
@@ -400,12 +391,10 @@ pub(crate) fn decode_double_block<const N: usize>(
                 inv_cast_f64(&iblock, &mut fblock, emax);
             }
         }
-        bits = maxbits;
     } else if minbits > bits {
         bs.skip(u64::from(minbits - bits));
-        bits = minbits;
     }
-    (fblock, bits as usize)
+    fblock
 }
 
 // ---------------------------------------------------------------------------
