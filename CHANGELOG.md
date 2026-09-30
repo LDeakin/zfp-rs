@@ -68,6 +68,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ZfpConfig::maximum_size`, and so `zfp_stream_maximum_size`, is never less than the block headers, which a block writes even when `max_bits` is smaller; C under-reports these configurations too. Rayon compression sizes its chunks with the same bound, so it no longer loses bits when blocks exceed `max_bits`.
 - `zfp_stream_maximum_size` ignores the dimensions from the first zero one on, as C does. A field such as `[4, 0, 4, 0]` was sized for the header alone.
 - Lossy compression no longer destroys float blocks whose largest magnitude is below 2^-98 (`f32`) or 2^-962 (`f64`): their scale factor overflowed, as in C (zfp issue #119). They are now scaled exactly; their bytes differ from C's, but C decodes them.
+- `write_header` returns `ZfpCompressionError::BufferTooSmall` when the cursor has passed bit `u64::MAX`, where its position wraps. It returned `Ok` while dropping every bit.
 - `ZfpRounding::Last` no longer biases reversible decoding, which made it lossy, as in a C build with `ZFP_ROUND_LAST`. Streams are unchanged.
 
 ## [0.2.0](https://github.com/LDeakin/zfp-rs/releases/tag/v0.2.0) - 2026-09-28

@@ -95,12 +95,18 @@ pub(crate) fn write_header_bs(
     .into_iter()
     .filter_map(|(written, bits)| written.then_some(bits as usize))
     .sum::<usize>();
+    // Measured from the cursor's word in `u128`, not from `write_pos`, which
+    // wraps back to a small offset once the cursor passes bit `u64::MAX`.
     let capacity = bs.capacity();
-    let end = bs.write_pos().saturating_add(bits as u64);
-    if end > (capacity as u64).saturating_mul(8) {
+    let state = bs.state();
+    let end = (state.word_pos as u128)
+        .saturating_mul(u128::from(STREAM_WORD_BITS))
+        .saturating_add(u128::from(state.bits))
+        .saturating_add(bits as u128);
+    if end > (capacity as u128).saturating_mul(8) {
         let required = end
-            .div_ceil(u64::from(STREAM_WORD_BITS))
-            .saturating_mul(STREAM_WORD_BYTES as u64);
+            .div_ceil(u128::from(STREAM_WORD_BITS))
+            .saturating_mul(STREAM_WORD_BYTES as u128);
         return Err(ZfpCompressionError::BufferTooSmall {
             required: usize::try_from(required).unwrap_or(usize::MAX),
             capacity,

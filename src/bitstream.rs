@@ -181,6 +181,39 @@ mod tests {
         );
     }
 
+    /// Past bit `u64::MAX`, `write_pos` wraps back to a small offset, which
+    /// passed the capacity check: `write_header` returned `Ok` and dropped
+    /// every bit.
+    #[test]
+    fn given_cursor_past_bit_u64_max_when_write_header_expect_buffer_too_small() {
+        use crate::config::ZfpConfig;
+        use crate::field::ZfpFieldMetadata;
+        use crate::types::{ZfpCompressionError, ZfpHeaderMask, ZfpScalarType};
+
+        let metadata = ZfpFieldMetadata {
+            scalar_type: ZfpScalarType::F64,
+            dims: [16, 0, 0, 0],
+        };
+        let mut bs = ZfpBitStream::new(64).unwrap();
+        bs.seek_write(u64::MAX - 63);
+        bs.pad(128);
+        assert_eq!(bs.write_pos(), 64);
+        // Two words past the cursor's word 2^58 + 1.
+        let required = usize::try_from(((1u128 << 58) + 3) * 8).unwrap_or(usize::MAX);
+        assert_eq!(
+            bs.write_header(
+                &ZfpConfig::fixed_precision(16),
+                &metadata,
+                ZfpHeaderMask::FULL
+            ),
+            Err(ZfpCompressionError::BufferTooSmall {
+                required,
+                capacity: 64,
+            })
+        );
+        assert_eq!(bs.write_pos(), 64);
+    }
+
     #[test]
     fn given_null_pointer_when_field_from_raw_expect_insufficient_data_error() {
         use crate::field::ZfpFieldMut;
