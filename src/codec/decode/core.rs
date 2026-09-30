@@ -175,107 +175,91 @@ pub(crate) fn inv_cast_f64(iblock: &[i64], fblock: &mut [f64], emax: i32) {
     }
 }
 
-/// Decode a float block: read exponent, then integer block, then `inv_cast`.
-pub(crate) fn decode_float_block<const N: usize>(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    config: &ZfpConfig,
-    dims: ZfpDimensionality,
-) -> [f32; N] {
-    const EBITS: u32 = 8;
-    const EBIAS: i32 = 127;
-    let (minbits, maxbits, rounding) = (config.min_bits(), config.max_bits(), config.rounding());
-    let mut fblock = [0f32; N];
-    let mut bits: u32 = 1;
-    if bs.get_bit() != 0 {
-        // block has nonzero values
-        bits += EBITS;
-        let emax = bs.read_bits(EBITS) as i32 - EBIAS;
-        let prec = precision_f(
-            emax,
-            config.max_prec(),
-            config.min_exp(),
-            u32::from(dims),
-            rounding.tight_error(),
-        );
-        let remaining_min = minbits.saturating_sub(bits);
-        let remaining_max = maxbits.saturating_sub(bits);
-        match dims {
-            ZfpDimensionality::D1 => {
-                let iblock =
-                    decode_block_1d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f32(&iblock, &mut fblock, emax);
+/// Generate a float block decoder: read the exponent, then the integer block,
+/// then `inv_cast`.
+///
+/// One definition serves `f32` and `f64`, and is a macro rather than a generic
+/// function for the reason `decode_int_block!` is. It takes the type's
+/// exponent width and bias, its dequantization, and its integer core for each
+/// dimensionality.
+macro_rules! decode_float_block {
+    (
+        $(#[$attr:meta])*
+        $name:ident, $float:ty, $ebits:literal, $ebias:literal, $inv_cast:ident,
+        [$core1:ident, $core2:ident, $core3:ident, $core4:ident $(,)?]
+    ) => {
+        $(#[$attr])*
+        pub(crate) fn $name<const N: usize>(
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
+            config: &ZfpConfig,
+            dims: ZfpDimensionality,
+        ) -> [$float; N] {
+            const EBITS: u32 = $ebits;
+            const EBIAS: i32 = $ebias;
+            let (minbits, maxbits, rounding) =
+                (config.min_bits(), config.max_bits(), config.rounding());
+            let mut fblock: [$float; N] = [0.0; N];
+            if bs.get_bit() != 0 {
+                // The block has nonzero values, and a header of a bit and the
+                // exponent.
+                let bits = 1 + EBITS;
+                let emax = bs.read_bits(EBITS) as i32 - EBIAS;
+                let prec = precision_f(
+                    emax,
+                    config.max_prec(),
+                    config.min_exp(),
+                    u32::from(dims),
+                    rounding.tight_error(),
+                );
+                let remaining_min = minbits.saturating_sub(bits);
+                let remaining_max = maxbits.saturating_sub(bits);
+                match dims {
+                    ZfpDimensionality::D1 => {
+                        let iblock = $core1(bs, remaining_min, remaining_max, prec, rounding);
+                        $inv_cast(&iblock, &mut fblock, emax);
+                    }
+                    ZfpDimensionality::D2 => {
+                        let iblock = $core2(bs, remaining_min, remaining_max, prec, rounding);
+                        $inv_cast(&iblock, &mut fblock, emax);
+                    }
+                    ZfpDimensionality::D3 => {
+                        let iblock = $core3(bs, remaining_min, remaining_max, prec, rounding);
+                        $inv_cast(&iblock, &mut fblock, emax);
+                    }
+                    ZfpDimensionality::D4 => {
+                        let iblock = $core4(bs, remaining_min, remaining_max, prec, rounding);
+                        $inv_cast(&iblock, &mut fblock, emax);
+                    }
+                }
+            } else if minbits > 1 {
+                // An all-zero block is its one-bit header, padded to `minbits`.
+                bs.skip(u64::from(minbits - 1));
             }
-            ZfpDimensionality::D2 => {
-                let iblock =
-                    decode_block_2d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f32(&iblock, &mut fblock, emax);
-            }
-            ZfpDimensionality::D3 => {
-                let iblock =
-                    decode_block_3d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f32(&iblock, &mut fblock, emax);
-            }
-            ZfpDimensionality::D4 => {
-                let iblock =
-                    decode_block_4d_i32_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f32(&iblock, &mut fblock, emax);
-            }
+            fblock
         }
-    } else if minbits > bits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    fblock
+    };
 }
 
-/// Decode a double block: read exponent, then integer block, then `inv_cast`.
-pub(crate) fn decode_double_block<const N: usize>(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    config: &ZfpConfig,
-    dims: ZfpDimensionality,
-) -> [f64; N] {
-    const EBITS: u32 = 11;
-    const EBIAS: i32 = 1023;
-    let (minbits, maxbits, rounding) = (config.min_bits(), config.max_bits(), config.rounding());
-    let mut fblock = [0f64; N];
-    let mut bits: u32 = 1;
-    if bs.get_bit() != 0 {
-        bits += EBITS;
-        let emax = bs.read_bits(EBITS) as i32 - EBIAS;
-        let prec = precision_f(
-            emax,
-            config.max_prec(),
-            config.min_exp(),
-            u32::from(dims),
-            rounding.tight_error(),
-        );
-        let remaining_min = minbits.saturating_sub(bits);
-        let remaining_max = maxbits.saturating_sub(bits);
-        match dims {
-            ZfpDimensionality::D1 => {
-                let iblock =
-                    decode_block_1d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f64(&iblock, &mut fblock, emax);
-            }
-            ZfpDimensionality::D2 => {
-                let iblock =
-                    decode_block_2d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f64(&iblock, &mut fblock, emax);
-            }
-            ZfpDimensionality::D3 => {
-                let iblock =
-                    decode_block_3d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f64(&iblock, &mut fblock, emax);
-            }
-            ZfpDimensionality::D4 => {
-                let iblock =
-                    decode_block_4d_i64_core(bs, remaining_min, remaining_max, prec, rounding);
-                inv_cast_f64(&iblock, &mut fblock, emax);
-            }
-        }
-    } else if minbits > bits {
-        bs.skip(u64::from(minbits - bits));
-    }
-    fblock
+decode_float_block! {
+    /// Decode a float block: read exponent, then integer block, then `inv_cast`.
+    decode_float_block, f32, 8, 127, inv_cast_f32,
+    [
+        decode_block_1d_i32_core,
+        decode_block_2d_i32_core,
+        decode_block_3d_i32_core,
+        decode_block_4d_i32_core,
+    ]
+}
+
+decode_float_block! {
+    /// Decode a double block: read exponent, then integer block, then `inv_cast`.
+    decode_double_block, f64, 11, 1023, inv_cast_f64,
+    [
+        decode_block_1d_i64_core,
+        decode_block_2d_i64_core,
+        decode_block_3d_i64_core,
+        decode_block_4d_i64_core,
+    ]
 }
 
 // ---------------------------------------------------------------------------
