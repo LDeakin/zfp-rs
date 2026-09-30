@@ -31,7 +31,7 @@ pub(crate) fn decompress(
     reset_overread(bs);
     // SAFETY: `FieldPlan::new` validated the buffer's length and alignment,
     // which is exactly `decompress_blocks`' contract.
-    unsafe { decompress_blocks(bs, base, &info, config, 0..info.num_blocks, None) };
+    unsafe { decompress_blocks(bs, base, &info, config, 0..info.num_blocks) };
 
     finish(bs)
 }
@@ -55,10 +55,7 @@ fn finish(bs: &mut (impl ZfpBitStreamOps + ?Sized)) -> Result<usize, ZfpDecompre
     Ok(required)
 }
 
-/// Decode blocks `range` from the bitstream, in order.
-///
-/// With `seek = Some((start, bits))`, block `i` is read from bit
-/// `start + i * bits` rather than where the previous block ended.
+/// Decode blocks `range` from the bitstream, in order, from its cursor.
 ///
 /// # Safety
 /// `base` must point to the start of the field's data buffer: at least
@@ -74,23 +71,22 @@ unsafe fn decompress_blocks(
     info: &FieldPlan,
     config: &ZfpConfig,
     range: Range<usize>,
-    seek: Option<(u64, u64)>,
 ) {
     // SAFETY: the caller's contract, with the pointer cast to the scalar type
     // `FieldPlan::new` checked its alignment for.
     unsafe {
         match info.scalar_type {
             ZfpScalarType::I32 => {
-                decompress_typed(bs, base.cast::<i32>(), info, config, range, seek);
+                decompress_typed(bs, base.cast::<i32>(), info, config, range);
             }
             ZfpScalarType::I64 => {
-                decompress_typed(bs, base.cast::<i64>(), info, config, range, seek);
+                decompress_typed(bs, base.cast::<i64>(), info, config, range);
             }
             ZfpScalarType::F32 => {
-                decompress_typed(bs, base.cast::<f32>(), info, config, range, seek);
+                decompress_typed(bs, base.cast::<f32>(), info, config, range);
             }
             ZfpScalarType::F64 => {
-                decompress_typed(bs, base.cast::<f64>(), info, config, range, seek);
+                decompress_typed(bs, base.cast::<f64>(), info, config, range);
             }
         }
     }
@@ -100,17 +96,12 @@ unsafe fn decompress_blocks(
 ///
 /// # Safety
 /// As for [`decompress_blocks`], with `base` cast to `T`.
-#[expect(
-    clippy::arithmetic_side_effects,
-    reason = "`decompress_rayon` checked that the offset past the last block fits `u64`"
-)]
 unsafe fn decompress_typed<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     base: *mut T,
     info: &FieldPlan,
     config: &ZfpConfig,
     range: Range<usize>,
-    seek: Option<(u64, u64)>,
 ) {
     use crate::codec::block::{decode_block_strided, decode_partial, decode_reversible};
 
@@ -118,10 +109,7 @@ unsafe fn decompress_typed<T: ZfpScalar>(
     let strides = &info.strides;
     // The strided decoders check this per block; hoisting it is faster.
     let reversible = config.is_reversible();
-    for (block_idx, coords) in range.clone().zip(info.blocks(range)) {
-        if let Some((start, bits)) = seek {
-            bs.seek_read(start + block_idx as u64 * bits);
-        }
+    for coords in info.blocks(range) {
         let (offset, lengths) = info.block_geometry(coords);
         // SAFETY: `base` is the field's whole data buffer, which
         // `FieldPlan::new` validated to be at least `checked_size_bytes()`
@@ -260,9 +248,15 @@ unsafe impl Sync for FieldPtr {}
 /// Decompress chunks of blocks in parallel, and report whether any read past
 /// the end of the buffer.
 ///
-/// Each chunk gets its own bitstream view and seeks directly to its blocks' bit
-/// positions, then defers to the same `decompress_block` the serial path uses.
+/// Each chunk gets its own bitstream view and seeks to its first block, then
+/// defers to the same `decompress_blocks` the serial path uses. Every block
+/// takes exactly `bits_per_block` bits, as its decoder skips to `min_bits`, so
+/// the cursor then moves from block to block.
 #[cfg(feature = "rayon")]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "`decompress_rayon` checked that the offset past the last block fits `u64`"
+)]
 fn decompress_chunks(
     words: &[u64],
     ranges: &[Range<usize>],
@@ -281,18 +275,12 @@ fn decompress_chunks(
         .par_iter()
         .map(|range| {
             let mut local_bs = ZfpBitStreamRef::from_words(words);
+            local_bs.seek_read(start_read_bit + range.start as u64 * u64::from(bits_per_block));
             // SAFETY: `base` is the buffer `FieldPlan::new` validated for length
             // and alignment, and chunks cover disjoint blocks, so this thread
             // writes only bytes no other thread touches.
             unsafe {
-                decompress_blocks(
-                    &mut local_bs,
-                    base.ptr(),
-                    info,
-                    config,
-                    range.clone(),
-                    Some((start_read_bit, u64::from(bits_per_block))),
-                );
+                decompress_blocks(&mut local_bs, base.ptr(), info, config, range.clone());
             }
             overread(&local_bs)
         })
