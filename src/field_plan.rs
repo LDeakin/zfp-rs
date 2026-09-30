@@ -6,7 +6,9 @@
 
 use std::ops::Range;
 
-use crate::field::{checked_num_blocks, dimensionality, field_index_span, logical_shape_fits};
+use crate::field::{
+    checked_num_blocks, dimensionality, effective_strides, field_index_span, validate_layout,
+};
 use crate::types::{ZfpDimensionality, ZfpFieldError, ZfpScalarType};
 
 /// Block grid and memory layout, derived once per field.
@@ -35,39 +37,16 @@ pub(crate) struct FieldPlan {
 impl FieldPlan {
     /// Validate a field's buffer and derive its block grid.
     ///
-    /// `required` is the field's `checked_size_bytes`, saturated to `usize::MAX`
-    /// when the span overflows.
+    /// `strides` are the field's own, where zero selects the natural stride.
     pub(crate) fn new(
         scalar_type: ZfpScalarType,
         dims: [usize; 4],
-        dims_enum: ZfpDimensionality,
         strides: [isize; 4],
         data: &[u8],
-        required: usize,
     ) -> Result<Self, ZfpFieldError> {
-        debug_assert_eq!(
-            dims_enum,
-            dimensionality(&dims),
-            "the block grid and the field's span must agree on which axes are active"
-        );
-
-        if !logical_shape_fits(&dims) {
-            return Err(ZfpFieldError::ShapeTooLarge { dims });
-        }
-
-        let actual = data.len();
-        if actual < required {
-            return Err(ZfpFieldError::InsufficientData { required, actual });
-        }
-
-        // The codec reinterprets this buffer as the scalar type and walks it
-        // with raw pointer offsets, so it must be correctly aligned. The
-        // field constructors check this too, but the C ABI bypasses them.
-        if !scalar_type.is_aligned(data.as_ptr()) {
-            return Err(ZfpFieldError::MisalignedData {
-                align: scalar_type.align(),
-            });
-        }
+        validate_layout(scalar_type, &dims, &strides, data)?;
+        let dims_enum = dimensionality(&dims);
+        let strides = effective_strides(&dims, &strides);
 
         let dim_count = usize::from(dims_enum);
         let [nx, ny, nz, nw] = dims;
@@ -287,15 +266,8 @@ mod tests {
     #[test]
     fn blocks_step_through_block_coords() {
         let data = vec![0u8; 4 * 9 * 5 * 6 * 7];
-        let plan = FieldPlan::new(
-            ZfpScalarType::F32,
-            [9, 5, 6, 7],
-            ZfpDimensionality::D4,
-            [1, 9, 45, 270],
-            &data,
-            data.len(),
-        )
-        .unwrap();
+        let plan =
+            FieldPlan::new(ZfpScalarType::F32, [9, 5, 6, 7], [1, 9, 45, 270], &data).unwrap();
         for range in [0..plan.num_blocks, 0..0, 3..4, 7..plan.num_blocks, 11..40] {
             let expect: Vec<_> = range.clone().map(|i| plan.block_coords(i)).collect();
             assert_eq!(plan.blocks(range).collect::<Vec<_>>(), expect);

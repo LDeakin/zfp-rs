@@ -5,6 +5,7 @@
 // arithmetic and indexing must be checked; see the crate's panic guarantee.
 #![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
 
+use crate::field_plan::FieldPlan;
 use crate::types::{
     ZfpDimensionality, ZfpDims, ZfpFieldError, ZfpMetadataError, ZfpScalar, ZfpScalarType,
     ZfpStrides,
@@ -61,8 +62,8 @@ pub(crate) fn valid_dims(dims: &[usize; 4]) -> bool {
     dims[0] != 0 && dims.iter().skip_while(|&&n| n != 0).all(|&n| n == 0)
 }
 
-/// Check that a field's dimensions are well formed and that `data` covers its
-/// strided span with the scalar type's alignment.
+/// Check that a field's dimensions are well formed, then its layout as
+/// [`validate_layout`] does.
 fn validate(
     scalar_type: ZfpScalarType,
     dims: &[usize; 4],
@@ -72,6 +73,21 @@ fn validate(
     if !valid_dims(dims) {
         return Err(ZfpFieldError::InvalidDims { dims: *dims });
     }
+    validate_layout(scalar_type, dims, strides, data)
+}
+
+/// Check that a field's shape fits the codec's offsets, and that `data` covers
+/// its strided span with the scalar type's alignment.
+///
+/// The codec reinterprets `data` as the scalar type and walks it with raw
+/// pointer offsets, so this must hold for every field it codes, including
+/// those the C ABI builds without [`validate`].
+pub(crate) fn validate_layout(
+    scalar_type: ZfpScalarType,
+    dims: &[usize; 4],
+    strides: &[isize; 4],
+    data: &[u8],
+) -> Result<(), ZfpFieldError> {
     if !logical_shape_fits(dims) {
         return Err(ZfpFieldError::ShapeTooLarge { dims: *dims });
     }
@@ -248,6 +264,11 @@ macro_rules! impl_field_common {
             /// span does not fit in a `usize`.
             pub(crate) fn checked_size_bytes(&self) -> Option<usize> {
                 checked_size_bytes(&self.dims, &self.strides, self.scalar_type)
+            }
+
+            /// Validate the buffer and derive the field's block grid.
+            pub(crate) fn plan(&self) -> Result<FieldPlan, ZfpFieldError> {
+                FieldPlan::new(self.scalar_type, self.dims, self.strides, self.data())
             }
         }
     };
@@ -563,7 +584,7 @@ fn natural_stride(dims: &[usize; 4], axis: usize) -> isize {
         .unwrap_or(isize::MAX)
 }
 
-fn effective_strides(dims: &[usize; 4], strides: &[isize; 4]) -> [isize; 4] {
+pub(crate) fn effective_strides(dims: &[usize; 4], strides: &[isize; 4]) -> [isize; 4] {
     let mut effective = *strides;
     for (axis, stride) in effective.iter_mut().enumerate() {
         if *stride == 0 {

@@ -24,7 +24,7 @@ pub(crate) fn decompress(
     field: &mut ZfpFieldMut,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpDecompressionError> {
-    let info = plan_mut(field)?;
+    let info = field.plan()?;
     // Derived once: a fresh `&mut` retag per block would be needless work, and
     // interleaving it with shared borrows of `field` is a hazard worth avoiding.
     let base = field.data_mut().as_mut_ptr();
@@ -53,18 +53,6 @@ fn finish(bs: &mut (impl ZfpBitStreamOps + ?Sized)) -> Result<usize, ZfpDecompre
         return Err(ZfpDecompressionError::Truncated { required, capacity });
     }
     Ok(required)
-}
-
-/// Derive the block plan for a field, mapping the layout error.
-fn plan_mut(field: &ZfpFieldMut) -> Result<FieldPlan, ZfpDecompressionError> {
-    Ok(FieldPlan::new(
-        field.scalar_type(),
-        field.dims(),
-        field.dimensionality(),
-        field.effective_strides(),
-        field.data(),
-        field.checked_size_bytes().unwrap_or(usize::MAX),
-    )?)
 }
 
 /// Decode blocks `range` from the bitstream, in order.
@@ -180,7 +168,7 @@ pub(crate) fn decompress_rayon(
         return decompress(bs, field, config);
     }
 
-    let info = plan_mut(field)?;
+    let info = field.plan()?;
     // A fixed-rate config only gives each block a fixed physical size if its
     // budget can hold the type's block header. Below 9 bits for f32 or 12 for
     // f64, zero blocks use max_bits but nonzero blocks write the full header.

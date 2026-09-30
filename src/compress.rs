@@ -24,7 +24,7 @@ pub(crate) fn compress(
     field: &ZfpField,
     config: &ZfpConfig,
 ) -> Result<usize, ZfpCompressionError> {
-    let info = plan(field)?;
+    let info = field.plan()?;
     // SAFETY: `field.data()` is the buffer `FieldPlan::new` validated.
     unsafe { compress_blocks(bs, field.data().as_ptr(), &info, config, 0..info.num_blocks) };
 
@@ -41,18 +41,6 @@ fn finish(bs: &mut (impl ZfpBitStreamMutOps + ?Sized)) -> Result<usize, ZfpCompr
         });
     }
     Ok(bs.byte_len())
-}
-
-/// Derive the block plan for a field, mapping the layout error.
-fn plan(field: &ZfpField) -> Result<FieldPlan, ZfpCompressionError> {
-    Ok(FieldPlan::new(
-        field.scalar_type(),
-        field.dims(),
-        field.dimensionality(),
-        field.effective_strides(),
-        field.data(),
-        field.checked_size_bytes().unwrap_or(usize::MAX),
-    )?)
 }
 
 /// Encode blocks `range` into the bitstream, in order.
@@ -142,7 +130,7 @@ pub(crate) fn compress_rayon(
 ) -> Result<usize, ZfpCompressionError> {
     use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-    let info = plan(field)?;
+    let info = field.plan()?;
     let buf = field.data();
     let blocks = info.num_blocks;
     if blocks == 0 {
