@@ -459,6 +459,21 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
         // SAFETY: the caller's contract, and whole blocks have valid lengths.
         return unsafe { encode_reversible(bs, data, dims, strides, whole(dims), config) };
     }
+    // SAFETY: the caller's contract.
+    unsafe { encode_lossy(bs, data, dims, strides, config) }
+}
+
+/// [`encode_block_strided`] for a lossy `config`.
+///
+/// # Safety
+/// As for [`encode_block_strided`].
+pub(crate) unsafe fn encode_lossy<T: ZfpScalar>(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    data: *const T,
+    dims: ZfpDimensionality,
+    strides: &[isize; 4],
+    config: &ZfpConfig,
+) -> usize {
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
@@ -515,15 +530,22 @@ pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
 ) -> Result<usize, ZfpBlockError> {
     check_lengths(dims, lengths)?;
     // SAFETY: the caller's contract, with the lengths checked.
-    Ok(unsafe { encode_partial(bs, data, dims, lengths, strides, config) })
+    Ok(unsafe {
+        if config.is_reversible() {
+            encode_reversible(bs, data, dims, strides, lengths, config)
+        } else {
+            encode_lossy_partial(bs, data, dims, lengths, strides, config)
+        }
+    })
 }
 
-/// [`encode_partial_block_strided`] for lengths known to be valid.
+/// [`encode_partial_block_strided`] for a lossy `config` and lengths known to
+/// be valid.
 ///
 /// # Safety
 /// As for [`encode_partial_block_strided`], and every length on an axis below
 /// `dims` must be in `1..=4`.
-pub(crate) unsafe fn encode_partial<T: ZfpScalar>(
+pub(crate) unsafe fn encode_lossy_partial<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: *const T,
     dims: ZfpDimensionality,
@@ -531,10 +553,6 @@ pub(crate) unsafe fn encode_partial<T: ZfpScalar>(
     strides: &[isize; 4],
     config: &ZfpConfig,
 ) -> usize {
-    if config.is_reversible() {
-        // SAFETY: the caller's contract.
-        return unsafe { encode_reversible(bs, data, dims, strides, lengths, config) };
-    }
     unsafe {
         use crate::codec::encode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
@@ -590,6 +608,21 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
         // SAFETY: the caller's contract, and whole blocks have valid lengths.
         return unsafe { decode_reversible(bs, data, dims, strides, whole(dims), config) };
     }
+    // SAFETY: the caller's contract.
+    unsafe { decode_lossy(bs, data, dims, strides, config) }
+}
+
+/// [`decode_block_strided`] for a lossy `config`.
+///
+/// # Safety
+/// As for [`decode_block_strided`].
+pub(crate) unsafe fn decode_lossy<T: ZfpScalar>(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    data: *mut T,
+    dims: ZfpDimensionality,
+    strides: &[isize; 4],
+    config: &ZfpConfig,
+) -> usize {
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {
@@ -646,15 +679,22 @@ pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
 ) -> Result<usize, ZfpBlockError> {
     check_lengths(dims, lengths)?;
     // SAFETY: the caller's contract, with the lengths checked.
-    Ok(unsafe { decode_partial(bs, data, dims, lengths, strides, config) })
+    Ok(unsafe {
+        if config.is_reversible() {
+            decode_reversible(bs, data, dims, strides, lengths, config)
+        } else {
+            decode_lossy_partial(bs, data, dims, lengths, strides, config)
+        }
+    })
 }
 
-/// [`decode_partial_block_strided`] for lengths known to be valid.
+/// [`decode_partial_block_strided`] for a lossy `config` and lengths known to
+/// be valid.
 ///
 /// # Safety
 /// As for [`decode_partial_block_strided`], and every length on an axis below
 /// `dims` must be in `1..=4`.
-pub(crate) unsafe fn decode_partial<T: ZfpScalar>(
+pub(crate) unsafe fn decode_lossy_partial<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: *mut T,
     dims: ZfpDimensionality,
@@ -662,10 +702,6 @@ pub(crate) unsafe fn decode_partial<T: ZfpScalar>(
     strides: &[isize; 4],
     config: &ZfpConfig,
 ) -> usize {
-    if config.is_reversible() {
-        // SAFETY: the caller's contract.
-        return unsafe { decode_reversible(bs, data, dims, strides, lengths, config) };
-    }
     unsafe {
         use crate::codec::decode::{dim1, dim2, dim3, dim4};
         strided_dispatch! {

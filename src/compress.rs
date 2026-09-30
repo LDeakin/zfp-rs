@@ -82,11 +82,10 @@ unsafe fn compress_typed<T: ZfpScalar>(
     config: &ZfpConfig,
     range: Range<usize>,
 ) {
-    use crate::codec::block::{encode_block_strided, encode_partial, encode_reversible};
+    use crate::codec::block::{encode_lossy, encode_lossy_partial, encode_reversible};
 
     let dims = info.dims_enum;
     let strides = &info.strides;
-    // The strided encoders check this per block; hoisting it is faster.
     let reversible = config.is_reversible();
     for coords in info.blocks(range) {
         let (offset, lengths) = info.block_geometry(coords);
@@ -99,9 +98,9 @@ unsafe fn compress_typed<T: ZfpScalar>(
             if reversible {
                 encode_reversible(bs, block, dims, strides, lengths, config);
             } else if info.is_full(lengths) {
-                encode_block_strided(bs, block, dims, strides, config);
+                encode_lossy(bs, block, dims, strides, config);
             } else {
-                encode_partial(bs, block, dims, lengths, strides, config);
+                encode_lossy_partial(bs, block, dims, lengths, strides, config);
             }
         }
     }
