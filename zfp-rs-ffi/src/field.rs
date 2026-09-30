@@ -88,7 +88,7 @@ fn span_of(
 pub(crate) unsafe fn field_mut_to_rust(
     field: &mut zfp_field,
 ) -> Option<zfp_rs::ZfpFieldMut<'static>> {
-    let scalar_type = crate::util::zfp_type_to_scalar(field.r#type)?;
+    let scalar_type = crate::util::zfp_type_to_rust_type(field.r#type)?;
     let dims = active_dims(field);
     let strides = active_strides(field);
     if field.data.is_null() {
@@ -331,7 +331,7 @@ pub unsafe extern "C" fn zfp_field_set_type(field: *mut zfp_field, ty: zfp_type)
     if field.is_null() {
         return zfp_type_zfp_type_int32;
     }
-    if crate::util::zfp_type_to_scalar(ty).is_some() {
+    if crate::util::zfp_type_to_rust_type(ty).is_some() {
         unsafe {
             (*field).r#type = ty;
         }

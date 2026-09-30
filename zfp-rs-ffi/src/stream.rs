@@ -348,12 +348,10 @@ pub unsafe extern "C" fn zfp_compress(stream: *mut zfp_stream, field: *const zfp
 
     let rust_config = stream_with_c_state(stream_ref);
     let execution = stream_execution(stream_ref);
-    let bytes = handle
+    handle
         .inner
         .compress_with_execution(&rust_config, &rust_field, execution)
-        .unwrap_or(0);
-    write_params(unsafe { &mut *stream }, &rust_config);
-    bytes
+        .unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
@@ -361,7 +359,7 @@ pub unsafe extern "C" fn zfp_decompress(stream: *mut zfp_stream, field: *mut zfp
     if stream.is_null() || field.is_null() {
         return 0;
     }
-    if crate::util::zfp_type_to_scalar(unsafe { (*field).r#type }).is_none() {
+    if crate::util::zfp_type_to_rust_type(unsafe { (*field).r#type }).is_none() {
         return 0;
     }
 
@@ -375,12 +373,10 @@ pub unsafe extern "C" fn zfp_decompress(stream: *mut zfp_stream, field: *mut zfp
 
     let rust_config = stream_with_c_state(stream_ref);
     let execution = stream_execution(stream_ref);
-    let bytes = handle
+    handle
         .inner
         .decompress_with_execution(&rust_config, &mut rust_field, execution)
-        .unwrap_or(0);
-    write_params(unsafe { &mut *stream }, &rust_config);
-    bytes
+        .unwrap_or(0)
 }
 
 #[unsafe(no_mangle)]
@@ -486,7 +482,6 @@ pub unsafe extern "C" fn zfp_stream_set_mode(stream: *mut zfp_stream, mode: uint
     }
     let stream = unsafe { &mut *stream };
     let Some(zfp) = ZfpConfig::from_mode_bits(mode) else {
-        write_params(stream, &stream_with_c_state(stream));
         return zfp_mode::zfp_mode_null;
     };
     write_params(stream, &zfp);

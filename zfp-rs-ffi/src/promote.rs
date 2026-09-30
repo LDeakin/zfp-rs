@@ -8,11 +8,6 @@
 use crate::abi::uint;
 use zfp_rs::ZfpDimensionality;
 
-/// Block element count for the given dimensionality (4^dims).
-fn block_len(dims: ZfpDimensionality) -> usize {
-    1usize << (2 * usize::from(dims))
-}
-
 macro_rules! impl_promote {
     ($fn_name:ident, $src:ty, $dst:ty, $fn:ident) => {
         #[unsafe(no_mangle)]
@@ -23,7 +18,7 @@ macro_rules! impl_promote {
             if oblock.is_null() || iblock.is_null() {
                 return;
             }
-            let count = block_len(dims);
+            let count = dims.block_size();
             // SAFETY: caller guarantees oblock and iblock point to `count` elements
             let out = std::slice::from_raw_parts_mut(oblock, count);
             let inp = std::slice::from_raw_parts(iblock, count);
@@ -43,7 +38,7 @@ macro_rules! impl_demote {
             if oblock.is_null() || iblock.is_null() {
                 return;
             }
-            let count = block_len(dims);
+            let count = dims.block_size();
             // SAFETY: caller guarantees oblock and iblock point to `count` elements
             let out = std::slice::from_raw_parts_mut(oblock, count);
             let inp = std::slice::from_raw_parts(iblock, count);

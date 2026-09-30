@@ -32,18 +32,6 @@ pub unsafe fn is_bitstream_mut_null(stream: *mut bitstream) -> zfp_bool {
     }
 }
 
-/// Convert a `zfp_type` to the corresponding Rust `ZfpScalarType`.
-/// Returns `None` for `zfp_type_none` (unsupported).
-pub fn zfp_type_to_scalar(ty: zfp_type) -> Option<zfp_rs::ZfpScalarType> {
-    match ty {
-        zfp_type_zfp_type_int32 => Some(zfp_rs::ZfpScalarType::I32),
-        zfp_type_zfp_type_int64 => Some(zfp_rs::ZfpScalarType::I64),
-        zfp_type_zfp_type_float => Some(zfp_rs::ZfpScalarType::F32),
-        zfp_type_zfp_type_double => Some(zfp_rs::ZfpScalarType::F64),
-        _ => None,
-    }
-}
-
 /// Convert the Rust `ZfpMode` to the C `zfp_mode`.
 pub fn rust_mode_to_zfp(mode: ZfpMode) -> zfp_mode {
     match mode {

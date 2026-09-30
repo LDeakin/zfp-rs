@@ -360,7 +360,7 @@ macro_rules! impl_encode_partial_block_strided_1d {
             stride: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null() || lx == 0 || lx > 4 {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
@@ -393,7 +393,7 @@ macro_rules! impl_encode_partial_block_strided_2d {
             stride_y: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null() || lx == 0 || ly == 0 || lx > 4 || ly > 4 {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
@@ -428,7 +428,7 @@ macro_rules! impl_encode_partial_block_strided_3d {
             stride_z: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null() || lx == 0 || ly == 0 || lz == 0 || lx > 4 || ly > 4 || lz > 4 {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
@@ -465,16 +465,7 @@ macro_rules! impl_encode_partial_block_strided_4d {
             stride_w: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null()
-                || lx == 0
-                || ly == 0
-                || lz == 0
-                || lw == 0
-                || lx > 4
-                || ly > 4
-                || lz > 4
-                || lw > 4
-            {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::encode_partial_block_strided::<$ty>(
@@ -631,7 +622,7 @@ macro_rules! impl_decode_partial_block_strided_1d {
             stride: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null() || lx == 0 || lx > 4 {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
@@ -664,7 +655,7 @@ macro_rules! impl_decode_partial_block_strided_2d {
             stride_y: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null() || lx == 0 || ly == 0 || lx > 4 || ly > 4 {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
@@ -699,7 +690,7 @@ macro_rules! impl_decode_partial_block_strided_3d {
             stride_z: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null() || lx == 0 || ly == 0 || lz == 0 || lx > 4 || ly > 4 || lz > 4 {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
@@ -736,16 +727,7 @@ macro_rules! impl_decode_partial_block_strided_4d {
             stride_w: isize,
         ) -> usize {
             let Some(ctx) = get_ctx(stream) else { return 0 };
-            if block.is_null()
-                || lx == 0
-                || ly == 0
-                || lz == 0
-                || lw == 0
-                || lx > 4
-                || ly > 4
-                || lz > 4
-                || lw > 4
-            {
+            if block.is_null() {
                 return 0;
             }
             zfp_rs::codec::block::decode_partial_block_strided::<$ty>(
