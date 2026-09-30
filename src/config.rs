@@ -78,9 +78,8 @@ pub enum ZfpStreamAlignment {
     WordAligned,
 }
 
-/// Validate expert-mode parameters.
-#[expect(unused_variables)]
-const fn valid_params(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> bool {
+/// Validate expert-mode parameters. Any `min_exp` is valid.
+const fn valid_params(min_bits: u32, max_bits: u32, max_prec: u32) -> bool {
     min_bits <= max_bits && (0 < max_prec && max_prec <= 64)
 }
 
@@ -157,7 +156,7 @@ pub struct ZfpConfig {
 
 /// Compute the compression mode from expert parameters.
 fn mode_of(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> ZfpMode {
-    if min_bits > max_bits || !(0 < max_prec && max_prec <= 64) {
+    if !valid_params(min_bits, max_bits, max_prec) {
         return ZfpMode::Null;
     }
 
@@ -416,13 +415,7 @@ impl ZfpConfig {
             return Err(ZfpConfigError::InvalidRate);
         }
 
-        Ok(Self {
-            min_bits: bits,
-            max_bits: bits,
-            max_prec: ZFP_MAX_PREC,
-            min_exp: ZFP_MIN_EXP,
-            rounding: ZfpRounding::Never,
-        })
+        Ok(Self::raw(bits, bits, ZFP_MAX_PREC, ZFP_MIN_EXP))
     }
 
     /// Fixed-precision mode.
@@ -432,17 +425,12 @@ impl ZfpConfig {
     /// of 64 bits; values above 64 are clamped to 64.
     #[must_use]
     pub fn fixed_precision(precision: u32) -> Self {
-        Self {
-            min_bits: ZFP_MIN_BITS,
-            max_bits: ZFP_MAX_BITS,
-            max_prec: if precision > 0 {
-                precision.min(ZFP_MAX_PREC)
-            } else {
-                ZFP_MAX_PREC
-            },
-            min_exp: ZFP_MIN_EXP,
-            rounding: ZfpRounding::Never,
-        }
+        let max_prec = if precision > 0 {
+            precision.min(ZFP_MAX_PREC)
+        } else {
+            ZFP_MAX_PREC
+        };
+        Self::raw(ZFP_MIN_BITS, ZFP_MAX_BITS, max_prec, ZFP_MIN_EXP)
     }
 
     /// Fixed-accuracy mode.
@@ -460,25 +448,13 @@ impl ZfpConfig {
         } else {
             ZFP_MIN_EXP
         };
-        Self {
-            min_bits: ZFP_MIN_BITS,
-            max_bits: ZFP_MAX_BITS,
-            max_prec: ZFP_MAX_PREC,
-            min_exp: emin,
-            rounding: ZfpRounding::Never,
-        }
+        Self::raw(ZFP_MIN_BITS, ZFP_MAX_BITS, ZFP_MAX_PREC, emin)
     }
 
     /// Reversible (lossless) mode.
     #[must_use]
     pub fn reversible() -> Self {
-        Self {
-            min_bits: ZFP_MIN_BITS,
-            max_bits: ZFP_MAX_BITS,
-            max_prec: ZFP_MAX_PREC,
-            min_exp: ZFP_MIN_EXP - 1,
-            rounding: ZfpRounding::Never,
-        }
+        Self::raw(ZFP_MIN_BITS, ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_EXP - 1)
     }
 
     /// Expert mode with explicit parameters.
@@ -500,7 +476,7 @@ impl ZfpConfig {
         max_prec: u32,
         min_exp: i32,
     ) -> Result<Self, ZfpConfigError> {
-        if valid_params(min_bits, max_bits, max_prec, min_exp) {
+        if valid_params(min_bits, max_bits, max_prec) {
             Ok(Self::raw(min_bits, max_bits, max_prec, min_exp))
         } else {
             Err(ZfpConfigError::InvalidParameters)
@@ -559,13 +535,7 @@ impl ZfpConfig {
     /// Equivalent to `ZfpConfig::expert(ZFP_MIN_BITS, ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_EXP)`.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            min_bits: ZFP_MIN_BITS,
-            max_bits: ZFP_MAX_BITS,
-            max_prec: ZFP_MAX_PREC,
-            min_exp: ZFP_MIN_EXP,
-            rounding: ZfpRounding::Never,
-        }
+        Self::raw(ZFP_MIN_BITS, ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_EXP)
     }
 
     // --- Field accessors ---
@@ -670,7 +640,7 @@ impl ZfpConfig {
     /// parameters, or [`ZfpConfigError::UnrepresentableMode`] if the mode word
     /// changes any of the four expert parameters.
     pub fn checked_mode_bits(&self) -> Result<u64, ZfpConfigError> {
-        if !valid_params(self.min_bits, self.max_bits, self.max_prec, self.min_exp) {
+        if !valid_params(self.min_bits, self.max_bits, self.max_prec) {
             return Err(ZfpConfigError::InvalidParameters);
         }
         let mode = self.mode_bits();
@@ -710,10 +680,7 @@ impl ZfpConfig {
         let dimensionality = crate::field::dimensionality(&dims);
         let maxbits = self.block_bits(ty, dimensionality);
 
-        let blocks = dims
-            .iter()
-            .take(usize::from(dimensionality))
-            .try_fold(1usize, |acc, &n| acc.checked_mul(n.div_ceil(4)))?;
+        let blocks = crate::field::checked_num_blocks(&dims)?;
         // Maximum header size in bits (mirrors ZFP_HEADER_MAX_BITS / zfp_stream_maximum_size in zfp.c).
         let header_max: u64 = 148;
         let total_bits = (blocks as u64)
@@ -735,10 +702,6 @@ impl ZfpConfig {
     )]
     pub(crate) fn block_bits(&self, ty: ZfpScalarType, dims: ZfpDimensionality) -> u32 {
         let values = dims.block_values();
-        let type_prec = match ty {
-            ZfpScalarType::I32 | ZfpScalarType::F32 => 32u32,
-            ZfpScalarType::I64 | ZfpScalarType::F64 => 64u32,
-        };
         let header = if self.is_reversible() {
             // Precision bits, after a zero-block bit, a path bit and the
             // exponent for floats (mirrors zfp_stream_maximum_size in zfp.c).
@@ -756,7 +719,7 @@ impl ZfpConfig {
                 ZfpScalarType::I32 | ZfpScalarType::I64 => 0,
             }
         };
-        let most = header + values - 1 + values * self.max_prec.min(type_prec);
+        let most = header + values - 1 + values * self.max_prec.min(ty.precision());
         most.min(self.max_bits).max(header).max(self.min_bits)
     }
 }

@@ -372,12 +372,7 @@ impl ZfpDimensionality {
     /// [`block_size`][Self::block_size] as a `u32`, for bit arithmetic.
     #[inline]
     pub(crate) const fn block_values(self) -> u32 {
-        match self {
-            ZfpDimensionality::D1 => 4,
-            ZfpDimensionality::D2 => 16,
-            ZfpDimensionality::D3 => 64,
-            ZfpDimensionality::D4 => 256,
-        }
+        4u32.pow(self as u32)
     }
 }
 
