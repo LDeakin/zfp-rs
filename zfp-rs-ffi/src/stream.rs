@@ -241,11 +241,8 @@ pub unsafe extern "C" fn zfp_stream_maximum_size(
     let Some(ty) = crate::util::zfp_type_to_rust_type(field.r#type) else {
         return 0;
     };
-    let all_dims = [field.nx, field.ny, field.nz, field.nw];
-    // Determine actual dimensionality (1–4) by counting non-zero trailing dims.
-    // This matches C zfp's `zfp_field_dimensionality` semantics.
     // As `zfp_field_dimensionality`, dimensions from the first zero one on are inert.
-    let mut dims = all_dims;
+    let mut dims = [field.nx, field.ny, field.nz, field.nw];
     if let Some(first_zero) = dims.iter().position(|&n| n == 0) {
         dims[first_zero..].fill(0);
     }

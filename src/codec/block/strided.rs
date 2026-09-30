@@ -16,12 +16,9 @@ use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
 /// Reinterpret a scalar pointer as the concrete type the enclosing match arm has
 /// already proven `T` to be.
 ///
-/// Replaces the `bytemuck::cast_slice` calls this module used before the
-/// signatures became raw pointers. That checked size and alignment at runtime
-/// and panicked on a mismatch; the asserts keep the check in debug builds. A
-/// mismatch is unreachable: every caller sits inside a
+/// A mismatch is unreachable: every caller sits inside a
 /// `match (T::SCALAR_TYPE, dims)` arm that pins `T == U`, and `ZfpScalar` is
-/// sealed to `{i32, i64, f32, f64}`.
+/// sealed to `{i32, i64, f32, f64}`. The asserts check it in debug builds.
 #[inline]
 fn cast_ptr<T: ZfpScalar, U: ZfpScalar>(p: *const T) -> *const U {
     debug_assert_eq!(size_of::<T>(), size_of::<U>());
