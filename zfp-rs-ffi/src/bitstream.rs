@@ -364,7 +364,11 @@ pub unsafe extern "C" fn stream_read_bit(stream: *mut bitstream) -> uint {
 // stream_write_bit
 // ===========================================================================
 
-/// Write a single bit to the bitstream.
+/// Write a single bit to the bitstream, and return `bit`.
+///
+/// C requires `bit` to be 0 or 1. For any other value this writes its low
+/// bit, where C adds the value whole and sets bits past the cursor; see
+/// `docs/differences-from-c.md`.
 ///
 /// # Safety
 /// `stream` must be a valid mutable pointer returned by `stream_open`.

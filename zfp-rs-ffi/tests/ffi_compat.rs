@@ -30,6 +30,7 @@ mod zfp_sys {
         stream_flush: unsafe extern "C" fn(*mut bitstream) -> usize,
         stream_open: unsafe extern "C" fn(*mut c_void, usize) -> *mut bitstream,
         stream_size: unsafe extern "C" fn(*const bitstream) -> usize,
+        stream_write_bit: unsafe extern "C" fn(*mut bitstream, u32) -> u32,
         zfp_block_maximum_size: unsafe extern "C" fn(zfp_type, u32, i32) -> usize,
         zfp_compress: unsafe extern "C" fn(*mut zfp_stream, *const zfp_field) -> usize,
         zfp_decompress: unsafe extern "C" fn(*mut zfp_stream, *mut zfp_field) -> usize,
@@ -197,6 +198,7 @@ mod zfp_sys {
                 stream_flush: sym(&lib, b"stream_flush\0"),
                 stream_open: sym(&lib, b"stream_open\0"),
                 stream_size: sym(&lib, b"stream_size\0"),
+                stream_write_bit: sym(&lib, b"stream_write_bit\0"),
                 zfp_block_maximum_size: sym(&lib, b"zfp_block_maximum_size\0"),
                 zfp_compress: sym(&lib, b"zfp_compress\0"),
                 zfp_decompress: sym(&lib, b"zfp_decompress\0"),
@@ -406,6 +408,7 @@ mod zfp_sys {
     wrap!(stream_flush(stream: *mut bitstream) -> usize);
     wrap!(stream_open(buffer: *mut c_void, bytes: usize) -> *mut bitstream);
     wrap!(stream_size(stream: *const bitstream) -> usize);
+    wrap!(stream_write_bit(stream: *mut bitstream, bit: u32) -> u32);
     wrap!(zfp_block_maximum_size(ty: zfp_type, dims: u32, reversible: i32) -> usize);
     wrap!(zfp_compress(stream: *mut zfp_stream, field: *const zfp_field) -> usize);
     wrap!(zfp_decompress(stream: *mut zfp_stream, field: *mut zfp_field) -> usize);
@@ -1029,6 +1032,68 @@ fn stream_open_returns_null_when_the_buffer_cannot_be_allocated() {
     for bytes in [usize::MAX, isize::MAX.cast_unsigned() & !7] {
         assert!(unsafe { ffi::stream_open(std::ptr::null_mut(), bytes) }.is_null());
     }
+}
+
+/// Write `bits` one at a time from the start of a two-word stream, through
+/// C's `stream_write_bit` or the C ABI's, returning what each call returned
+/// and the words written.
+fn write_bits_one_at_a_time(bits: &[u32], c: bool) -> (Vec<u32>, [u64; 2]) {
+    let mut words = [0u64; 2];
+    let buffer = words.as_mut_ptr().cast::<c_void>();
+    let bytes = size_of_val(&words);
+    unsafe {
+        let bs = if c {
+            zfp_sys::stream_open(buffer, bytes)
+        } else {
+            ffi::stream_open(buffer, bytes).cast()
+        };
+        let returned = bits
+            .iter()
+            .map(|&bit| {
+                if c {
+                    zfp_sys::stream_write_bit(bs, bit)
+                } else {
+                    ffi::stream_write_bit(bs.cast(), bit)
+                }
+            })
+            .collect();
+        if c {
+            zfp_sys::stream_flush(bs);
+            zfp_sys::stream_close(bs);
+        } else {
+            ffi::stream_flush(bs.cast());
+            ffi::stream_close(bs.cast());
+        }
+        (returned, words)
+    }
+}
+
+/// C documents `stream_write_bit`'s argument as "must be 0 or 1". For those
+/// values the C ABI matches C. For a larger one, C adds it whole, setting bits
+/// past the cursor, where the C ABI writes its low bit.
+#[test]
+fn stream_write_bit_matches_c_for_bits_and_writes_the_low_bit_otherwise() {
+    let bits = [1, 0, 1, 1, 0, 0, 1, 0, 1];
+    assert_eq!(
+        write_bits_one_at_a_time(&bits, false),
+        write_bits_one_at_a_time(&bits, true)
+    );
+
+    // 2 then 0: C's buffer holds 0b10 after the first call, and the second
+    // adds nothing, so bit 1 stays set.
+    assert_eq!(
+        write_bits_one_at_a_time(&[2, 0], true),
+        (vec![2, 0], [0b10, 0])
+    );
+    assert_eq!(
+        write_bits_one_at_a_time(&[2, 0], false),
+        (vec![2, 0], [0, 0])
+    );
+    // Each value's low bit, as if the caller had masked it.
+    assert_eq!(
+        write_bits_one_at_a_time(&[3, 6, 5, u32::MAX], false).1,
+        write_bits_one_at_a_time(&[1, 0, 1, 1], true).1
+    );
 }
 
 /// C reads and writes at most 64 bits at a time, and a larger count is

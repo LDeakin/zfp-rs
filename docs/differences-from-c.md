@@ -11,6 +11,7 @@ Unless stated otherwise, the examples compress the 16 `f64` values `(0.37 * i).s
 | --- | --- | --- | --- |
 | [Reading, writing or seeking past the end of a stream](#the-ends-of-a-stream) | Out-of-bounds access | Reads yield zeros; writes are dropped and reported | Yes, for well-formed streams |
 | [Bit counts above 64](#bit-counts-above-64) | Undefined | 64 bits | n/a |
+| [Bit values above 1](#bit-values-above-1) | Added whole | Low bit written | **No** |
 | [Invalid fields and buffers](#field-validation) | Trusted | Rejected with an error | Yes |
 | [Rounding mode](#rounding) | Build-time option | Per-call `ZfpRounding` | Yes, with matching settings |
 | [Parallel execution](#parallel-execution) | OpenMP compression only | Rayon compression, and decompression of fixed-rate streams | Yes |
@@ -41,6 +42,13 @@ Within the buffer, both give the same bytes and positions ([`bitstream_compat`](
 
 C's `stream_read_bits` and `stream_write_bits` take at most 64 bits ([`bitstream.inl`](../zfp/include/zfp/bitstream.inl) lines 252 and 287), and shift out of range for a larger count, which is undefined behaviour.
 zfp-rs reads or writes 64 bits for any larger count ([`when_bit_count_above_64_expect_64_bits`](../src/bitstream.rs)), as does the C ABI ([`stream_bit_counts_above_64_read_and_write_64_bits`](../zfp-rs-ffi/tests/ffi_compat.rs)).
+
+### Bit values above 1
+
+C's `stream_write_bit` documents its argument as a bit that "must be 0 or 1" ([`bitstream.inl`](../zfp/include/zfp/bitstream.inl) line 239), but adds any other value to its buffer whole, setting bits past the cursor that later reads and writes then carry into.
+For 0 and 1, the C ABI writes the same bits as C, and for any other value it writes the value's low bit ([`stream_write_bit_matches_c_for_bits_and_writes_the_low_bit_otherwise`](../zfp-rs-ffi/tests/ffi_compat.rs)).
+It returns the value, as C does.
+The Rust API cannot express such a value, as `write_bit` takes a `bool`.
 
 ### Field validation
 

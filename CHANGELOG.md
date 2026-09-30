@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Lossy float compression no longer overflows computing the precision for an expert `min_exp` near `i32::MIN` or `i32::MAX`, which panicked in debug builds and wrapped in release.
 - `zfp_stream_set_rate` returns `0` and leaves the stream unchanged for a rate that is NaN or rounds outside `0..=u32::MAX` bits per block, where C's conversion is undefined, and for a word-aligned budget that C wraps around to zero, which panicked in debug builds.
 - `read_bits` and `write_bits` read or write 64 bits for a count above 64, the most C supports, instead of shifting out of range, which panicked in debug builds and gave wrong values or looped forever in release. The C ABI's `stream_read_bits` and `stream_write_bits` do the same, instead of truncating the count to 32 bits.
+- The C ABI's `stream_write_bit` writes the low bit of its argument, where C adds the value whole and corrupts the buffer for a value above 1. This is listed in `docs/differences-from-c.md`.
 - `pad` and `copy_from` skip at once the words they would write past the end of the buffer, so a huge count returns promptly instead of looping up to 2^58 times.
 - Decoding a block no longer panics in debug builds when the read position has wrapped around, as it does after a write in the first word or a seek near `u64::MAX`.
 - The stream cursor saturates instead of overflowing, and so do the sizes `compress` and `decompress` return, which panicked in debug builds on 32-bit targets after a seek far past the end.
