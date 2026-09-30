@@ -697,12 +697,8 @@ pub(crate) fn field_metadata(
         return Err(ZfpMetadataError::InvalidDims);
     }
     let d = dimensionality(dims);
-    let bit_width: u32 = match d {
-        ZfpDimensionality::D1 => 48,
-        ZfpDimensionality::D2 => 24,
-        ZfpDimensionality::D3 => 16,
-        ZfpDimensionality::D4 => 12,
-    };
+    // The dims share 48 bits evenly.
+    let bit_width = 48 / usize::from(d);
     let max_encoded_dimension = (1u64 << bit_width) - 1;
     let mut meta = 0u64;
     let mut shift = 0;
@@ -735,13 +731,7 @@ pub(crate) fn decode_metadata(meta: u64) -> Option<[usize; 4]> {
     let d = ((meta & 0x3) as usize) + 1;
     let meta = meta >> 2;
 
-    let bit_width: u32 = match d {
-        1 => 48,
-        2 => 24,
-        3 => 16,
-        4 => 12,
-        _ => return None,
-    };
+    let bit_width = 48 / d;
     let mask = (1u64 << bit_width) - 1;
     let mut encoded = meta;
     let mut dims = [0; 4];
