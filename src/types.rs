@@ -479,6 +479,29 @@ impl ZfpScalarType {
             ZfpScalarType::I64 | ZfpScalarType::F64 => 64,
         }
     }
+
+    /// Width of the biased exponent in a float block's header; integer
+    /// blocks have none.
+    pub(crate) const fn exponent_bits(self) -> u32 {
+        match self {
+            ZfpScalarType::F32 => 8,
+            ZfpScalarType::F64 => 11,
+            ZfpScalarType::I32 | ZfpScalarType::I64 => 0,
+        }
+    }
+
+    /// Bits a lossy block's header takes: a nonzero-block bit and the exponent
+    /// for floats, nothing for integers.
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "an exponent is at most 11 bits"
+    )]
+    pub(crate) const fn header_bits(self) -> u32 {
+        match self.exponent_bits() {
+            0 => 0,
+            ebits => 1 + ebits,
+        }
+    }
 }
 
 impl fmt::Display for ZfpScalarType {

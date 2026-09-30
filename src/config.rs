@@ -393,17 +393,8 @@ impl ZfpConfig {
         }
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         // The checks above bound rounded to [0, ZFP_MAX_BITS].
-        let mut bits = rounded as u32;
-
-        match ty {
-            ZfpScalarType::F32 if bits < 1 + 8 => {
-                bits = 1 + 8;
-            }
-            ZfpScalarType::F64 if bits < 1 + 11 => {
-                bits = 1 + 11;
-            }
-            ZfpScalarType::F32 | ZfpScalarType::F64 | ZfpScalarType::I32 | ZfpScalarType::I64 => {}
-        }
+        // Floats take at least their block header.
+        let mut bits = (rounded as u32).max(ty.header_bits());
 
         if align == ZfpStreamAlignment::WordAligned {
             bits = bits
@@ -524,8 +515,8 @@ impl ZfpConfig {
         let (max_bits, max_prec, min_exp) = match ty {
             ZfpScalarType::I32 => (32 * values + 1, 32, ZFP_MIN_EXP),
             ZfpScalarType::I64 => (64 * values + 1, 64, ZFP_MIN_EXP),
-            ZfpScalarType::F32 => ((8 + 1) + 32 * values, 32, -149),
-            ZfpScalarType::F64 => ((11 + 1) + 64 * values, 64, -1074),
+            ZfpScalarType::F32 => (ty.header_bits() + 32 * values, 32, -149),
+            ZfpScalarType::F64 => (ty.header_bits() + 64 * values, 64, -1074),
         };
         Self::raw(0, max_bits, max_prec, min_exp)
     }
@@ -712,12 +703,7 @@ impl ZfpConfig {
                 ZfpScalarType::F64 => 1 + 1 + 11 + 6,
             }
         } else {
-            // A zero-block bit and the exponent for floats.
-            match ty {
-                ZfpScalarType::F32 => 1 + 8,
-                ZfpScalarType::F64 => 1 + 11,
-                ZfpScalarType::I32 | ZfpScalarType::I64 => 0,
-            }
+            ty.header_bits()
         };
         let most = header + values - 1 + values * self.max_prec.min(ty.precision());
         most.min(self.max_bits).max(header).max(self.min_bits)

@@ -8,7 +8,8 @@
 use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::bitplane::decode_ints;
 use crate::codec::encode::core::{
-    NBMASK_U32, NBMASK_U64, PERM_1, PERM_2, PERM_3, PERM_4, precision_f,
+    EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, NBMASK_U32, NBMASK_U64, PERM_1, PERM_2, PERM_3,
+    PERM_4, precision_f,
 };
 use crate::config::{ZfpConfig, ZfpRounding};
 use crate::types::ZfpDimensionality;
@@ -185,7 +186,7 @@ pub(crate) fn inv_cast_f64(iblock: &[i64], fblock: &mut [f64], emax: i32) {
 macro_rules! decode_float_block {
     (
         $(#[$attr:meta])*
-        $name:ident, $float:ty, $ebits:literal, $ebias:literal, $inv_cast:ident,
+        $name:ident, $float:ty, $ebits:expr, $ebias:expr, $inv_cast:ident,
         [$core1:ident, $core2:ident, $core3:ident, $core4:ident $(,)?]
     ) => {
         $(#[$attr])*
@@ -242,7 +243,7 @@ macro_rules! decode_float_block {
 
 decode_float_block! {
     /// Decode a float block: read exponent, then integer block, then `inv_cast`.
-    decode_float_block, f32, 8, 127, inv_cast_f32,
+    decode_float_block, f32, EBITS_F32, EBIAS_F32, inv_cast_f32,
     [
         decode_block_1d_i32_core,
         decode_block_2d_i32_core,
@@ -253,7 +254,7 @@ decode_float_block! {
 
 decode_float_block! {
     /// Decode a double block: read exponent, then integer block, then `inv_cast`.
-    decode_double_block, f64, 11, 1023, inv_cast_f64,
+    decode_double_block, f64, EBITS_F64, EBIAS_F64, inv_cast_f64,
     [
         decode_block_1d_i64_core,
         decode_block_2d_i64_core,

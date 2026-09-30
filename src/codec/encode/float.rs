@@ -7,19 +7,14 @@
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::bitplane::PlaneBlock;
 use crate::codec::encode::core::{
-    exponent_block_f32, exponent_block_f64, fwd_cast_f32, fwd_cast_f64, precision_f,
+    EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, exponent_block_f32, exponent_block_f64,
+    fwd_cast_f32, fwd_cast_f64, precision_f,
 };
 use crate::codec::encode::integer::{
     Dim1i32, Dim1i64, Dim2i32, Dim2i64, Dim3i32, Dim3i64, Dim4i32, Dim4i64, Transform32,
     Transform64, encode_int_block_32, encode_int_block_64,
 };
 use crate::config::ZfpConfig;
-
-// Number of exponent bits: 8 for f32, 11 for f64.
-const EBITS_F32: u32 = 8;
-const EBITS_F64: u32 = 11;
-const EBIAS_F32: i32 = 127;
-const EBIAS_F64: i32 = 1023;
 
 // ---------------------------------------------------------------------------
 // Shared encode helpers (generic over block size N)

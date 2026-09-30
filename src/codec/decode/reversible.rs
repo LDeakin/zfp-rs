@@ -10,7 +10,10 @@ use crate::bitstream::ZfpBitStreamOps;
 use crate::codec::bitplane::{PlaneBlock, decode_ints};
 use crate::codec::decode::core::{inv_cast_f32, inv_cast_f64};
 use crate::codec::decode::core::{inv_order_i32, inv_order_i64};
-use crate::codec::encode::core::{Budget, PERM_1, PERM_2, PERM_3, PERM_4, with_maxbits};
+use crate::codec::encode::core::{
+    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, PERM_1, PERM_2, PERM_3, PERM_4,
+    with_maxbits,
+};
 use crate::codec::transform::rev_inv_xform;
 use crate::config::{ZfpConfig, ZfpRounding};
 
@@ -20,11 +23,6 @@ use crate::config::{ZfpConfig, ZfpRounding};
 
 const PBITS_32: u32 = 5;
 const PBITS_64: u32 = 6;
-
-const EBITS_F32: u32 = 8;
-const EBITS_F64: u32 = 11;
-const EBIAS_F32: i32 = 127;
-const EBIAS_F64: i32 = 1023;
 
 /// Two's-complement sign-magnitude mask for f32 (all bits except sign).
 const TCMASK_F32: u32 = 0x7fff_ffff;

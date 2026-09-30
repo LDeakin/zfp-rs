@@ -244,33 +244,48 @@ macro_rules! max_abs {
 /// Uses `frexp` semantics: returns the exponent `e` such that `|x| = m * 2^e`
 /// with `0.5 ≤ m < 1`, clamped to `1 - EBIAS` for subnormals. Returns
 /// `-EBIAS = -127` when all values are zero.
+#[allow(
+    clippy::inline_always,
+    reason = "a block stage, inlined into the float block encoders as the transforms are"
+)]
 #[inline(always)]
 pub(crate) fn exponent_block_f32<const N: usize>(data: &[f32; N]) -> i32 {
-    const EBIAS: i32 = 127;
     let max = max_abs!(data, f32).to_bits();
     match max >> 23 {
-        _ if max == 0 => -EBIAS,
+        _ if max == 0 => -EBIAS_F32,
         // frexpf leaves the exponent of infinity at zero.
         0xff => 0,
         // A normal number's `frexpf` exponent. A subnormal one's biased
         // exponent is zero, which gives the clamp.
-        biased => biased.cast_signed() - (EBIAS - 1),
+        biased => biased.cast_signed() - (EBIAS_F32 - 1),
     }
 }
 
 /// Return the maximum floating-point exponent in an f64 block.
 ///
 /// As [`exponent_block_f32`].
+#[allow(
+    clippy::inline_always,
+    reason = "a block stage, inlined into the float block encoders as the transforms are"
+)]
 #[inline(always)]
 pub(crate) fn exponent_block_f64<const N: usize>(data: &[f64; N]) -> i32 {
-    const EBIAS: i32 = 1023;
     let max = max_abs!(data, f64).to_bits();
     match max >> 52 {
-        _ if max == 0 => -EBIAS,
+        _ if max == 0 => -EBIAS_F64,
         0x7ff => 0,
-        biased => biased as i32 - (EBIAS - 1),
+        biased => biased as i32 - (EBIAS_F64 - 1),
     }
 }
+
+/// Width of an `f32` block's biased exponent.
+pub(crate) const EBITS_F32: u32 = crate::types::ZfpScalarType::F32.exponent_bits();
+/// Width of an `f64` block's biased exponent.
+pub(crate) const EBITS_F64: u32 = crate::types::ZfpScalarType::F64.exponent_bits();
+/// Bias of an `f32` block's exponent.
+pub(crate) const EBIAS_F32: i32 = 127;
+/// Bias of an `f64` block's exponent.
+pub(crate) const EBIAS_F64: i32 = 1023;
 
 /// The smallest `emax` whose scale `2^(30 - emax)` is finite as an `f32`.
 pub(crate) const MIN_CAST_EMAX_F32: i32 = -97;

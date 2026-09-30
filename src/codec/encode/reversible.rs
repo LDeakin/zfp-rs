@@ -6,9 +6,9 @@
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::codec::bitplane::{PlaneBlock, encode_ints};
 use crate::codec::encode::core::{
-    Budget, MIN_CAST_EMAX_F32, MIN_CAST_EMAX_F64, PERM_1, PERM_2, PERM_3, PERM_4,
-    exponent_block_f32, exponent_block_f64, fwd_cast_f32, fwd_cast_f64, fwd_order_i32,
-    fwd_order_i64, with_maxbits,
+    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, MIN_CAST_EMAX_F32, MIN_CAST_EMAX_F64,
+    PERM_1, PERM_2, PERM_3, PERM_4, exponent_block_f32, exponent_block_f64, fwd_cast_f32,
+    fwd_cast_f64, fwd_order_i32, fwd_order_i64, with_maxbits,
 };
 use crate::codec::transform::rev_fwd_xform;
 use crate::config::ZfpConfig;
@@ -21,11 +21,6 @@ use crate::config::ZfpConfig;
 const PBITS_32: u32 = 5;
 /// Bits used to encode `prec - 1` for f64/i64 blocks (6 bits → max prec 63).
 const PBITS_64: u32 = 6;
-
-const EBITS_F32: u32 = 8;
-const EBITS_F64: u32 = 11;
-const EBIAS_F32: i32 = 127;
-const EBIAS_F64: i32 = 1023;
 
 // Two's-complement sign-magnitude mask (all bits set except sign for the
 // purposes of the reversibility check in rev_fwd_cast).
