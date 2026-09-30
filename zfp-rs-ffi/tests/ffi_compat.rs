@@ -575,6 +575,61 @@ fn set_rate_matches_c_where_c_is_defined() {
     }
 }
 
+/// `zfp_stream_set_precision` and `zfp_stream_set_accuracy` return C's values
+/// and set C's parameters, including where the parameters are the defaults,
+/// which select no mode: a precision of 0, 64 or above, and a tolerance that
+/// is not positive or that rounds down to `2^ZFP_MIN_EXP`.
+///
+/// Infinity is left out, as C's `frexp` leaves its exponent unspecified there.
+#[test]
+fn set_precision_and_accuracy_match_c() {
+    for precision in [0, 1, 2, 32, 63, 64, 65, 1000, u32::MAX] {
+        unsafe {
+            let c = zfp_sys::zfp_stream_open(std::ptr::null_mut());
+            let rs = ffi::zfp_stream_open(std::ptr::null_mut());
+            let c_ret = zfp_sys::zfp_stream_set_precision(c, precision);
+            let rs_ret = ffi::zfp_stream_set_precision(rs, precision);
+            assert_eq!(rs_ret, c_ret, "precision={precision}");
+            assert_eq!(stream_params(rs), stream_params(c), "precision={precision}");
+            zfp_sys::zfp_stream_close(c);
+            ffi::zfp_stream_close(rs);
+        }
+    }
+
+    let tolerances = [
+        0.0,
+        -0.0,
+        -1.0,
+        f64::NAN,
+        // The smallest subnormal, whose exponent is `ZFP_MIN_EXP`, and the
+        // next few.
+        5e-324,
+        1.5e-323,
+        1e-320,
+        f64::MIN_POSITIVE,
+        1e-300,
+        0.5,
+        0.75,
+        1.0,
+        1.5,
+        1e300,
+        f64::MAX,
+    ];
+    for tolerance in tolerances {
+        unsafe {
+            let c = zfp_sys::zfp_stream_open(std::ptr::null_mut());
+            let rs = ffi::zfp_stream_open(std::ptr::null_mut());
+            let c_ret = zfp_sys::zfp_stream_set_accuracy(c, tolerance);
+            let rs_ret = ffi::zfp_stream_set_accuracy(rs, tolerance);
+            let case = format!("tolerance={tolerance:?}");
+            assert_eq!(rs_ret.to_bits(), c_ret.to_bits(), "{case}");
+            assert_eq!(stream_params(rs), stream_params(c), "{case}");
+            zfp_sys::zfp_stream_close(c);
+            ffi::zfp_stream_close(rs);
+        }
+    }
+}
+
 /// Budgets that `zfp_stream_set_rate` sets as C does, but that
 /// `ZfpConfig::fixed_rate` rejects, compress as in C: to nothing for
 /// integers that round to no bits, and to padded blocks above `ZFP_MAX_BITS`.

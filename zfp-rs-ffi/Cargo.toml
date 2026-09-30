@@ -23,6 +23,7 @@ round-tight-error = []
 
 [dependencies]
 zfp-rs = { workspace = true, features = ["ffi"] }
+libm = "0.2"
 rayon = { version = "1", optional = true }
 
 [dev-dependencies]

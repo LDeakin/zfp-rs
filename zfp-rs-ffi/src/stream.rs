@@ -483,7 +483,9 @@ pub unsafe extern "C" fn zfp_stream_set_precision(
     // precision is already u32
     let zfp = ZfpConfig::fixed_precision(precision);
     write_params(stream, &zfp);
-    zfp.precision().unwrap_or(0)
+    // Not `zfp.precision()`, which is `None` for a precision of 0, 64 or above,
+    // where the parameters are the defaults and select no mode.
+    zfp.max_prec()
 }
 
 #[unsafe(no_mangle)]
@@ -494,7 +496,13 @@ pub unsafe extern "C" fn zfp_stream_set_accuracy(stream: *mut zfp_stream, tolera
     let stream = unsafe { &mut *stream };
     let zfp = ZfpConfig::fixed_accuracy(tolerance);
     write_params(stream, &zfp);
-    zfp.accuracy().unwrap_or(0.0)
+    // Not `zfp.accuracy()`, which is `None` for a tolerance that rounds down to
+    // `2^ZFP_MIN_EXP`, where the parameters are the defaults and select no mode.
+    if tolerance > 0.0 {
+        libm::ldexp(1.0, zfp.min_exp())
+    } else {
+        0.0
+    }
 }
 
 #[unsafe(no_mangle)]
