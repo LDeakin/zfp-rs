@@ -7,6 +7,8 @@
 // arithmetic and indexing must be checked; see the crate's panic guarantee.
 #![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
 
+#[cfg(feature = "rayon")]
+use crate::bitstream::mark_overread;
 use crate::bitstream::{ZfpBitStreamOps, overread, reset_overread};
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
@@ -228,7 +230,9 @@ fn decompress_parallel(
 
     reset_overread(bs);
     bs.seek_read(end);
-    bs.state_mut().overread |= overread_chunks;
+    if overread_chunks {
+        mark_overread(bs);
+    }
     Some(())
 }
 

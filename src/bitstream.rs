@@ -21,8 +21,10 @@ pub use ops::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 pub use owned::ZfpBitStream;
 
 #[cfg(feature = "rayon")]
+pub(crate) use core::mark_overread;
+#[cfg(feature = "rayon")]
 pub(crate) use core::vec_with_capacity;
-pub(crate) use core::{BitReader, BitWriter, overread, reset_overread};
+pub(crate) use core::{BitReader, BitWriter, exact_write_pos, overread, reset_overread};
 
 #[cfg(test)]
 pub(crate) use core::WSIZE;

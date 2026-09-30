@@ -395,6 +395,12 @@ pub(crate) fn reset_overread<S: BitStreamStorage + ?Sized>(stream: &mut S) {
     };
 }
 
+/// Flag a load past the end of the buffer, as [`overread`] reports.
+#[cfg(feature = "rayon")]
+pub(crate) fn mark_overread<S: BitStreamStorage + ?Sized>(stream: &mut S) {
+    stream.state_mut().overread = true;
+}
+
 pub(super) fn rewind_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) {
     *stream.state_mut() = BitStreamState::new();
 }
@@ -404,6 +410,14 @@ pub(super) fn write_pos_impl<S: BitStreamStorage + ?Sized>(stream: &S) -> u64 {
     (stream.state().word_pos as u64)
         .wrapping_mul(u64::from(WSIZE))
         .wrapping_add(u64::from(stream.state().bits))
+}
+
+/// The write position in bits, which unlike [`write_pos_impl`] does not wrap
+/// once the cursor passes bit `u64::MAX`.
+pub(crate) fn exact_write_pos<S: BitStreamStorage + ?Sized>(stream: &S) -> u128 {
+    (stream.state().word_pos as u128)
+        .saturating_mul(u128::from(WSIZE))
+        .saturating_add(u128::from(stream.state().bits))
 }
 
 pub(super) fn read_pos_impl<S: BitStreamStorage + ?Sized>(stream: &S) -> u64 {

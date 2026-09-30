@@ -4,7 +4,7 @@
 // arithmetic and indexing must be checked; see the crate's panic guarantee.
 #![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
 
-use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
+use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps, exact_write_pos};
 use crate::config::ZfpConfig;
 use crate::config::{STREAM_WORD_BITS, STREAM_WORD_BYTES};
 use crate::field::ZfpFieldMetadata;
@@ -95,14 +95,10 @@ pub(crate) fn write_header_bs(
     .into_iter()
     .filter_map(|(written, bits)| written.then_some(bits as usize))
     .sum::<usize>();
-    // Measured from the cursor's word in `u128`, not from `write_pos`, which
-    // wraps back to a small offset once the cursor passes bit `u64::MAX`.
+    // Not from `write_pos`, which wraps back to a small offset once the cursor
+    // passes bit `u64::MAX`.
     let capacity = bs.capacity();
-    let state = bs.state();
-    let end = (state.word_pos as u128)
-        .saturating_mul(u128::from(STREAM_WORD_BITS))
-        .saturating_add(u128::from(state.bits))
-        .saturating_add(bits as u128);
+    let end = exact_write_pos(bs).saturating_add(bits as u128);
     if end > (capacity as u128).saturating_mul(8) {
         let required = end
             .div_ceil(u128::from(STREAM_WORD_BITS))
