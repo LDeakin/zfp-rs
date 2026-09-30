@@ -5,8 +5,8 @@
 
 use proptest::prelude::*;
 use zfp_rs::{
-    ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpField, ZfpFieldMut, ZfpScalar,
-    ZfpStreamAlignment,
+    ZfpBitStream, ZfpConfig, ZfpDecompressionError, ZfpDimensionality, ZfpField, ZfpFieldMut,
+    ZfpScalar, ZfpStreamAlignment,
 };
 
 trait Scalar: ZfpScalar + Copy + Default + std::fmt::Debug {
@@ -120,12 +120,20 @@ fn rs_compress<T: Scalar>(mode: Mode, data: &[T]) -> Vec<u8> {
     bs.as_bytes().to_vec()
 }
 
-fn rs_decompress<T: Scalar>(mode: Mode, bytes: &[u8], n: usize) -> Vec<T> {
+fn rs_try_decompress<T: Scalar>(
+    mode: Mode,
+    bytes: &[u8],
+    n: usize,
+) -> Result<Vec<T>, ZfpDecompressionError> {
     let mut out = vec![T::default(); n];
     let mut field = ZfpFieldMut::new(&mut out, [n]).unwrap();
     let mut bs = ZfpBitStream::from_bytes(bytes).unwrap();
-    bs.decompress(&mode.config::<T>(), &mut field).unwrap();
-    out
+    bs.decompress(&mode.config::<T>(), &mut field)?;
+    Ok(out)
+}
+
+fn rs_decompress<T: Scalar>(mode: Mode, bytes: &[u8], n: usize) -> Vec<T> {
+    rs_try_decompress(mode, bytes, n).unwrap()
 }
 
 /// Run `f` on a C stream in `mode` over `buf`, with a 1-D field of `n` values
@@ -323,14 +331,35 @@ fn reversible_zero_blocks_are_padded() {
     let mut data = values();
     data[..4].fill(0.0);
 
-    // C cannot decode its own stream for any `min_bits` above 1. zfp-rs
-    // decodes it as C does, and its own stream round-trips.
+    // C cannot decode its own stream for any `min_bits` above 1: its decoder
+    // reads past the end of it, as far as `min_bits` past the first block.
+    // zfp-rs reports a stream it runs off the end of, and decodes the stream
+    // as C does when given the zeros C reads there. Its own stream
+    // round-trips.
     for min_bits in (2..=128).chain([1000, 16658]) {
         let mode = Mode::Expert(min_bits, 16658, 64, -1075);
         let c = c_compress(mode, &data);
         let c_out = c_decompress::<f64>(mode, &c, 16);
         assert_ne!(bits(&c_out), bits(&data), "{mode:?}");
-        assert_eq!(bits(&rs_decompress::<f64>(mode, &c, 16)), bits(&c_out));
+        match rs_try_decompress::<f64>(mode, &c, 16) {
+            Ok(out) => assert_eq!(bits(&out), bits(&c_out), "{mode:?}"),
+            Err(ZfpDecompressionError::Truncated { .. }) => {}
+            Err(e) => panic!("{mode:?}: {e}"),
+        }
+        let mut padded = c.clone();
+        padded.resize(c.len() + (1 << 16), 0);
+        assert_eq!(bits(&rs_decompress::<f64>(mode, &padded, 16)), bits(&c_out));
+        // For these, C's decoder reads past the end of its own stream by more
+        // than the padding of the last word.
+        if min_bits >= 1000 {
+            assert!(
+                matches!(
+                    rs_try_decompress::<f64>(mode, &c, 16),
+                    Err(ZfpDecompressionError::Truncated { .. })
+                ),
+                "{mode:?}"
+            );
+        }
         let rs = rs_compress(mode, &data);
         assert_eq!(bits(&rs_decompress::<f64>(mode, &rs, 16)), bits(&data));
         if min_bits == 100 {

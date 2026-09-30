@@ -86,12 +86,17 @@ pub trait ZfpBitStreamOps: BitStreamStorage {
 
     /// Decompress from this bitstream into the field.
     ///
-    /// Returns the read position in bytes afterwards, which is word aligned.
+    /// Returns the read position in bytes afterwards, which is word aligned. As
+    /// in C, it exceeds the capacity if decoding skipped padding past the end
+    /// of the buffer without reading it.
     ///
     /// # Errors
     ///
-    /// Returns [`ZfpDecompressionError`][crate::types::ZfpDecompressionError] if
-    /// the field is invalid, which is reachable only from the C ABI.
+    /// Returns [`ZfpDecompressionError::Truncated`][crate::types::ZfpDecompressionError::Truncated]
+    /// if decoding reads a word past the end of the buffer; the field's
+    /// contents are then unspecified. Returns
+    /// [`ZfpDecompressionError::Field`][crate::types::ZfpDecompressionError::Field]
+    /// if the field is invalid, which is reachable only from the C ABI.
     fn decompress(
         &mut self,
         config: &ZfpConfig,

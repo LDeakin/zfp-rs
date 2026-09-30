@@ -10,6 +10,11 @@ pub struct BitStreamState {
     pub(crate) bits: u32,
     /// Set when a write fell past the end of the buffer and was dropped.
     pub(crate) overflowed: bool,
+    /// Set when a read loaded a word past the end of the buffer before the
+    /// last seek; see [`overread`].
+    pub(crate) overread: bool,
+    /// The word the last seek moved the cursor to, before loading it.
+    pub(crate) seek_word: usize,
 }
 
 impl BitStreamState {
@@ -19,6 +24,8 @@ impl BitStreamState {
             buffer: 0,
             bits: 0,
             overflowed: false,
+            overread: false,
+            seek_word: 0,
         }
     }
 }
@@ -249,9 +256,13 @@ fn word_index(offset: u64) -> usize {
 )]
 pub(super) fn seek_read_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offset: u64) {
     let n = (offset % u64::from(WSIZE)) as u32;
+    let len = stream.words().len();
+    let state = stream.state_mut();
+    state.overread |= loaded_since_seek(state, len);
     // Kept past the end of the buffer, as C's `stream_rseek` does, so the
     // cursor never moves backwards; reads there yield zeros.
-    stream.state_mut().word_pos = word_index(offset);
+    state.word_pos = word_index(offset);
+    state.seek_word = state.word_pos;
     if n != 0 {
         let word = read_word_raw(stream);
         let state = stream.state_mut();
@@ -353,6 +364,35 @@ pub(super) fn seek_write_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offs
         state.buffer = 0;
         state.bits = 0;
     }
+}
+
+/// Whether a read has loaded a word past the end of the buffer since the last
+/// seek, which is where C reads out of the buffer.
+///
+/// Only a load advances the cursor's word, from the word the seek moved it to,
+/// so a cursor past both that word and the end of the buffer loaded a word
+/// the buffer does not hold. Checked at each seek and when decoding ends,
+/// rather than on every load, which slowed decoding.
+fn loaded_since_seek(state: &BitStreamState, len: usize) -> bool {
+    state.word_pos > len.max(state.seek_word)
+}
+
+/// Whether a read has loaded a word past the end of the buffer since the
+/// cursor was last reset with [`reset_overread`].
+pub(crate) fn overread<S: BitStreamStorage + ?Sized>(stream: &S) -> bool {
+    stream.state().overread || loaded_since_seek(stream.state(), stream.words().len())
+}
+
+/// Start tracking loads past the end of the buffer afresh, counting the word
+/// the cursor holds bits of, if any, as loaded.
+pub(crate) fn reset_overread<S: BitStreamStorage + ?Sized>(stream: &mut S) {
+    let state = stream.state_mut();
+    state.overread = false;
+    state.seek_word = if state.bits > 0 {
+        state.word_pos.saturating_sub(1)
+    } else {
+        state.word_pos
+    };
 }
 
 pub(super) fn rewind_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) {

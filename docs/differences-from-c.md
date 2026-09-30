@@ -9,7 +9,7 @@ Unless stated otherwise, the examples compress the 16 `f64` values `(0.37 * i).s
 
 | Difference | C | zfp-rs | Same bytes? |
 | --- | --- | --- | --- |
-| [Reading, writing or seeking past the end of a stream](#the-ends-of-a-stream) | Out-of-bounds access | Reads yield zeros; writes are dropped and reported | Yes, for well-formed streams |
+| [Reading, writing or seeking past the end of a stream](#the-ends-of-a-stream) | Unchecked access past the capacity | Reads yield zeros, and `decompress` reports it; writes are dropped and reported | Yes, for well-formed streams |
 | [Bit counts above 64](#bit-counts-above-64) | Undefined | 64 bits | n/a |
 | [Bit values above 1](#bit-values-above-1) | Added whole | Low bit written | **No** |
 | [Invalid fields and buffers](#field-validation) | Trusted | Rejected with an error | Yes |
@@ -28,10 +28,14 @@ Unless stated otherwise, the examples compress the 16 `f64` values `(0.37 * i).s
 
 ### The ends of a stream
 
-C accesses the stream buffer without bounds checks ([`bitstream.inl`](../zfp/include/zfp/bitstream.inl) lines 149 and 161), so reading a truncated stream, or writing past the end of a buffer, is undefined behaviour.
+C accesses the stream buffer without bounds checks ([`bitstream.inl`](../zfp/include/zfp/bitstream.inl) lines 149 and 161), so decoding a truncated stream, or encoding into an undersized buffer, accesses memory past the capacity given to `stream_open`.
+That is undefined behaviour unless the allocation extends further, and even then C's result depends on memory outside the stream.
 zfp-rs instead:
 
-- reads zeros past the end, so a truncated stream decodes as if zero-padded ([`truncated_stream_decompresses_as_if_zero_padded`](../src/decompress.rs));
+- reads zeros past the end ([`when_seek_read_past_end_expect_offset_kept_and_zeros_read`](../src/bitstream.rs)), and `decompress` returns `ZfpDecompressionError::Truncated` when decoding loads a word the buffer does not hold, where C would read past the capacity ([`when_read_loads_word_past_end_expect_overread`](../src/bitstream.rs), [`when_bit_reader_consumes_past_end_expect_overread_but_not_when_peeking`](../src/bitstream.rs)), serially and with Rayon ([`truncated_stream_is_reported_serially_and_in_parallel`](../src/decompress.rs), [`missing_words_are_reported`](../tests/truncated_stream.rs)), never for a whole stream ([`whole_streams_are_not_truncated`](../tests/truncated_stream.rs));
+- does not report a stream missing only padding that a block skips to a word boundary, since C reads nothing past the cut either, and returns the whole stream's size, which exceeds the capacity, as C does ([`missing_padding_is_not_truncated`](../tests/truncated_stream.rs), [`zfp_decompress_matches_c_on_a_stream_missing_only_padding`](../zfp-rs-ffi/tests/ffi_compat.rs));
+- counts whole words, so a stream cut inside its last word decodes as if missing that word if the buffer excludes it, as `ZfpBitStreamRef::from_bytes` does, and as whole if the buffer zero-pads it, as `ZfpBitStream::from_bytes` does ([`a_cut_inside_the_last_word_is_seen_only_without_padding`](../tests/truncated_stream.rs));
+- makes the C ABI's `zfp_decompress` return 0 for a truncated stream, as for any failure ([`zfp_decompress_returns_zero_for_a_truncated_stream`](../zfp-rs-ffi/tests/ffi_compat.rs)), while the C ABI's block decoders, which have no way to report it, read zeros;
 - drops writes past the end and sets `overflowed()`, and `compress` and `write_header` return `ZfpCompressionError::BufferTooSmall` ([`given_undersized_stream_when_compress_expect_buffer_too_small_not_panic`](../src/bitstream.rs), [`given_undersized_stream_when_write_header_expect_buffer_too_small_and_nothing_written`](../src/bitstream.rs));
 - drops the words that `pad` and `copy_from` would write past the end all at once, leaving the stream as writing them one at a time would ([`when_pad_past_end_expect_same_state_as_writing_word_by_word`](../src/bitstream.rs), [`when_copy_past_end_expect_same_state_as_copying_word_by_word`](../src/bitstream.rs)), so a huge count returns promptly ([`when_pad_huge_expect_prompt_return_and_overflow`](../src/bitstream.rs), [`when_copy_huge_expect_prompt_return_and_overflow`](../src/bitstream.rs)), where C's `stream_pad` and `stream_copy` (lines 381 and 413) write every word;
 - keeps a seek offset past the end, as C does ([`seek_past_end_compat`](../tests/proptest/bitstream_compat.rs)), but then reads zeros and drops writes ([`when_seek_read_past_end_expect_offset_kept_and_zeros_read`](../src/bitstream.rs), [`when_seek_write_past_end_expect_offset_kept_and_writes_dropped`](../src/bitstream.rs)), where C's `stream_rseek` and `stream_wseek` (lines 340 and 356) load the out-of-bounds word under an offset that is not word-aligned.
@@ -123,7 +127,8 @@ For `expert(1, 11, 64, -1074)` ([`maximum_size_under_reports`](../tests/proptest
 
 C's reversible float encoder codes an all-zero block as one zero bit, without padding it to `min_bits` ([`revencodef.c`](../zfp/src/template/revencodef.c) lines 64–69), but its decoder skips to `min_bits` after that bit ([`revdecodef.c`](../zfp/src/template/revdecodef.c) lines 53–56).
 So if `min_bits` is above 1, C cannot decode its own stream.
-zfp-rs pads the block, so its streams round-trip ([`*_reversible_min_bits_round_trips`](../tests/proptest/budget.rs)), and decodes C's streams as C does.
+zfp-rs pads the block, so its streams round-trip ([`*_reversible_min_bits_round_trips`](../tests/proptest/budget.rs)), and decodes C's streams as C does when it is given the zeros C reads past their ends ([`decompress_compat`](../tests/proptest/decompress_compat.rs)).
+Without them, decoding C's stream can run off its end, which zfp-rs reports as [truncated](#the-ends-of-a-stream) ([`reversible_zero_blocks_are_padded`](../tests/proptest/differences.rs)).
 With the first four values set to zero ([`reversible_zero_blocks_are_padded`](../tests/proptest/differences.rs)):
 
 | Config | C | zfp-rs |

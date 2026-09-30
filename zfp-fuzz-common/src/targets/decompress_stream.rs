@@ -24,9 +24,10 @@
 //! (`num_blocks * max_bits`, not `maximum_size` — see the comment in `typed`),
 //! and then decoded again unpadded. Past the end of a stream, reads yield zeros
 //! and seeks keep their offset, so the truncated stream must decode exactly as
-//! the padded one did. **Any panic reaching this target is a real bug.**
+//! the padded one did, and report `Truncated` if it loaded a word past its
+//! end. **Any panic reaching this target is a real bug.**
 
-use zfp_rs::{ZfpBitStream, ZfpField, ZfpFieldMut};
+use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpDecompressionError, ZfpExecution, ZfpField, ZfpFieldMut};
 
 use crate::input::{ExecSpec, ModeSpec, ScalarKind, Shape};
 use crate::limits::MAX_STREAM_BYTES;
@@ -117,6 +118,9 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
         let mut out = ZfpFieldMut::new(&mut dst, dims).expect("an exactly-sized field is valid");
         match bs.decompress_with_execution(&config, &mut out, exec) {
             Ok(consumed) => consumed,
+            Err(ZfpDecompressionError::Truncated { required, .. }) => panic!(
+                "decoding overran the worst-case {buffer_bytes} B buffer, reading to {required} B"
+            ),
             Err(e) => panic!("decompress failed on an exactly-sized field: {e}"),
         }
     };
@@ -140,30 +144,7 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
         );
     }
 
-    // The payload unpadded must decode exactly as it did padded: the padding
-    // is zeros, which is what reads past the end of a stream yield, and the
-    // cursor must end in the same place, however far past the end that is.
-    let kept = payload.len().min(buffer_bytes.div_ceil(8) * 8);
-    let mut truncated = vec![T::default(); n];
-    let truncated_consumed = {
-        let mut out =
-            ZfpFieldMut::new(&mut truncated, dims).expect("an exactly-sized field is valid");
-        ZfpBitStream::from_bytes(&payload[..kept])
-            .expect("the stream allocates")
-            .decompress_with_execution(&config, &mut out, exec)
-            .unwrap_or_else(|e| panic!("decompress failed on an exactly-sized field: {e}"))
-    };
-    assert_eq!(
-        truncated_consumed, consumed,
-        "a truncated stream ended somewhere other than its zero-padded copy"
-    );
-    for i in 0..n {
-        assert_eq!(
-            truncated[i].to_bits_u64(),
-            dst[i].to_bits_u64(),
-            "a truncated stream decoded differently from its zero-padded copy at index {i}"
-        );
-    }
+    check_unpadded(&config, exec, dims, payload, buffer_bytes, consumed, &dst);
 
     // Feed the adversarially-decoded values straight back into the encoder.
     // They may contain NaN, infinities and subnormals in combinations no
@@ -174,4 +155,73 @@ fn typed<T: FuzzScalar>(shape: Shape, mode: ModeSpec, exec: ExecSpec, payload: &
         .compress(&config, &field)
         .expect("re-compress of decoded values must succeed");
     assert!(written <= cap, "re-compress wrote {written} B into {cap} B");
+}
+
+/// Decode the payload unpadded, and check it against the padded decode, which
+/// read `consumed` bytes and gave `dst`.
+///
+/// It must decode exactly as it did padded: the padding is zeros, which is
+/// what reads past the end of a stream yield, and the cursor must end in the
+/// same place, however far past the end that is. Loading a word past the words
+/// it holds is reported as truncation, with the size the padded decode
+/// consumed. A stream that ends within its words loaded none past them.
+fn check_unpadded<T: FuzzScalar>(
+    config: &ZfpConfig,
+    exec: ZfpExecution,
+    dims: [usize; 4],
+    payload: &[u8],
+    buffer_bytes: usize,
+    consumed: usize,
+    dst: &[T],
+) {
+    let kept = payload.len().min(buffer_bytes.div_ceil(8) * 8);
+    let capacity = kept.div_ceil(8) * 8;
+    let decode_kept = |padding: u64, out: &mut [T]| {
+        let mut out = ZfpFieldMut::new(out, dims).expect("an exactly-sized field is valid");
+        let mut bs = ZfpBitStream::from_bytes(&payload[..kept]).expect("the stream allocates");
+        if padding != 0 {
+            let mut words = bs.backing_words().to_vec();
+            words.resize(buffer_bytes.div_ceil(8), padding);
+            bs = ZfpBitStream::from_words(words);
+        }
+        bs.decompress_with_execution(config, &mut out, exec)
+    };
+    let n = dst.len();
+    let mut truncated = vec![T::default(); n];
+    let truncated_result = decode_kept(0, &mut truncated);
+    match truncated_result {
+        Ok(size) if size == consumed => {}
+        Err(ZfpDecompressionError::Truncated {
+            required,
+            capacity: c,
+        }) if required == consumed && c == capacity && consumed > capacity => {}
+        _ => panic!(
+            "a truncated stream ended somewhere other than its zero-padded copy: \
+             {truncated_result:?}, not {consumed} B"
+        ),
+    }
+    for i in 0..n {
+        assert_eq!(
+            truncated[i].to_bits_u64(),
+            dst[i].to_bits_u64(),
+            "a truncated stream decoded differently from its zero-padded copy at index {i}"
+        );
+    }
+    // A stream that is not reported read none of the missing words, so they
+    // may hold anything.
+    if truncated_result.is_ok() {
+        let mut ones = vec![T::default(); n];
+        assert_eq!(
+            decode_kept(u64::MAX, &mut ones),
+            Ok(consumed),
+            "an unreported truncated stream ended elsewhere with ones past its end"
+        );
+        for i in 0..n {
+            assert_eq!(
+                ones[i].to_bits_u64(),
+                dst[i].to_bits_u64(),
+                "an unreported truncated stream read the missing words at index {i}"
+            );
+        }
+    }
 }

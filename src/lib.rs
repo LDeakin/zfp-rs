@@ -172,8 +172,8 @@ pub fn compress_bitstream(
 ///
 /// # Errors
 ///
-/// Returns [`ZfpDecompressionError`] if the target field type or dimensions are
-/// unsupported for the selected configuration.
+/// Returns [`ZfpDecompressionError`] if the target field is invalid or the
+/// stream is truncated.
 #[cfg(feature = "ffi")]
 pub fn decompress_bitstream(
     bs: &mut dyn ZfpBitStreamOps,

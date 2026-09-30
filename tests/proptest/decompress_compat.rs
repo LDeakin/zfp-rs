@@ -10,7 +10,8 @@
 
 use proptest::prelude::*;
 use zfp_rs::{
-    ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpExecution, ZfpFieldMut, types::ZfpScalarType,
+    ZFP_MAX_BITS, ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpExecution, ZfpFieldMut,
+    types::ZfpScalarType,
 };
 
 // ---------------------------------------------------------------------------
@@ -224,15 +225,20 @@ impl Drop for CStream {
     }
 }
 
-/// Build a `ZfpBitStream` for decompression from a compressed byte slice.
+/// The most bytes any field here can need past the stream's end: its 16 blocks,
+/// at most, of `ZFP_MAX_BITS` each.
+const MAX_OVERREAD_BYTES: usize = 16 * ZFP_MAX_BITS as usize / 8;
+
+/// Build a `ZfpBitStream` for decompression from a compressed byte slice,
+/// zero-padded as the C library's zero-filled output buffer is.
 ///
-/// Adds one extra zero word (8 bytes) of padding so that decoder lookahead
-/// reads past the last compressed word don't panic. This matches the C
-/// library's behavior where the output buffer is always larger than the
-/// compressed data.
+/// C's stream can be shorter than its decoder reads: it does not pad an
+/// all-zero reversible block to `min_bits`, which its decoder skips. C then
+/// reads zeros past the stream, and zfp-rs, which reports `Truncated`
+/// without the padding, must decode the same values.
 fn bs_for_decompress(compressed: &[u8]) -> ZfpBitStream {
     let mut buf = compressed.to_vec();
-    buf.extend_from_slice(&[0u8; 8]);
+    buf.resize(buf.len() + MAX_OVERREAD_BYTES, 0);
     ZfpBitStream::from_bytes(&buf).unwrap()
 }
 

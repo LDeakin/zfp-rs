@@ -270,6 +270,26 @@ pub enum ZfpDecompressionError {
     /// Fields built with the safe constructors are always valid; this is
     /// reachable only from the C ABI.
     Field(ZfpFieldError),
+    /// Decoding the field read a word past the end of the buffer.
+    ///
+    /// The field's contents are then unspecified. The count is of whole words:
+    /// a stream cut inside its last word is caught only if the buffer excludes
+    /// that word, as
+    /// [`ZfpBitStreamRef::from_bytes`][crate::ZfpBitStreamRef::from_bytes] does
+    /// and [`ZfpBitStream::from_bytes`][crate::ZfpBitStream::from_bytes], which
+    /// zero-pads it, does not. A stream missing only whole words of padding
+    /// that decoding skips is not truncated.
+    Truncated {
+        /// Bytes from the start of the buffer to where decoding ended, reading
+        /// zeros in place of the missing words.
+        ///
+        /// For a fixed-rate stream this is the stream's size. In other modes,
+        /// block sizes depend on the bits read, so the whole stream's size may
+        /// differ.
+        required: usize,
+        /// Bytes the buffer holds.
+        capacity: usize,
+    },
 }
 
 impl From<ZfpFieldError> for ZfpDecompressionError {
@@ -282,6 +302,10 @@ impl fmt::Display for ZfpDecompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Field(e) => write!(f, "invalid output field: {e}"),
+            Self::Truncated { required, capacity } => write!(
+                f,
+                "bitstream is truncated: decoding read to byte {required} of a {capacity}-byte buffer"
+            ),
         }
     }
 }
@@ -290,6 +314,7 @@ impl std::error::Error for ZfpDecompressionError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Field(e) => Some(e),
+            Self::Truncated { .. } => None,
         }
     }
 }

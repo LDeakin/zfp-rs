@@ -22,7 +22,7 @@ pub use owned::ZfpBitStream;
 
 #[cfg(feature = "rayon")]
 pub(crate) use core::vec_with_capacity;
-pub(crate) use core::{BitReader, BitWriter};
+pub(crate) use core::{BitReader, BitWriter, overread, reset_overread};
 
 #[cfg(test)]
 pub(crate) use core::WSIZE;
@@ -749,6 +749,56 @@ mod tests {
         assert_eq!(s.read_pos(), offset + 10);
         s.skip(100);
         assert_eq!(s.read_pos(), offset + 110);
+    }
+
+    /// Loading a word past the end, where C reads out of the buffer, is
+    /// flagged. A seek to a word boundary there loads nothing, as in C.
+    #[test]
+    fn when_read_loads_word_past_end_expect_overread() {
+        let end = STREAM_WORD_CAPACITY as u64 * u64::from(WSIZE);
+        let mut s = setup();
+        s.seek_read(end);
+        s.skip(u64::from(WSIZE));
+        assert!(!overread(&s));
+        s.seek_read(end + 3);
+        assert!(overread(&s));
+        s.seek_read(0);
+        assert!(overread(&s), "the flag outlives the next seek");
+
+        let mut s = setup();
+        s.seek_read(end - 1);
+        assert_eq!(s.read_bits(1), 0);
+        assert!(!overread(&s));
+        assert!(!s.read_bit());
+        assert!(overread(&s));
+
+        let mut s = setup();
+        s.seek_read(end + 3);
+        reset_overread(&mut s);
+        assert!(overread(&s), "the cursor holds bits of a missing word");
+        s.seek_read(end);
+        reset_overread(&mut s);
+        assert!(!overread(&s));
+    }
+
+    /// The block decoders' reader peeks past the end of the buffer without
+    /// flagging it, and flags consuming a bit there.
+    #[test]
+    fn when_bit_reader_consumes_past_end_expect_overread_but_not_when_peeking() {
+        let end = STREAM_WORD_CAPACITY as u64 * u64::from(WSIZE);
+        let mut s = setup();
+        s.seek_read(end - 4);
+        {
+            let mut reader = BitReader::new(&mut s);
+            assert_eq!(reader.peek(), 0);
+            reader.consume(4);
+        }
+        assert!(!overread(&s));
+        {
+            let mut reader = BitReader::new(&mut s);
+            reader.consume(1);
+        }
+        assert!(overread(&s));
     }
 
     #[test]

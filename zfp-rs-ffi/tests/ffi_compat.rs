@@ -1177,6 +1177,122 @@ fn stream_bit_counts_above_64_read_and_write_64_bits() {
     }
 }
 
+/// C reads past the capacity given to `stream_open` when a stream is missing
+/// words it decodes, so its result depends on memory outside the stream. The C
+/// ABI returns 0 there, as `zfp_decompress` does for any failure, and the
+/// stream's size when it is whole.
+#[test]
+fn zfp_decompress_returns_zero_for_a_truncated_stream() {
+    let ty = zfp_sys::zfp_type_zfp_type_double;
+    let mode = Mode::FixedRate(256);
+    let dims = [8usize, 8];
+    let mut data: Vec<f64> = (0..64)
+        .map(|i| (0.37 * f64::from(i)).sin() * 100.0)
+        .collect();
+
+    let mut source = FfiStream::new();
+    unsafe {
+        apply_mode_ffi(source.zfp, &mode, ffi_type(ty), 2);
+        let field = ffi_field_from(data.as_mut_ptr().cast::<c_void>(), ffi_type(ty), &dims);
+        assert_eq!(ffi::zfp_compress(source.zfp, field), 128);
+        ffi::zfp_field_free(field);
+    }
+    source.flush();
+    let bytes = source.bytes();
+    assert_eq!(bytes.len(), 128);
+
+    let decode = |bytes: &[u8]| {
+        let stream = FfiStream::with_bytes(bytes);
+        let mut out = vec![0f64; 64];
+        unsafe {
+            apply_mode_ffi(stream.zfp, &mode, ffi_type(ty), 2);
+            let field = ffi_field_from(out.as_mut_ptr().cast::<c_void>(), ffi_type(ty), &dims);
+            let size = ffi::zfp_decompress(stream.zfp, field);
+            ffi::zfp_field_free(field);
+            size
+        }
+    };
+    assert_eq!(decode(&bytes), 128);
+    // `with_bytes` appends a zero word, so half the stream leaves it short.
+    assert_eq!(decode(&bytes[..64]), 0);
+}
+
+/// A stream cut at a word boundary inside its last block's padding is not
+/// truncated: C loads no word past the cut, and both return the whole stream's
+/// size, which exceeds the capacity given to `stream_open`. C's allocation
+/// goes on past the cut, holding ones, and its output shows it read none.
+#[test]
+fn zfp_decompress_matches_c_on_a_stream_missing_only_padding() {
+    let ty = zfp_sys::zfp_type_zfp_type_double;
+    // 256 bits per block: block 1 starts at word 4, and is all zeros, so only
+    // its first bit is read before it skips to the end of the stream.
+    let mode = Mode::FixedRate(256);
+    let dims = [8usize];
+    let mut data: Vec<f64> = (0..8)
+        .map(|i| {
+            if i < 4 {
+                (0.37 * f64::from(i)).sin() * 100.0
+            } else {
+                0.0
+            }
+        })
+        .collect();
+
+    let mut source = FfiStream::new();
+    unsafe {
+        apply_mode_ffi(source.zfp, &mode, ffi_type(ty), 1);
+        let field = ffi_field_from(data.as_mut_ptr().cast::<c_void>(), ffi_type(ty), &dims);
+        assert_eq!(ffi::zfp_compress(source.zfp, field), 64);
+        ffi::zfp_field_free(field);
+    }
+    source.flush();
+    let bytes = source.bytes();
+    let whole: Vec<u64> = bytes
+        .as_chunks::<8>()
+        .0
+        .iter()
+        .map(|w| u64::from_ne_bytes(*w))
+        .collect();
+    let kept = 5;
+    let mut ones = whole.clone();
+    ones[kept..].fill(u64::MAX);
+
+    let mut c_out = vec![1f64; 8];
+    let c_size = unsafe {
+        let bs = zfp_sys::stream_open(ones.as_mut_ptr().cast::<c_void>(), kept * 8);
+        let zfp = zfp_sys::zfp_stream_open(bs);
+        apply_mode_c(zfp, &mode, ty, 1);
+        let field = c_field(c_out.as_mut_ptr().cast::<c_void>(), ty, &dims);
+        let size = zfp_sys::zfp_decompress(zfp, field);
+        zfp_sys::zfp_field_free(field);
+        zfp_sys::zfp_stream_close(zfp);
+        zfp_sys::stream_close(bs);
+        size
+    };
+
+    let decode = |words: &mut [u64]| {
+        let mut out = vec![1f64; 8];
+        let size = unsafe {
+            let bs = ffi::stream_open(words.as_mut_ptr().cast::<c_void>(), size_of_val(words));
+            let zfp = ffi::zfp_stream_open(bs);
+            apply_mode_ffi(zfp, &mode, ffi_type(ty), 1);
+            let field = ffi_field_from(out.as_mut_ptr().cast::<c_void>(), ffi_type(ty), &dims);
+            let size = ffi::zfp_decompress(zfp, field);
+            ffi::zfp_field_free(field);
+            ffi::zfp_stream_close(zfp);
+            ffi::stream_close(bs);
+            size
+        };
+        (size, out)
+    };
+    let expect = decode(&mut whole.clone());
+    assert_eq!(expect.0, 64);
+    assert_eq!((c_size, c_out), expect);
+    assert_eq!(decode(&mut whole.clone()[..kept]), expect);
+    // One word less, and C would read block 1's first bit past the buffer.
+    assert_eq!(decode(&mut whole.clone()[..kept - 1]).0, 0);
+}
+
 fn strided_dims_for(rank: u32) -> (Vec<usize>, Vec<isize>) {
     match rank {
         1 => (vec![6], vec![2]),

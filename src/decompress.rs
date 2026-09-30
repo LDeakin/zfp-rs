@@ -7,7 +7,7 @@
 // arithmetic and indexing must be checked; see the crate's panic guarantee.
 #![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
 
-use crate::bitstream::ZfpBitStreamOps;
+use crate::bitstream::{ZfpBitStreamOps, overread, reset_overread};
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
 use crate::field_plan::FieldPlan;
@@ -28,12 +28,31 @@ pub(crate) fn decompress(
     // Derived once: a fresh `&mut` retag per block would be needless work, and
     // interleaving it with shared borrows of `field` is a hazard worth avoiding.
     let base = field.data_mut().as_mut_ptr();
+    reset_overread(bs);
     // SAFETY: `FieldPlan::new` validated the buffer's length and alignment,
     // which is exactly `decompress_blocks`' contract.
     unsafe { decompress_blocks(bs, base, &info, config, 0..info.num_blocks, None) };
 
+    finish(bs)
+}
+
+/// Align the cursor after the last block, and report how many bytes decoding
+/// read.
+///
+/// Reads past the end of the buffer yield zeros, so a stream is truncated
+/// exactly when decoding loaded a word the buffer does not hold, which is where
+/// C reads past its end. A seek past the end loads no word if it lands on a
+/// word boundary, as in C, so a stream missing only whole words of its last
+/// block's padding is not truncated, and the size then exceeds the buffer, as
+/// C's does.
+fn finish(bs: &mut (impl ZfpBitStreamOps + ?Sized)) -> Result<usize, ZfpDecompressionError> {
     bs.align();
-    Ok(bs.byte_len())
+    let required = bs.byte_len();
+    if overread(bs) {
+        let capacity = bs.capacity();
+        return Err(ZfpDecompressionError::Truncated { required, capacity });
+    }
+    Ok(required)
 }
 
 /// Derive the block plan for a field, mapping the layout error.
@@ -207,18 +226,20 @@ pub(crate) fn decompress_rayon(
             bits_per_block,
             start_read_bit,
             base,
-        );
+        )
     };
     // The pool is built before any block is decoded, so if it cannot be, the
     // serial decoder fills the whole field.
-    if crate::execution::install(threads, run).is_none() {
+    let Some(overread_chunks) = crate::execution::install(threads, run) else {
         return decompress(bs, field, config);
-    }
+    };
 
-    // Leave the cursor where serial decompression would.
+    // Leave the cursor, and the overread flag, where serial decompression
+    // would.
+    reset_overread(bs);
     bs.seek_read(end);
-    bs.align();
-    Ok(bs.byte_len())
+    bs.state_mut().overread |= overread_chunks;
+    finish(bs)
 }
 
 /// A `*mut u8` into the field's data buffer, handed to worker threads.
@@ -248,7 +269,8 @@ unsafe impl Send for FieldPtr {}
 #[cfg(feature = "rayon")]
 unsafe impl Sync for FieldPtr {}
 
-/// Decompress chunks of blocks in parallel.
+/// Decompress chunks of blocks in parallel, and report whether any read past
+/// the end of the buffer.
 ///
 /// Each chunk gets its own bitstream view and seeks directly to its blocks' bit
 /// positions, then defers to the same `decompress_block` the serial path uses.
@@ -261,26 +283,32 @@ fn decompress_chunks(
     bits_per_block: u32,
     start_read_bit: u64,
     base: FieldPtr,
-) {
+) -> bool {
     use crate::bitstream::borrowed::ZfpBitStreamRef;
     use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-    ranges.par_iter().for_each(|range| {
-        let mut local_bs = ZfpBitStreamRef::from_words(words);
-        // SAFETY: `base` is the buffer `FieldPlan::new` validated for length
-        // and alignment, and chunks cover disjoint blocks, so this thread
-        // writes only bytes no other thread touches.
-        unsafe {
-            decompress_blocks(
-                &mut local_bs,
-                base.ptr(),
-                info,
-                config,
-                range.clone(),
-                Some((start_read_bit, u64::from(bits_per_block))),
-            );
-        }
-    });
+    // `reduce` rather than `any`, which would stop decoding at the first chunk
+    // that reads past the end.
+    ranges
+        .par_iter()
+        .map(|range| {
+            let mut local_bs = ZfpBitStreamRef::from_words(words);
+            // SAFETY: `base` is the buffer `FieldPlan::new` validated for length
+            // and alignment, and chunks cover disjoint blocks, so this thread
+            // writes only bytes no other thread touches.
+            unsafe {
+                decompress_blocks(
+                    &mut local_bs,
+                    base.ptr(),
+                    info,
+                    config,
+                    range.clone(),
+                    Some((start_read_bit, u64::from(bits_per_block))),
+                );
+            }
+            overread(&local_bs)
+        })
+        .reduce(|| false, |a, b| a | b)
 }
 
 #[cfg(test)]
@@ -288,7 +316,7 @@ fn decompress_chunks(
 mod tests {
     use crate::config::{ZfpConfig, ZfpStreamAlignment};
     use crate::execution::ZfpExecution;
-    use crate::types::{ZfpDimensionality, ZfpScalarType};
+    use crate::types::{ZfpDecompressionError, ZfpDimensionality, ZfpScalarType};
     use crate::{ZfpBitStream, ZfpField, ZfpFieldMut};
 
     /// `[1, 1]` maps index `[x, y]` to `x + y`, so the span is 15 elements.
@@ -345,12 +373,14 @@ mod tests {
             bs.seek_read(u64::MAX - 100);
             let mut out = [1f64; 64];
             let mut field = ZfpFieldMut::new(&mut out, [8usize, 8]).unwrap();
-            let read = bs
-                .decompress_with_execution(&config, &mut field, execution)
-                .unwrap();
+            let read = bs.decompress_with_execution(&config, &mut field, execution);
             (read, bs.read_pos(), out.map(f64::to_bits))
         };
         let serial = decode(&mut bs, ZfpExecution::Serial);
+        assert!(matches!(
+            serial.0,
+            Err(ZfpDecompressionError::Truncated { .. })
+        ));
         let parallel = ZfpExecution::Rayon {
             threads: 2,
             chunk_size: 1,
@@ -358,11 +388,12 @@ mod tests {
         assert_eq!(decode(&mut bs, parallel), serial);
     }
 
-    /// A truncated stream decodes as if the missing words were zeros, in
-    /// parallel as serially, and both end where the whole stream does. The
-    /// parallel path's final seek once clamped to the buffer instead.
+    /// A truncated stream is reported, in parallel as serially, with the size
+    /// the whole stream needs. The field is filled as if the missing words were
+    /// zeros, and the parallel path's final seek once clamped to the buffer
+    /// instead.
     #[test]
-    fn truncated_stream_decompresses_as_if_zero_padded() {
+    fn truncated_stream_is_reported_serially_and_in_parallel() {
         let config = ZfpConfig::fixed_rate(
             16.0,
             ZfpScalarType::F64,
@@ -382,20 +413,23 @@ mod tests {
         let decode = |bytes: &[u8], execution| {
             let mut out = [0f64; 64];
             let mut field = ZfpFieldMut::new(&mut out, [8usize, 8]).unwrap();
-            let read = ZfpBitStream::from_bytes(bytes)
+            let result = ZfpBitStream::from_bytes(bytes)
                 .unwrap()
-                .decompress_with_execution(&config, &mut field, execution)
-                .unwrap();
-            (read, out.map(f64::to_bits))
+                .decompress_with_execution(&config, &mut field, execution);
+            (result, out.map(f64::to_bits))
         };
         let expect = decode(&padded, ZfpExecution::Serial);
-        assert_eq!(expect.0, size);
+        assert_eq!(expect.0, Ok(size));
         let truncated = &bs.as_bytes()[..kept];
-        assert_eq!(decode(truncated, ZfpExecution::Serial), expect);
+        let error = Err(ZfpDecompressionError::Truncated {
+            required: size,
+            capacity: kept,
+        });
+        assert_eq!(decode(truncated, ZfpExecution::Serial), (error, expect.1));
         let parallel = ZfpExecution::Rayon {
             threads: 4,
             chunk_size: 1,
         };
-        assert_eq!(decode(truncated, parallel), expect);
+        assert_eq!(decode(truncated, parallel), (error, expect.1));
     }
 }
