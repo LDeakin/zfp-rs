@@ -1,7 +1,7 @@
 # `zfp-rs`: A pure-Rust implementation of the ZFP compression algorithm
 
 Pure-Rust implementation of [ZFP](https://github.com/llnl/zfp) — a compression algorithm for compressed floating-point and integer arrays.
-Produces bit-for-bit identical compressed output to the original C implementation.
+Produces bit-for-bit identical compressed output to the original C implementation, apart from [a few documented cases](docs/differences-from-c.md) where C has a bug or undefined behaviour.
 
 ![Compression comparison](./docs/compress_perf.svg)
 

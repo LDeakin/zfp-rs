@@ -28,11 +28,17 @@
 //! This crate produces bit-for-bit identical compressed output to the reference
 //! C implementation for all supported scalar types (`i32`, `i64`, `f32`, `f64`),
 //! all dimensionalities (1-D through 4-D), and all compression modes,
-//! **when running on a little-endian platform**.
+//! **when running on a little-endian platform**, apart from the exceptions
+//! below.
 //!
 //! This holds against a stock `libzfp` build, which is [`ZfpRounding::Never`].
 //! The other [`ZfpRounding`] variants match a `libzfp` built with the
 //! corresponding `ZFP_ROUNDING_MODE` / `ZFP_WITH_TIGHT_ERROR`.
+//!
+//! The exceptions are a few cases where C has a bug or undefined behaviour,
+//! such as blocks of tiny magnitude, whose values C's encoder loses, and
+//! reversible all-zero blocks, which C does not pad to `min_bits`.
+//! [differences-from-c.md] lists each one.
 //!
 //! ## Features
 //!
@@ -60,6 +66,7 @@
 //! See the [CHANGELOG] for release notes.
 //!
 //! [CHANGELOG]: https://github.com/LDeakin/zfp-rs/blob/main/CHANGELOG.md
+//! [differences-from-c.md]: https://github.com/LDeakin/zfp-rs/blob/main/docs/differences-from-c.md
 //!
 //! ```rust
 //! # use std::error::Error;
