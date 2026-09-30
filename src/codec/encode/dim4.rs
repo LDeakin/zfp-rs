@@ -21,15 +21,14 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 /// # Safety
 /// The caller must ensure the array spans at least 4 elements in each
 /// dimension with the given strides.
-unsafe fn gather_4d<T: Copy>(
+unsafe fn gather_4d<T: Copy + Default>(
     data: *const T,
     sx: isize,
     sy: isize,
     sz: isize,
     sw: isize,
 ) -> [T; 256] {
-    // SAFETY: all elements are immediately written before being read.
-    let mut block: [T; 256] = unsafe { std::mem::zeroed() };
+    let mut block = [T::default(); 256];
     let mut q = 0usize;
     for w in 0isize..4 {
         for z in 0isize..4 {
