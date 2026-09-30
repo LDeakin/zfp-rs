@@ -46,8 +46,8 @@ just fuzz_clippy                  # `just clippy` cannot see this crate
 | `decompress_stream` | address | **untrusted bytes** decompressed into a well-formed field |
 | `block_codec` | address | strided gather/scatter with permuted, gapped and negative strides |
 | `header_decode` | none | `read_header` on arbitrary bytes across all eight mask combinations |
-| `config_mode` | none | mode-word round-tripping, `expert()`, and `maximum_size` with unbounded dims |
-| `bitstream_ops` | none | deep random sequences of bitstream cursor operations |
+| `config_mode` | none | mode-word round-tripping, `expert()` and `from_raw_params()`, and `maximum_size` with unbounded dims |
+| `bitstream_ops` | none | deep random sequences of bitstream cursor operations, with bit counts above 64, offsets near `u64::MAX`, and huge pads and copies |
 
 Run the ASan ones with the default sanitizer. The bottom three touch no `unsafe`, so `-s none`
 roughly triples their throughput:

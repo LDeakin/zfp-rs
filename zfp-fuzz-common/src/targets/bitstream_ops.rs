@@ -6,9 +6,11 @@
 //! small state machine where the interesting bugs live in orderings, not in
 //! single calls.
 //!
-//! Every operand is clamped into a valid range. The mixed-operation pass
-//! searches for panics and out-of-bounds access; a separate write-only pass
-//! checks that committed writes read back correctly.
+//! The mixed-operation pass searches for panics and out-of-bounds access with
+//! unclamped operands: bit counts above 64, offsets anywhere in `u64`, and
+//! pads and copies of up to `u64::MAX` bits. A separate write-only pass, with
+//! operands clamped into range, checks that committed writes read back
+//! correctly.
 
 use zfp_rs::ZfpBitStream;
 
@@ -40,20 +42,28 @@ fn run_mixed_ops(data: &[u8]) {
         let a = chunk.get(1).copied().unwrap_or(0);
         let b = chunk.get(2).copied().unwrap_or(0);
 
-        // Bit counts are 0..=64; offsets are clamped inside the stream.
-        let n = u32::from(a) % 65;
+        // Bit counts up to 255, past C's limit of 64. Offsets land inside the
+        // stream, or, with the top bit of `b` set, within 2^15 bits of
+        // `u64::MAX`; lengths reach `u64::MAX` the same way.
+        let n = u32::from(a);
         let value = u64::from(a) | (u64::from(b) << 8);
-        let offset = (u64::from(a) | (u64::from(b) << 8)) % capacity_bits;
+        let wide = |bits: u64| {
+            if b & 0x80 == 0 {
+                bits % capacity_bits
+            } else {
+                u64::MAX - (bits & 0x7fff)
+            }
+        };
+        let offset = wide(value);
 
-        // Rewind before the cursor reaches capacity so the sequence keeps
-        // exercising the cursor logic instead of stopping on a full stream.
-        // 8 words of headroom: a single `pad` can advance the cursor by four
-        // words, and `write_bits` by two, so a tighter margin still overruns.
+        // Rewind once the cursor nears or passes capacity, so the sequence
+        // keeps exercising the cursor logic instead of stopping on a full
+        // stream. Wide seeks and pads still take it far past the end first.
         if bs.write_pos() / 64 + 8 >= (CAPACITY / 8) as u64 {
             bs.rewind();
         }
 
-        match op % 12 {
+        match op % 13 {
             0 => {
                 bs.write_bits(value, n);
             }
@@ -74,13 +84,18 @@ fn run_mixed_ops(data: &[u8]) {
             }
             6 => bs.seek_write(offset),
             7 => bs.seek_read(offset),
-            8 => bs.skip(u64::from(a)),
+            8 => bs.skip(wide(u64::from(a))),
             9 => {
-                // Bounded so one `pad` cannot outrun the headroom check above.
-                bs.pad(u64::from(a) % 65);
+                // A huge pad drops every word past the end at once.
+                bs.pad(wide(u64::from(a)));
             }
             10 => {
                 bs.flush();
+            }
+            11 => {
+                let mut source = ZfpBitStream::from_words(vec![value; 4]);
+                source.seek_read(offset);
+                bs.copy_from(&mut source, wide(u64::from(a)));
             }
             _ => bs.rewind(),
         }
