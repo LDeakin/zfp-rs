@@ -287,6 +287,7 @@ impl ZfpConfig {
     /// of the rounded budget to `uint` is undefined, or its word alignment
     /// wraps around to zero.
     #[cfg(feature = "ffi")]
+    #[doc(hidden)]
     #[must_use]
     pub fn from_raw_rate(
         rate: f64,
@@ -370,6 +371,7 @@ impl ZfpConfig {
     /// gives a config whose [`mode`][Self::mode] is [`ZfpMode::Null`], and
     /// output that is only as meaningful as C's.
     #[cfg(feature = "ffi")]
+    #[doc(hidden)]
     #[must_use]
     pub const fn from_raw_params(
         min_bits: u32,

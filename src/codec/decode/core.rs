@@ -287,7 +287,7 @@ macro_rules! strided_decode_wrappers {
         ///
         /// # Safety
         /// `data` must be valid for every offset the strides generate. See
-        /// [`crate::codec::block`].
+        /// `codec::block::strided`.
         #[cfg(feature = "internals")]
         pub unsafe fn $full(
             bs: &mut (impl ZfpBitStreamOps + ?Sized),
@@ -304,7 +304,7 @@ macro_rules! strided_decode_wrappers {
         ///
         /// # Safety
         /// `data` must be valid for every offset the strides generate. See
-        /// [`crate::codec::block`].
+        /// `codec::block::strided`.
         #[cfg(feature = "internals")]
         pub unsafe fn $partial(
             bs: &mut (impl ZfpBitStreamOps + ?Sized),
@@ -322,7 +322,7 @@ macro_rules! strided_decode_wrappers {
         ///
         /// # Safety
         /// `data` must be valid for every offset the strides generate. See
-        /// [`crate::codec::block`].
+        /// `codec::block::strided`.
         pub unsafe fn $full_rate(
             bs: &mut (impl ZfpBitStreamOps + ?Sized),
             data: *mut $ty,
@@ -339,7 +339,7 @@ macro_rules! strided_decode_wrappers {
         ///
         /// # Safety
         /// `data` must be valid for every offset the strides generate. See
-        /// [`crate::codec::block`].
+        /// `codec::block::strided`.
         pub unsafe fn $partial_rate(
             bs: &mut (impl ZfpBitStreamOps + ?Sized),
             data: *mut $ty,

@@ -22,7 +22,7 @@ pub(crate) struct FieldPlan {
     /// Lowest element index the strides reach, relative to index `[0, 0, 0, 0]`
     /// (`<= 0`). The logical origin sits `-imin` from the buffer's low end.
     ///
-    /// Zero unless some stride is negative. See [`ZfpField::from_raw`].
+    /// Zero unless some stride is negative. See [`ZfpField::from_raw`][crate::ZfpField::from_raw].
     pub imin: isize,
     /// Effective strides.
     pub strides: [isize; 4],

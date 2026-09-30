@@ -5,8 +5,27 @@
 //! driver and the C ABI, and no safe Rust caller has a use for them.
 //!
 //! Every function here is `unsafe` and takes `data` as a raw pointer to the
-//! block origin, mirroring the C `zfp_{en,de}code_block_strided_*` API. See the
-//! [`crate::codec::block`] docs for the provenance the caller must supply.
+//! block origin, mirroring the C `zfp_{en,de}code_block_strided_*` API.
+//!
+//! # Preconditions
+//!
+//! [`super::encode_block`] and [`super::decode_block`] take a slice and
+//! validate its length. The `*_strided` variants take a raw pointer instead:
+//! `data` points at the block origin, and the gather/scatter helpers index it
+//! as `*data.offset(x*sx + y*sy + z*sz + w*sw)`. Non-unit strides step beyond
+//! the block's element count and negative strides step backwards from the
+//! origin, so no slice could describe the memory they touch — a slice
+//! reference would carry provenance over its own elements only, and indexing
+//! outside it is undefined behaviour even when the allocation extends that far.
+//!
+//! The caller must therefore guarantee that every offset the strides generate
+//! is in bounds of a single allocation, and that `data`'s provenance covers it
+//! — in practice, by deriving `data` from a pointer to the whole buffer.
+//! Callers that cannot should use
+//! [`ZfpBitStream::compress`][crate::ZfpBitStream::compress] and
+//! [`ZfpBitStream::decompress`][crate::ZfpBitStream::decompress], which
+//! validate the field's index span and alignment against its buffer and derive
+//! the pointer accordingly.
 
 use super::as_typed_block_mut;
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
@@ -273,7 +292,7 @@ unsafe fn with_scattered<T: ZfpScalar, R>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent, and every length on an axis below `dims` must be in
-/// `1..=4`. See the [`crate::codec::block`] module documentation.
+/// `1..=4`. See the `codec::block::strided` module documentation.
 pub(crate) unsafe fn encode_reversible<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: *const T,
@@ -323,7 +342,7 @@ pub(crate) unsafe fn encode_reversible<T: ZfpScalar>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent, and every length on an axis below `dims` must be in
-/// `1..=4`. See the [`crate::codec::block`] module documentation.
+/// `1..=4`. See the `codec::block::strided` module documentation.
 pub(crate) unsafe fn decode_reversible<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: *mut T,
@@ -396,7 +415,8 @@ fn check_lengths(dims: ZfpDimensionality, lengths: [usize; 4]) -> Result<(), Zfp
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
+/// block's extent. See the `codec::block::strided` module documentation.
+#[doc(hidden)]
 pub unsafe fn encode_block_strided<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: *const T,
@@ -467,8 +487,9 @@ pub(crate) unsafe fn encode_lossy<T: ZfpScalar>(
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
+/// block's extent. See the `codec::block::strided` module documentation.
 #[cfg(feature = "ffi")]
+#[doc(hidden)]
 pub unsafe fn encode_partial_block_strided<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: *const T,
@@ -545,7 +566,8 @@ pub(crate) unsafe fn encode_lossy_partial<T: ZfpScalar>(
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
+/// block's extent. See the `codec::block::strided` module documentation.
+#[doc(hidden)]
 pub unsafe fn decode_block_strided<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: *mut T,
@@ -616,8 +638,9 @@ pub(crate) unsafe fn decode_lossy<T: ZfpScalar>(
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
+/// block's extent. See the `codec::block::strided` module documentation.
 #[cfg(feature = "ffi")]
+#[doc(hidden)]
 pub unsafe fn decode_partial_block_strided<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: *mut T,

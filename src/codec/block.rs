@@ -2,26 +2,6 @@
 //!
 //! Dispatches to the appropriate encoder/decoder based on scalar type
 //! and dimensionality.
-//!
-//! # Preconditions for the `*_strided` entry points
-//!
-//! [`encode_block`] and [`decode_block`] take a slice and validate its length.
-//! The `*_strided` variants take a raw pointer instead, mirroring the C API:
-//! `data` points at the block origin, and the gather/scatter helpers index it
-//! as `*data.offset(x*sx + y*sy + z*sz + w*sw)`. Non-unit strides step beyond
-//! the block's element count and negative strides step backwards from the
-//! origin, so no slice could describe the memory they touch — a slice
-//! reference would carry provenance over its own elements only, and indexing
-//! outside it is undefined behaviour even when the allocation extends that far.
-//!
-//! The caller must therefore guarantee that every offset the strides generate
-//! is in bounds of a single allocation, and that `data`'s provenance covers it
-//! — in practice, by deriving `data` from a pointer to the whole buffer.
-//! Callers that cannot should use
-//! [`ZfpBitStream::compress`][crate::ZfpBitStream::compress] and
-//! [`ZfpBitStream::decompress`][crate::ZfpBitStream::decompress], which
-//! validate the field's index span and alignment against its buffer and derive
-//! the pointer accordingly.
 
 // The API and validation layer computes with caller-supplied sizes, so its
 // arithmetic and indexing must be checked; see the crate's panic guarantee.
@@ -32,10 +12,12 @@ use crate::config::ZfpConfig;
 use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar};
 mod strided;
 
-// Public only with `ffi`, which the C-ABI layer enables. Without it these stay
+// Public only with `ffi`, which the C-ABI layer enables, and then hidden from
+// the documentation and exempt from semver. Without it these stay
 // crate-internal: they are unsafe, and the safe whole-field API covers every
 // use a Rust caller has.
 #[cfg(feature = "ffi")]
+#[doc(hidden)]
 pub use strided::*;
 #[cfg(not(feature = "ffi"))]
 pub(crate) use strided::*;

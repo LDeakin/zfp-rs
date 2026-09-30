@@ -47,6 +47,10 @@
 //! - `ffi`: low-level APIs for the `zfp-rs-ffi` C ABI.
 //! - `internals`: the monomorphised codec, for this crate's test suites.
 //!
+//! What `ffi` and `internals` expose is hidden from this documentation and
+//! exempt from semver: it may change in any release. It exists for this
+//! workspace's C ABI and tests, not for other crates.
+//!
 //! ## Panics
 //!
 //! No function in this crate panics, for any argument, in debug or release

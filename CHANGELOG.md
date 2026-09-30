@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- What the `ffi` and `internals` features expose is `#[doc(hidden)]` and exempt from semver. They exist for `zfp-rs-ffi` and this workspace's tests.
 - No function panics for any argument, as the crate documentation now states; the entries below list the panics removed. Clippy lints and `tests/panic_free.rs` enforce this.
 - **Breaking**: `ZfpField::{new, new_strided, from_raw}` and `ZfpFieldMut::{new, new_strided, from_raw}` validate the dimensions and buffer and return `Result<Self, ZfpFieldError>`, so a valid field no longer fails at compression time.
 - **Breaking**: `ZfpField{,Mut}::metadata` returns `ZfpFieldMetadata` (encode it with `to_bits`), and `set_metadata` takes one and returns `Result<(), ZfpFieldError>` instead of `bool`. `ZfpField::set_stride` is renamed `set_strides` and returns `Result<(), ZfpFieldError>`.

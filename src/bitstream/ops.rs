@@ -61,6 +61,7 @@ pub trait ZfpBitStreamOps: BitStreamStorage {
     fn overflowed(&self) -> bool;
     /// Bytes up to the cursor's word, unclamped (`stream_size`).
     #[cfg(feature = "ffi")]
+    #[doc(hidden)]
     fn size(&self) -> usize;
 
     /// Read the header sections indicated by `mask` from this bitstream.
@@ -320,6 +321,7 @@ macro_rules! impl_bitstream_ops {
             }
 
             #[cfg(feature = "ffi")]
+            #[doc(hidden)]
             pub fn size(&self) -> usize {
                 self.byte_len()
             }

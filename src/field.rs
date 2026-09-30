@@ -370,6 +370,7 @@ impl<'a> ZfpField<'a> {
     /// # Safety
     /// As for [`from_raw`][Self::from_raw].
     #[cfg(feature = "ffi")]
+    #[doc(hidden)]
     #[must_use]
     pub unsafe fn from_raw_unchecked(
         ptr: *const u8,
@@ -482,6 +483,7 @@ impl<'a> ZfpFieldMut<'a> {
     /// # Safety
     /// As for [`from_raw`][Self::from_raw].
     #[cfg(feature = "ffi")]
+    #[doc(hidden)]
     #[must_use]
     pub unsafe fn from_raw_unchecked(
         ptr: *mut u8,

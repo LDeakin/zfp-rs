@@ -27,12 +27,13 @@ categories = ["algorithms", "science", "mathematics"]
 
 [features]
 default = []
-# Expose low-level APIs needed by the C-ABI FFI bindings layer:
-# parameter query functions, block encode/decode with explicit params,
-# and type promotion functions.
+# Expose low-level APIs needed by the C-ABI FFI bindings layer: unvalidated
+# configs and fields, strided block encode/decode and type promotion.
+# Hidden from the docs and exempt from semver.
 ffi = []
 # Expose the monomorphised codec internals (`codec::encode`, `codec::decode`).
 # Test-only: the C-port and proptest suites reach them; the C-ABI layer does not.
+# Hidden from the docs and exempt from semver.
 internals = []
 # Optional Rayon-based parallel execution support.
 rayon = ["dep:rayon"]
