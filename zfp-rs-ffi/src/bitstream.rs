@@ -270,7 +270,14 @@ pub unsafe extern "C" fn stream_data(stream: *const bitstream) -> *mut std::os::
         return std::ptr::null_mut();
     };
 
-    wrapper.inner.data_ptr()
+    // C's `stream_data` returns a mutable pointer from a const stream too.
+    wrapper
+        .inner
+        .as_ops()
+        .backing_words()
+        .as_ptr()
+        .cast_mut()
+        .cast()
 }
 
 // ===========================================================================

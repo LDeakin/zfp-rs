@@ -117,7 +117,7 @@ const CASES: &[Case] = &[
 
 /// Number of scalars the field's dims and strides span, gaps included.
 fn span_of(case: &Case) -> usize {
-    let (imin, imax) = zfp_rs::field::index_span(&case.dims, &case.strides);
+    let (imin, imax) = zfp_rs::field::checked_index_span(&case.dims, &case.strides).unwrap();
     usize::try_from(imax - imin + 1).expect("span fits in usize")
 }
 
@@ -132,7 +132,7 @@ fn rank_of(case: &Case) -> usize {
 /// *lowest* address of the span, which is what the codec assumes, hence the
 /// `-imin` shift.
 fn covered_indices(case: &Case) -> Vec<usize> {
-    let (imin, _) = zfp_rs::field::index_span(&case.dims, &case.strides);
+    let (imin, _) = zfp_rs::field::checked_index_span(&case.dims, &case.strides).unwrap();
     let [nx, ny, nz, nw] = case.dims;
     let s = [
         if case.strides[0] != 0 {

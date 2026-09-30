@@ -529,14 +529,6 @@ impl fmt::Debug for ZfpFieldMut<'_> {
     }
 }
 
-/// Compute the min and max scalar index offsets spanned by a field with these
-/// dimensions and strides, as for [`ZfpField::index_span`].
-#[cfg(feature = "ffi")]
-#[must_use]
-pub fn index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isize, isize) {
-    field_index_span(dims, strides)
-}
-
 // ---------------------------------------------------------------------------
 // Shared helpers
 // ---------------------------------------------------------------------------

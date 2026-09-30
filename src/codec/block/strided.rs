@@ -267,37 +267,13 @@ unsafe fn with_scattered<T: ZfpScalar, R>(
     }
 }
 
-/// Reversible encode of a (possibly partial) strided 4^d block; return bits written.
-///
-/// The strided encoders take this path for a reversible `config`.
-///
-/// # Errors
-///
-/// Returns [`ZfpBlockError`] if a length on an axis below `dims` is not in
-/// `1..=4`. Lengths on the other axes are ignored.
+/// Reversible encode of a (possibly partial) strided 4^d block; return bits
+/// written.
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
-#[cfg(feature = "ffi")]
-pub unsafe fn encode_block_strided_reversible<T: ZfpScalar>(
-    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    data: *const T,
-    dims: ZfpDimensionality,
-    strides: &[isize; 4],
-    lengths: [usize; 4],
-    config: &ZfpConfig,
-) -> Result<usize, ZfpBlockError> {
-    check_lengths(dims, lengths)?;
-    // SAFETY: the caller's contract, with the lengths checked.
-    Ok(unsafe { encode_reversible(bs, data, dims, strides, lengths, config) })
-}
-
-/// [`encode_block_strided_reversible`] for lengths known to be valid.
-///
-/// # Safety
-/// As for [`encode_block_strided_reversible`], and every length on an axis
-/// below `dims` must be in `1..=4`.
+/// block's extent, and every length on an axis below `dims` must be in
+/// `1..=4`. See the [`crate::codec::block`] module documentation.
 pub(crate) unsafe fn encode_reversible<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
     data: *const T,
@@ -341,37 +317,13 @@ pub(crate) unsafe fn encode_reversible<T: ZfpScalar>(
     }
 }
 
-/// Reversible decode of a (possibly partial) strided 4^d block; return bits read.
-///
-/// The strided decoders take this path for a reversible `config`.
-///
-/// # Errors
-///
-/// Returns [`ZfpBlockError`] if a length on an axis below `dims` is not in
-/// `1..=4`. Lengths on the other axes are ignored.
+/// Reversible decode of a (possibly partial) strided 4^d block; return bits
+/// read.
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
-#[cfg(feature = "ffi")]
-pub unsafe fn decode_block_strided_reversible<T: ZfpScalar>(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    data: *mut T,
-    dims: ZfpDimensionality,
-    strides: &[isize; 4],
-    lengths: [usize; 4],
-    config: &ZfpConfig,
-) -> Result<usize, ZfpBlockError> {
-    check_lengths(dims, lengths)?;
-    // SAFETY: the caller's contract, with the lengths checked.
-    Ok(unsafe { decode_reversible(bs, data, dims, strides, lengths, config) })
-}
-
-/// [`decode_block_strided_reversible`] for lengths known to be valid.
-///
-/// # Safety
-/// As for [`decode_block_strided_reversible`], and every length on an axis
-/// below `dims` must be in `1..=4`.
+/// block's extent, and every length on an axis below `dims` must be in
+/// `1..=4`. See the [`crate::codec::block`] module documentation.
 pub(crate) unsafe fn decode_reversible<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     data: *mut T,

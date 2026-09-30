@@ -406,10 +406,7 @@ fn apply<S: zfp_rs::ZfpBitStreamMutOps>(
 mod ffi {
     use super::{MAX_BLOCKS, MAX_MIN_BITS, dimensionality, shape, strides, wide_i32, wide_u32};
     use proptest::prelude::*;
-    use zfp_rs::codec::block::{
-        decode_block_strided_reversible, decode_partial_block_strided,
-        encode_block_strided_reversible, encode_partial_block_strided,
-    };
+    use zfp_rs::codec::block::{decode_partial_block_strided, encode_partial_block_strided};
     use zfp_rs::codec::promote;
     use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpField, ZfpFieldMut, ZfpScalarType};
 
@@ -473,14 +470,15 @@ mod ffi {
             let mut out = [0f64; 256];
             let strides = [1, 4, 16, 64];
             let mut bs = ZfpBitStream::new(8192).unwrap();
+            let reversible = ZfpConfig::reversible();
             // SAFETY: with contiguous strides, a block of lengths up to 4
             // lies within the 256 values; longer lengths are rejected first.
             unsafe {
                 let _ = encode_partial_block_strided(&mut bs, data.as_ptr(), dims, lengths, &strides, &config);
-                let _ = encode_block_strided_reversible(&mut bs, data.as_ptr(), dims, &strides, lengths, &config);
+                let _ = encode_partial_block_strided(&mut bs, data.as_ptr(), dims, lengths, &strides, &reversible);
                 bs.rewind();
                 let _ = decode_partial_block_strided(&mut bs, out.as_mut_ptr(), dims, lengths, &strides, &config);
-                let _ = decode_block_strided_reversible(&mut bs, out.as_mut_ptr(), dims, &strides, lengths, &config);
+                let _ = decode_partial_block_strided(&mut bs, out.as_mut_ptr(), dims, lengths, &strides, &reversible);
             }
         }
 

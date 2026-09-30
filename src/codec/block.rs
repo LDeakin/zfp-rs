@@ -248,10 +248,7 @@ mod tests {
     #[cfg(feature = "ffi")]
     #[test]
     fn strided_block_coding_rejects_lengths_outside_one_to_four() {
-        use super::{
-            decode_block_strided_reversible, decode_partial_block_strided,
-            encode_block_strided_reversible, encode_partial_block_strided,
-        };
+        use super::{decode_partial_block_strided, encode_partial_block_strided};
         use crate::ZfpBlockError;
 
         let data = [1f32; 16];
@@ -269,22 +266,10 @@ mod tests {
                         encode_partial_block_strided(&mut bs, ptr, d2, lengths, &strides, &config),
                         Err(ZfpBlockError)
                     );
-                    assert_eq!(
-                        encode_block_strided_reversible(
-                            &mut bs, ptr, d2, &strides, lengths, &config
-                        ),
-                        Err(ZfpBlockError)
-                    );
                     assert_eq!(bs.write_pos(), 0);
                     assert_eq!(
                         decode_partial_block_strided(
                             &mut bs, out_ptr, d2, lengths, &strides, &config
-                        ),
-                        Err(ZfpBlockError)
-                    );
-                    assert_eq!(
-                        decode_block_strided_reversible(
-                            &mut bs, out_ptr, d2, &strides, lengths, &config
                         ),
                         Err(ZfpBlockError)
                     );

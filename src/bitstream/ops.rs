@@ -62,9 +62,6 @@ pub trait ZfpBitStreamOps: BitStreamStorage {
     /// Bytes up to the cursor's word, unclamped (`stream_size`).
     #[cfg(feature = "ffi")]
     fn size(&self) -> usize;
-    /// The backing buffer's start pointer.
-    #[cfg(feature = "ffi")]
-    fn data_ptr(&self) -> *mut std::os::raw::c_void;
 
     /// Read the header sections indicated by `mask` from this bitstream.
     ///
@@ -325,14 +322,6 @@ macro_rules! impl_bitstream_ops {
             #[cfg(feature = "ffi")]
             pub fn size(&self) -> usize {
                 self.byte_len()
-            }
-
-            #[cfg(feature = "ffi")]
-            pub fn data_ptr(&self) -> *mut std::os::raw::c_void {
-                BitStreamStorage::words(self)
-                    .as_ptr()
-                    .cast_mut()
-                    .cast::<std::os::raw::c_void>()
             }
 
         #[allow(clippy::missing_errors_doc, reason = "documented on the trait method")]

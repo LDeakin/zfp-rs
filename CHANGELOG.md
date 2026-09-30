@@ -13,9 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ZfpConfig::from_raw_params`, behind `ffi`, which holds unvalidated parameters from a C `zfp_stream`.
 - `ZfpConfig::from_raw_rate`, behind `ffi`, which computes a fixed-rate budget as C's `zfp_stream_set_rate` does, without validating it.
 - `ZfpConfig::checked_mode_bits` and `ZfpConfigError`, which report parameters that a header's mode word cannot hold.
-- `field::checked_index_span`, the overflow-checked form of `field::index_span`.
+- `field::checked_index_span`, the index span of a field's dimensions and strides, or `None` if it overflows.
 - `ZfpFieldError`, returned by the field constructors and setters, and `ZfpFieldMut::set_strides`.
-- `ZfpField::from_raw_unchecked`, `ZfpFieldMut::from_raw_unchecked` and `field::index_span`, behind `ffi`.
+- `ZfpField::from_raw_unchecked` and `ZfpFieldMut::from_raw_unchecked`, behind `ffi`.
 - The bitstream trait methods are inherent on `ZfpBitStream`, `ZfpBitStreamRef` and `ZfpBitStreamRefMut`, so the traits need not be in scope. This adds a dependency on `inherent`.
 - `ZfpBitStreamOps::{read_header, decompress, decompress_with_execution}` and `ZfpBitStreamMutOps::{write_header, compress, compress_with_execution}`, so `ZfpBitStreamRef` gains the decoding methods and `ZfpBitStreamRefMut` has all of them.
 - `ZfpBitStreamOps::overflowed`, which reports writes dropped past the end of the buffer, and `ZfpBitStreamOps::as_words`.
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - No function panics for any argument, as the crate documentation now states; the entries below list the panics removed. Clippy lints and `tests/panic_free.rs` enforce this.
 - **Breaking**: `ZfpField::{new, new_strided, from_raw}` and `ZfpFieldMut::{new, new_strided, from_raw}` validate the dimensions and buffer and return `Result<Self, ZfpFieldError>`, so a valid field no longer fails at compression time.
 - **Breaking**: `ZfpField{,Mut}::metadata` returns `ZfpFieldMetadata` (encode it with `to_bits`), and `set_metadata` takes one and returns `Result<(), ZfpFieldError>` instead of `bool`. `ZfpField::set_stride` is renamed `set_strides` and returns `Result<(), ZfpFieldError>`.
-- **Breaking**: `ZfpField{,Mut}::field_index_span` is renamed `index_span`, and `ZfpField::field_index_span_static` is replaced by `field::index_span` (`ffi`). `ZfpField{,Mut}::begin` is removed; use `data().as_ptr()`.
+- **Breaking**: `ZfpField{,Mut}::field_index_span` is renamed `index_span`, and `ZfpField::field_index_span_static` is replaced by `field::checked_index_span`. `ZfpField{,Mut}::begin` is removed; use `data().as_ptr()`.
 - **Breaking**: `ZfpCompressionError` is now `Field(ZfpFieldError)`, `BufferTooSmall`, `Metadata(ZfpMetadataError)` or `Config(ZfpConfigError)`, and `ZfpDecompressionError` is `Field(ZfpFieldError)` or `Truncated`. Both implement `Error::source` and `From` their inner errors.
 - **Breaking**: `decompress` and `decompress_with_execution` return `ZfpDecompressionError::Truncated` when decoding loads a word past the end of the buffer, instead of decoding the missing words as zeros. C reads past the capacity given to `stream_open` there, so the C ABI's `zfp_decompress` returns `0`. A stream missing only padding that decoding skips is not truncated, and returns its whole size, as in C. The count is of whole words, so a cut inside the last word of a stream from `ZfpBitStream::from_bytes`, which zero-pads it, is not seen.
 - **Breaking**: `ZfpMetadataError::Null` is renamed `InvalidDims` and also covers malformed dimensions such as `[0, 5, 0, 0]`. `ZfpMetadataError` and `ZfpHeaderError` are `#[non_exhaustive]`.
@@ -44,9 +44,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpBitStream::{new, from_bytes, into_bytes}` return `Result<_, ZfpAllocError>`. They panicked for a capacity beyond the address space, and aborted the process when the allocator failed. Rayon compression compresses serially if a chunk's buffer cannot be allocated, and the C ABI's `stream_open` and `stream_clone` return null, as their documentation says.
 - **Breaking**: `ZfpBitStream::write_header` takes `&ZfpFieldMetadata` instead of `&ZfpField`, and returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, writing nothing.
 - **Breaking**: `codec::block::{encode_block, decode_block}` take a `&ZfpConfig` after the stream, so blocks can be coded in any mode, not just unconstrained full precision. A reversible config codes every scalar type losslessly, and matches field compression. `{encode,decode}_block_reversible_{f32,f64}` are removed.
-- **Breaking**: The strided `codec::block` functions (`ffi`) take strides as `&[isize; 4]` and lengths as `[usize; 4]`, and the partial and reversible ones return `Result<usize, ZfpBlockError>`, rejecting a length outside `1..=4`. A slice shorter than the dimensionality panicked, a length above 4 indexed past the block, and a length of 0 read before the block's origin.
+- **Breaking**: The strided `codec::block` functions (`ffi`) take strides as `&[isize; 4]` and lengths as `[usize; 4]`, and the partial ones return `Result<usize, ZfpBlockError>`, rejecting a length outside `1..=4`. A slice shorter than the dimensionality panicked, a length above 4 indexed past the block, and a length of 0 read before the block's origin.
 - **Breaking**: `codec::promote::*` (`ffi`) return `Result<(), ZfpBlockError>`, rejecting a slice shorter than a block, which they indexed out of bounds.
-- **Breaking**: `codec::block::encode_block_strided_reversible` (`ffi`) and the block functions in `codec::{encode,decode}::reversible` (`internals`) take a `&ZfpConfig` instead of nothing or a `ZfpRounding`, so they can honour its limits.
+- **Breaking**: The block functions in `codec::{encode,decode}::reversible` (`internals`) take a `&ZfpConfig` instead of nothing or a `ZfpRounding`, so they can honour its limits.
+- **Breaking**: `codec::block::{encode,decode}_block_strided_reversible` are removed, as the strided block functions code a reversible config losslessly. `compress_bitstream`, `decompress_bitstream` and `read_header_bitstream` are removed; call the bitstream methods. `ZfpBitStreamOps::data_ptr` is removed; use `backing_words().as_ptr()`. All were behind `ffi`.
 
 ### Fixed
 
