@@ -58,7 +58,11 @@ pub trait BitStreamStorageMut: BitStreamStorage {
     /// The buffer and the cursor at once, for [`BitWriter`].
     fn split_mut(&mut self) -> (&mut [ZfpBitStreamWord], &mut BitStreamState);
 
-    /// Write the low bit of `bit` and return it (C `stream_write_bit`).
+    /// Write `bit` and return it (C `stream_write_bit`).
+    ///
+    /// `bit` must be 0 or 1. As in C, a larger value is added whole to the
+    /// buffer, setting bits above the cursor that later reads and writes carry
+    /// into.
     #[inline]
     fn put_bit(&mut self, bit: u32) -> u32 {
         write_bit_impl(self, bit)
