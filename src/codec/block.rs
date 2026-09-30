@@ -311,6 +311,72 @@ mod tests {
         written.decompress(&config, &mut field).unwrap();
     }
 
+    /// Lengths outside `1..=4` indexed past the block, or read before the
+    /// block's origin.
+    #[cfg(feature = "ffi")]
+    #[test]
+    fn strided_block_coding_rejects_lengths_outside_one_to_four() {
+        use super::{
+            decode_block_strided_reversible, decode_partial_block_strided,
+            encode_block_strided_reversible, encode_partial_block_strided,
+        };
+        use crate::ZfpBlockError;
+
+        let data = [1f32; 16];
+        let strides = [1, 4, 0, 0];
+        let d2 = ZfpDimensionality::D2;
+        for config in [ZfpConfig::fixed_precision(16), ZfpConfig::reversible()] {
+            for lengths in [[0, 4, 0, 0], [4, 5, 0, 0], [5, 1, 0, 0]] {
+                let mut bs = ZfpBitStream::new(1024).unwrap();
+                let mut out = [0f32; 16];
+                // SAFETY: the lengths are rejected before the block is touched.
+                unsafe {
+                    let ptr = data.as_ptr();
+                    let out_ptr = out.as_mut_ptr();
+                    assert_eq!(
+                        encode_partial_block_strided(&mut bs, ptr, d2, lengths, &strides, &config),
+                        Err(ZfpBlockError)
+                    );
+                    assert_eq!(
+                        encode_block_strided_reversible(
+                            &mut bs, ptr, d2, &strides, lengths, &config
+                        ),
+                        Err(ZfpBlockError)
+                    );
+                    assert_eq!(bs.write_pos(), 0);
+                    assert_eq!(
+                        decode_partial_block_strided(
+                            &mut bs, out_ptr, d2, lengths, &strides, &config
+                        ),
+                        Err(ZfpBlockError)
+                    );
+                    assert_eq!(
+                        decode_block_strided_reversible(
+                            &mut bs, out_ptr, d2, &strides, lengths, &config
+                        ),
+                        Err(ZfpBlockError)
+                    );
+                }
+                assert!(out.iter().all(|&x| x.to_bits() == 0));
+            }
+
+            // Lengths past the dimensionality are ignored.
+            let mut bs = ZfpBitStream::new(1024).unwrap();
+            // SAFETY: a 3 x 2 block of a 4 x 4 array lies within `data`.
+            let written = unsafe {
+                encode_partial_block_strided(
+                    &mut bs,
+                    data.as_ptr(),
+                    d2,
+                    [3, 2, 9, 0],
+                    &strides,
+                    &config,
+                )
+            };
+            assert!(written.is_ok_and(|bits| bits > 0));
+        }
+    }
+
     #[test]
     fn block_coding_rejects_wrong_lengths() {
         let config = ZfpConfig::reversible();

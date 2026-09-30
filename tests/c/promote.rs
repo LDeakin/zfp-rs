@@ -14,8 +14,8 @@ fn given_int8_when_promote_to_int32_expect_demote_to_int8_matches() {
     let mut block32 = vec![0i32; SZ];
     let mut oblock: Vec<i8> = vec![0i8; SZ];
 
-    promote::promote_i8_to_i32(&mut block32, &iblock, DIMS);
-    promote::demote_i32_to_i8(&mut oblock, &block32, DIMS);
+    promote::promote_i8_to_i32(&mut block32, &iblock, DIMS).unwrap();
+    promote::demote_i32_to_i8(&mut oblock, &block32, DIMS).unwrap();
 
     for i in 0..SZ {
         assert_eq!(iblock[i], oblock[i], "mismatch at index {i}");
@@ -28,8 +28,8 @@ fn given_uint8_when_promote_to_int32_expect_demote_to_uint8_matches() {
     let mut block32 = vec![0i32; SZ];
     let mut oblock: Vec<u8> = vec![0u8; SZ];
 
-    promote::promote_u8_to_i32(&mut block32, &iblock, DIMS);
-    promote::demote_i32_to_u8(&mut oblock, &block32, DIMS);
+    promote::promote_u8_to_i32(&mut block32, &iblock, DIMS).unwrap();
+    promote::demote_i32_to_u8(&mut oblock, &block32, DIMS).unwrap();
 
     for i in 0..SZ {
         assert_eq!(iblock[i], oblock[i], "mismatch at index {i}");
@@ -42,8 +42,8 @@ fn given_int16_when_promote_to_int32_expect_demote_to_int16_matches() {
     let mut block32 = vec![0i32; SZ];
     let mut oblock: Vec<i16> = vec![0i16; SZ];
 
-    promote::promote_i16_to_i32(&mut block32, &iblock, DIMS);
-    promote::demote_i32_to_i16(&mut oblock, &block32, DIMS);
+    promote::promote_i16_to_i32(&mut block32, &iblock, DIMS).unwrap();
+    promote::demote_i32_to_i16(&mut oblock, &block32, DIMS).unwrap();
 
     for i in 0..SZ {
         assert_eq!(iblock[i], oblock[i], "mismatch at index {i}");
@@ -56,8 +56,8 @@ fn given_uint16_when_promote_to_int32_expect_demote_to_uint16_matches() {
     let mut block32 = vec![0i32; SZ];
     let mut oblock: Vec<u16> = vec![0u16; SZ];
 
-    promote::promote_u16_to_i32(&mut block32, &iblock, DIMS);
-    promote::demote_i32_to_u16(&mut oblock, &block32, DIMS);
+    promote::promote_u16_to_i32(&mut block32, &iblock, DIMS).unwrap();
+    promote::demote_i32_to_u16(&mut oblock, &block32, DIMS).unwrap();
 
     for i in 0..SZ {
         assert_eq!(iblock[i], oblock[i], "mismatch at index {i}");

@@ -27,7 +27,8 @@ macro_rules! impl_promote {
             // SAFETY: caller guarantees oblock and iblock point to `count` elements
             let out = std::slice::from_raw_parts_mut(oblock, count);
             let inp = std::slice::from_raw_parts(iblock, count);
-            zfp_rs::codec::promote::$fn(out, inp, dims);
+            // The slices hold exactly a block, so this cannot fail.
+            let _ = zfp_rs::codec::promote::$fn(out, inp, dims);
         }
     };
 }
@@ -46,7 +47,8 @@ macro_rules! impl_demote {
             // SAFETY: caller guarantees oblock and iblock point to `count` elements
             let out = std::slice::from_raw_parts_mut(oblock, count);
             let inp = std::slice::from_raw_parts(iblock, count);
-            zfp_rs::codec::promote::$fn(out, inp, dims);
+            // The slices hold exactly a block, so this cannot fail.
+            let _ = zfp_rs::codec::promote::$fn(out, inp, dims);
         }
     };
 }

@@ -90,9 +90,7 @@ unsafe fn compress_typed<T: ZfpScalar>(
     config: &ZfpConfig,
     range: Range<usize>,
 ) {
-    use crate::codec::block::{
-        encode_block_strided, encode_block_strided_reversible, encode_partial_block_strided,
-    };
+    use crate::codec::block::{encode_block_strided, encode_partial, encode_reversible};
 
     let dims = info.dims_enum;
     let strides = &info.strides;
@@ -107,11 +105,11 @@ unsafe fn compress_typed<T: ZfpScalar>(
         unsafe {
             let block = base.add(offset);
             if reversible {
-                encode_block_strided_reversible(bs, block, dims, strides, lengths, config);
+                encode_reversible(bs, block, dims, strides, lengths, config);
             } else if info.is_full(lengths) {
                 encode_block_strided(bs, block, dims, strides, config);
             } else {
-                encode_partial_block_strided(bs, block, dims, &lengths, strides, config);
+                encode_partial(bs, block, dims, lengths, strides, config);
             }
         }
     }

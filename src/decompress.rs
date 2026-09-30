@@ -97,9 +97,7 @@ unsafe fn decompress_typed<T: ZfpScalar>(
     range: Range<usize>,
     seek: Option<(u64, u64)>,
 ) {
-    use crate::codec::block::{
-        decode_block_strided, decode_block_strided_reversible, decode_partial_block_strided,
-    };
+    use crate::codec::block::{decode_block_strided, decode_partial, decode_reversible};
 
     let dims = info.dims_enum;
     let strides = &info.strides;
@@ -118,11 +116,11 @@ unsafe fn decompress_typed<T: ZfpScalar>(
         unsafe {
             let block = base.add(offset);
             if reversible {
-                decode_block_strided_reversible(bs, block, dims, strides, lengths, config);
+                decode_reversible(bs, block, dims, strides, lengths, config);
             } else if info.is_full(lengths) {
                 decode_block_strided(bs, block, dims, strides, config);
             } else {
-                decode_partial_block_strided(bs, block, dims, &lengths, strides, config);
+                decode_partial(bs, block, dims, lengths, strides, config);
             }
         }
     }

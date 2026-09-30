@@ -390,7 +390,7 @@ reversible_block_encode_compat!(
     i32,
     any::<i32>(),
     ZfpDimensionality::D1,
-    [1],
+    [1, 0, 0, 0],
     zfp_sys::zfp_encode_block_int32_1
 );
 reversible_block_encode_compat!(
@@ -398,7 +398,7 @@ reversible_block_encode_compat!(
     i64,
     any::<i64>(),
     ZfpDimensionality::D2,
-    [1, 4],
+    [1, 4, 0, 0],
     zfp_sys::zfp_encode_block_int64_2
 );
 reversible_block_encode_compat!(
@@ -406,7 +406,7 @@ reversible_block_encode_compat!(
     f32,
     comparable_f32(),
     ZfpDimensionality::D3,
-    [1, 4, 16],
+    [1, 4, 16, 0],
     zfp_sys::zfp_encode_block_float_3
 );
 reversible_block_encode_compat!(

@@ -41,6 +41,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `ZfpBitStream::{new, from_bytes, into_bytes}` return `Result<_, ZfpAllocError>`. They panicked for a capacity beyond the address space, and aborted the process when the allocator failed. Rayon compression compresses serially if a chunk's buffer cannot be allocated, and the C ABI's `stream_open` and `stream_clone` return null, as their documentation says.
 - **Breaking**: `ZfpBitStream::write_header` takes `&ZfpFieldMetadata` instead of `&ZfpField`, and returns `Result<usize, ZfpCompressionError>` instead of `0` on failure, writing nothing.
 - **Breaking**: `codec::block::{encode_block, decode_block}` take a `&ZfpConfig` after the stream, so blocks can be coded in any mode, not just unconstrained full precision. A reversible config codes every scalar type losslessly, and matches field compression. `{encode,decode}_block_reversible_{f32,f64}` are removed.
+- **Breaking**: The strided `codec::block` functions (`ffi`) take strides as `&[isize; 4]` and lengths as `[usize; 4]`, and the partial and reversible ones return `Result<usize, ZfpBlockError>`, rejecting a length outside `1..=4`. A slice shorter than the dimensionality panicked, a length above 4 indexed past the block, and a length of 0 read before the block's origin.
+- **Breaking**: `codec::promote::*` (`ffi`) return `Result<(), ZfpBlockError>`, rejecting a slice shorter than a block, which they indexed out of bounds.
 - **Breaking**: `codec::block::encode_block_strided_reversible` (`ffi`) and the block functions in `codec::{encode,decode}::reversible` (`internals`) take a `&ZfpConfig` instead of nothing or a `ZfpRounding`, so they can honour its limits.
 
 ### Fixed

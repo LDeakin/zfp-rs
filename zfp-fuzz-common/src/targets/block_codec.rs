@@ -140,16 +140,10 @@ fn typed<T: FuzzScalar>(
     let written = unsafe {
         let block = src.as_ptr().add(origin);
         if partial {
-            encode_partial_block_strided(
-                &mut bs,
-                block,
-                dims,
-                &effective[..rank],
-                &strides[..rank],
-                &config,
-            )
+            encode_partial_block_strided(&mut bs, block, dims, *effective, strides, &config)
+                .expect("the lengths are in 1..=4")
         } else {
-            encode_block_strided(&mut bs, block, dims, &strides[..rank], &config)
+            encode_block_strided(&mut bs, block, dims, strides, &config)
         }
     };
     assert!(
@@ -172,16 +166,10 @@ fn typed<T: FuzzScalar>(
     unsafe {
         let block = dst.as_mut_ptr().add(origin);
         if partial {
-            decode_partial_block_strided(
-                &mut bs,
-                block,
-                dims,
-                &effective[..rank],
-                &strides[..rank],
-                &config,
-            )
+            decode_partial_block_strided(&mut bs, block, dims, *effective, strides, &config)
+                .expect("the lengths are in 1..=4")
         } else {
-            decode_block_strided(&mut bs, block, dims, &strides[..rank], &config)
+            decode_block_strided(&mut bs, block, dims, strides, &config)
         };
     }
 

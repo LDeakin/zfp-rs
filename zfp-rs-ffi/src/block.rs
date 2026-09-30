@@ -40,9 +40,9 @@ macro_rules! impl_encode_block_1d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
-                &[1],
+                &[1, 0, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -64,9 +64,9 @@ macro_rules! impl_encode_block_2d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
-                &[1, 4],
+                &[1, 4, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -88,9 +88,9 @@ macro_rules! impl_encode_block_3d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
-                &[1, 4, 16],
+                &[1, 4, 16, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -114,7 +114,7 @@ macro_rules! impl_encode_block_4d {
                 ZfpDimensionality::D4,
                 &[1, 4, 16, 64],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -140,9 +140,9 @@ macro_rules! impl_decode_block_1d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
-                &[1],
+                &[1, 0, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -164,9 +164,9 @@ macro_rules! impl_decode_block_2d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
-                &[1, 4],
+                &[1, 4, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -188,9 +188,9 @@ macro_rules! impl_decode_block_3d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
-                &[1, 4, 16],
+                &[1, 4, 16, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -214,7 +214,7 @@ macro_rules! impl_decode_block_4d {
                 ZfpDimensionality::D4,
                 &[1, 4, 16, 64],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -244,9 +244,9 @@ macro_rules! impl_encode_block_strided_1d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
-                &[stride],
+                &[stride, 0, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -273,9 +273,9 @@ macro_rules! impl_encode_block_strided_2d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
-                &[stride_x, stride_y],
+                &[stride_x, stride_y, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -303,9 +303,9 @@ macro_rules! impl_encode_block_strided_3d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
-                &[stride_x, stride_y, stride_z],
+                &[stride_x, stride_y, stride_z, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -336,7 +336,7 @@ macro_rules! impl_encode_block_strided_4d {
                 ZfpDimensionality::D4,
                 &[stride_x, stride_y, stride_z, stride_w],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -367,10 +367,11 @@ macro_rules! impl_encode_partial_block_strided_1d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
-                &[lx],
-                &[stride],
+                [lx, 0, 0, 0],
+                &[stride, 0, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }
@@ -399,10 +400,11 @@ macro_rules! impl_encode_partial_block_strided_2d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
-                &[lx, ly],
-                &[stride_x, stride_y],
+                [lx, ly, 0, 0],
+                &[stride_x, stride_y, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }
@@ -433,10 +435,11 @@ macro_rules! impl_encode_partial_block_strided_3d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
-                &[lx, ly, lz],
-                &[stride_x, stride_y, stride_z],
+                [lx, ly, lz, 0],
+                &[stride_x, stride_y, stride_z, 0],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }
@@ -478,10 +481,11 @@ macro_rules! impl_encode_partial_block_strided_4d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
-                &[lx, ly, lz, lw],
+                [lx, ly, lz, lw],
                 &[stride_x, stride_y, stride_z, stride_w],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }
@@ -511,9 +515,9 @@ macro_rules! impl_decode_block_strided_1d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
-                &[stride],
+                &[stride, 0, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -540,9 +544,9 @@ macro_rules! impl_decode_block_strided_2d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
-                &[stride_x, stride_y],
+                &[stride_x, stride_y, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -570,9 +574,9 @@ macro_rules! impl_decode_block_strided_3d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
-                &[stride_x, stride_y, stride_z],
+                &[stride_x, stride_y, stride_z, 0],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -603,7 +607,7 @@ macro_rules! impl_decode_block_strided_4d {
                 ZfpDimensionality::D4,
                 &[stride_x, stride_y, stride_z, stride_w],
                 &ctx.config,
-            ) as usize
+            )
         }
     };
 }
@@ -634,10 +638,11 @@ macro_rules! impl_decode_partial_block_strided_1d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D1,
-                &[lx],
-                &[stride],
+                [lx, 0, 0, 0],
+                &[stride, 0, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }
@@ -666,10 +671,11 @@ macro_rules! impl_decode_partial_block_strided_2d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D2,
-                &[lx, ly],
-                &[stride_x, stride_y],
+                [lx, ly, 0, 0],
+                &[stride_x, stride_y, 0, 0],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }
@@ -700,10 +706,11 @@ macro_rules! impl_decode_partial_block_strided_3d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D3,
-                &[lx, ly, lz],
-                &[stride_x, stride_y, stride_z],
+                [lx, ly, lz, 0],
+                &[stride_x, stride_y, stride_z, 0],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }
@@ -745,10 +752,11 @@ macro_rules! impl_decode_partial_block_strided_4d {
                 ctx.bs,
                 block,
                 ZfpDimensionality::D4,
-                &[lx, ly, lz, lw],
+                [lx, ly, lz, lw],
                 &[stride_x, stride_y, stride_z, stride_w],
                 &ctx.config,
-            ) as usize
+            )
+            .unwrap_or(0)
         }
     };
 }

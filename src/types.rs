@@ -96,16 +96,20 @@ impl std::error::Error for ZfpAllocError {}
 // Block errors
 // ---------------------------------------------------------------------------
 
-/// Errors that can occur during block-level encode/decode.
+/// A block's data or lengths do not suit its dimensionality.
 ///
-/// Returned by the public block codec functions in
-/// [`codec::block`][crate::codec::block].
+/// Returned by the block codec functions in
+/// [`codec::block`][crate::codec::block] for a slice that is not one block
+/// long, or a partial block with a length outside `1..=4`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ZfpBlockError;
 
 impl fmt::Display for ZfpBlockError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "data slice length does not match expected block size")
+        write!(
+            f,
+            "block data or lengths do not match the block's dimensionality"
+        )
     }
 }
 
