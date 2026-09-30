@@ -412,7 +412,7 @@ macro_rules! strided_encode_wrappers {
         full_rate: $full_rate:ident,
         partial_rate: $partial_rate:ident,
         encode: $encode:ident,
-        encode_default: $encode_default:ident $(,)?
+        default: $default:expr $(,)?
     ) => {
         /// Encode a strided block; return bits written.
         ///
@@ -426,7 +426,7 @@ macro_rules! strided_encode_wrappers {
             $($s: isize,)+
         ) -> usize {
             let block = unsafe { $gather(data, $($s),+) };
-            $encode_default(bs, &block)
+            $encode(bs, &block, &$default)
         }
 
         /// Encode a partial (boundary) strided block; return bits written.
@@ -442,7 +442,7 @@ macro_rules! strided_encode_wrappers {
             $($s: isize,)+
         ) -> usize {
             let block = unsafe { $gather_partial(data, $($n,)+ $($s),+) };
-            $encode_default(bs, &block)
+            $encode(bs, &block, &$default)
         }
 
         /// Encode a strided block with explicit stream parameters.

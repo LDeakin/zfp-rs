@@ -98,58 +98,6 @@ pub(crate) unsafe fn gather_partial_4d<T: Copy + Default>(
 }
 
 // ---------------------------------------------------------------------------
-// Public API: contiguous
-// ---------------------------------------------------------------------------
-
-#[cfg(feature = "internals")]
-pub fn encode_block_4d_i32_default(
-    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i32; 256],
-) -> usize {
-    encode_block_4d_i32(
-        bs,
-        block,
-        &ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D4),
-    )
-}
-
-#[cfg(feature = "internals")]
-pub fn encode_block_4d_i64_default(
-    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[i64; 256],
-) -> usize {
-    encode_block_4d_i64(
-        bs,
-        block,
-        &ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D4),
-    )
-}
-
-#[cfg(feature = "internals")]
-pub fn encode_block_4d_f32_default(
-    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[f32; 256],
-) -> usize {
-    encode_block_4d_f32(
-        bs,
-        block,
-        &ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D4),
-    )
-}
-
-#[cfg(feature = "internals")]
-pub fn encode_block_4d_f64_default(
-    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
-    block: &[f64; 256],
-) -> usize {
-    encode_block_4d_f64(
-        bs,
-        block,
-        &ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D4),
-    )
-}
-
-// ---------------------------------------------------------------------------
 // Strided block encode (generated)
 // ---------------------------------------------------------------------------
 
@@ -164,7 +112,7 @@ strided_encode_wrappers! {
     full_rate: encode_block_strided_4d_f64_rate,
     partial_rate: encode_partial_block_strided_4d_f64_rate,
     encode: encode_block_4d_f64,
-    encode_default: encode_block_4d_f64_default,
+    default: ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D4),
 }
 
 strided_encode_wrappers! {
@@ -178,7 +126,7 @@ strided_encode_wrappers! {
     full_rate: encode_block_strided_4d_f32_rate,
     partial_rate: encode_partial_block_strided_4d_f32_rate,
     encode: encode_block_4d_f32,
-    encode_default: encode_block_4d_f32_default,
+    default: ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D4),
 }
 
 strided_encode_wrappers! {
@@ -192,7 +140,7 @@ strided_encode_wrappers! {
     full_rate: encode_block_strided_4d_i32_rate,
     partial_rate: encode_partial_block_strided_4d_i32_rate,
     encode: encode_block_4d_i32,
-    encode_default: encode_block_4d_i32_default,
+    default: ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D4),
 }
 
 strided_encode_wrappers! {
@@ -206,5 +154,5 @@ strided_encode_wrappers! {
     full_rate: encode_block_strided_4d_i64_rate,
     partial_rate: encode_partial_block_strided_4d_i64_rate,
     encode: encode_block_4d_i64,
-    encode_default: encode_block_4d_i64_default,
+    default: ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D4),
 }

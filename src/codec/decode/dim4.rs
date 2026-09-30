@@ -67,56 +67,6 @@ unsafe fn scatter_partial_4d<T: Copy>(
     }
 }
 
-// Contiguous
-#[cfg(feature = "internals")]
-pub fn decode_block_4d_i32_default(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i32; 256],
-) -> usize {
-    let before = bs.read_pos();
-    *block = decode_block_4d_i32(
-        bs,
-        &ZfpConfig::block_default(ZfpScalarType::I32, ZfpDimensionality::D4),
-    );
-    bs.read_pos().wrapping_sub(before) as usize
-}
-#[cfg(feature = "internals")]
-pub fn decode_block_4d_i64_default(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i64; 256],
-) -> usize {
-    let before = bs.read_pos();
-    *block = decode_block_4d_i64(
-        bs,
-        &ZfpConfig::block_default(ZfpScalarType::I64, ZfpDimensionality::D4),
-    );
-    bs.read_pos().wrapping_sub(before) as usize
-}
-#[cfg(feature = "internals")]
-pub fn decode_block_4d_f32_default(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f32; 256],
-) -> usize {
-    let before = bs.read_pos();
-    *block = decode_block_4d_f32(
-        bs,
-        &ZfpConfig::block_default(ZfpScalarType::F32, ZfpDimensionality::D4),
-    );
-    bs.read_pos().wrapping_sub(before) as usize
-}
-#[cfg(feature = "internals")]
-pub fn decode_block_4d_f64_default(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f64; 256],
-) -> usize {
-    let before = bs.read_pos();
-    *block = decode_block_4d_f64(
-        bs,
-        &ZfpConfig::block_default(ZfpScalarType::F64, ZfpDimensionality::D4),
-    );
-    bs.read_pos().wrapping_sub(before) as usize
-}
-
 // ---------------------------------------------------------------------------
 // Strided block decode (generated)
 // ---------------------------------------------------------------------------
