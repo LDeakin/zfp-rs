@@ -97,43 +97,16 @@ pub fn decode_block<T: ZfpScalar>(
 // Slice-to-array conversion helpers
 // ---------------------------------------------------------------------------
 
-/// Reinterpret a `&mut [T]` slice as a `[U; 4]` array for 1-D blocks.
+/// Reinterpret a `&mut [T]` slice as a `[U; N]` block.
 ///
 /// # Errors
 ///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 4, or `T` and `U` differ
+/// Returns [`ZfpBlockError`] if `data.len()` is not `N`, or `T` and `U` differ
 /// in size or alignment.
 #[inline]
-pub(crate) fn as_typed_block_1d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
+pub(crate) fn as_typed_block_mut<T: bytemuck::Pod, U: bytemuck::Pod, const N: usize>(
     data: &mut [T],
-) -> Result<&'_ mut [U; 4], ZfpBlockError> {
-    let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
-    slice.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// As [`as_typed_block_1d_mut`], for a `[U; 16]` array for 2-D blocks.
-#[inline]
-pub(crate) fn as_typed_block_2d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
-    data: &mut [T],
-) -> Result<&'_ mut [U; 16], ZfpBlockError> {
-    let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
-    slice.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// As [`as_typed_block_1d_mut`], for a `[U; 64]` array for 3-D blocks.
-#[inline]
-pub(crate) fn as_typed_block_3d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
-    data: &mut [T],
-) -> Result<&'_ mut [U; 64], ZfpBlockError> {
-    let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
-    slice.try_into().map_err(|_| ZfpBlockError)
-}
-
-/// As [`as_typed_block_1d_mut`], for a `[U; 256]` array for 4-D blocks.
-#[inline]
-pub(crate) fn as_typed_block_4d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
-    data: &mut [T],
-) -> Result<&'_ mut [U; 256], ZfpBlockError> {
+) -> Result<&'_ mut [U; N], ZfpBlockError> {
     let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }

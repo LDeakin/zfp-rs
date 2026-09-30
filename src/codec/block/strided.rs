@@ -8,9 +8,7 @@
 //! block origin, mirroring the C `zfp_{en,de}code_block_strided_*` API. See the
 //! [`crate::codec::block`] docs for the provenance the caller must supply.
 
-use super::{
-    as_typed_block_1d_mut, as_typed_block_2d_mut, as_typed_block_3d_mut, as_typed_block_4d_mut,
-};
+use super::as_typed_block_mut;
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
 use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
@@ -122,186 +120,29 @@ macro_rules! typed_block {
 }
 
 /// Expand the reversible dispatch over the contiguous block `with_gathered`
-/// produced (encode) or `with_scattered` will scatter (decode).
+/// produced (encode) or `with_scattered` will scatter (decode). Each
+/// dimensionality lists its block length and its coders for `i32`, `i64`,
+/// `f32` and `f64`.
 macro_rules! reversible_dispatch {
     (
-        encode $bs:ident, $dims:ident, $block:ident, $config:ident,
-        d1: [$i1:path, $q1:path, $f1:path, $g1:path $(,)?],
-        d2: [$i2:path, $q2:path, $f2:path, $g2:path $(,)?],
-        d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
-        d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
+        $bs:ident, $dims:ident, $block:ident, $config:ident,
+        $($d:ident($n:literal): [$i:path, $q:path, $f:path, $g:path $(,)?]),+ $(,)?
     ) => {
         match (T::SCALAR_TYPE, $dims) {
-            (ZfpScalarType::I32, ZfpDimensionality::D1) => $i1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D1) => $q1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D1) => $f1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D1) => $g1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I32, ZfpDimensionality::D2) => $i2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D2) => $q2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D2) => $f2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D2) => $g2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I32, ZfpDimensionality::D3) => $i3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D3) => $q3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D3) => $f3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D3) => $g3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I32, ZfpDimensionality::D4) => $i4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D4) => $q4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D4) => $f4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D4) => $g4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
-        }
-    };
-    (
-        decode $bs:ident, $dims:ident, $block:ident, $config:ident,
-        d1: [$i1:path, $q1:path, $f1:path, $g1:path $(,)?],
-        d2: [$i2:path, $q2:path, $f2:path, $g2:path $(,)?],
-        d3: [$i3:path, $q3:path, $f3:path, $g3:path $(,)?],
-        d4: [$i4:path, $q4:path, $f4:path, $g4:path $(,)?] $(,)?
-    ) => {
-        match (T::SCALAR_TYPE, $dims) {
-            (ZfpScalarType::I32, ZfpDimensionality::D1) => $i1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D1) => $q1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D1) => $f1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D1) => $g1(
-                $bs,
-                typed_block!(as_typed_block_1d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I32, ZfpDimensionality::D2) => $i2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D2) => $q2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D2) => $f2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D2) => $g2(
-                $bs,
-                typed_block!(as_typed_block_2d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I32, ZfpDimensionality::D3) => $i3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D3) => $q3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D3) => $f3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D3) => $g3(
-                $bs,
-                typed_block!(as_typed_block_3d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I32, ZfpDimensionality::D4) => $i4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, i32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::I64, ZfpDimensionality::D4) => $q4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, i64>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F32, ZfpDimensionality::D4) => $f4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, f32>(&mut $block)),
-                $config,
-            ),
-            (ZfpScalarType::F64, ZfpDimensionality::D4) => $g4(
-                $bs,
-                typed_block!(as_typed_block_4d_mut::<T, f64>(&mut $block)),
-                $config,
-            ),
+            $(
+                (ZfpScalarType::I32, ZfpDimensionality::$d) => {
+                    $i($bs, typed_block!(as_typed_block_mut::<T, i32, $n>(&mut *$block)), $config)
+                }
+                (ZfpScalarType::I64, ZfpDimensionality::$d) => {
+                    $q($bs, typed_block!(as_typed_block_mut::<T, i64, $n>(&mut *$block)), $config)
+                }
+                (ZfpScalarType::F32, ZfpDimensionality::$d) => {
+                    $f($bs, typed_block!(as_typed_block_mut::<T, f32, $n>(&mut *$block)), $config)
+                }
+                (ZfpScalarType::F64, ZfpDimensionality::$d) => {
+                    $g($bs, typed_block!(as_typed_block_mut::<T, f64, $n>(&mut *$block)), $config)
+                }
+            )+
         }
     };
 }
@@ -471,28 +312,28 @@ pub(crate) unsafe fn encode_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::encode::reversible as rev;
 
-        with_gathered(data, dims, strides, lengths, |mut block: &mut [T]| {
+        with_gathered(data, dims, strides, lengths, |block: &mut [T]| {
             reversible_dispatch! {
-                encode bs, dims, block, config,
-                d1: [
+                bs, dims, block, config,
+                D1(4): [
                     rev::encode_block_reversible_1d_i32,
                     rev::encode_block_reversible_1d_i64,
                     rev::encode_block_reversible_1d_f32,
                     rev::encode_block_reversible_1d_f64,
                 ],
-                d2: [
+                D2(16): [
                     rev::encode_block_reversible_2d_i32,
                     rev::encode_block_reversible_2d_i64,
                     rev::encode_block_reversible_2d_f32,
                     rev::encode_block_reversible_2d_f64,
                 ],
-                d3: [
+                D3(64): [
                     rev::encode_block_reversible_3d_i32,
                     rev::encode_block_reversible_3d_i64,
                     rev::encode_block_reversible_3d_f32,
                     rev::encode_block_reversible_3d_f64,
                 ],
-                d4: [
+                D4(256): [
                     rev::encode_block_reversible_4d_i32,
                     rev::encode_block_reversible_4d_i64,
                     rev::encode_block_reversible_4d_f32,
@@ -545,28 +386,28 @@ pub(crate) unsafe fn decode_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::decode::reversible as rev;
 
-        with_scattered(data, dims, strides, lengths, |mut block: &mut [T]| {
+        with_scattered(data, dims, strides, lengths, |block: &mut [T]| {
             reversible_dispatch! {
-                decode bs, dims, block, config,
-                d1: [
+                bs, dims, block, config,
+                D1(4): [
                     rev::decode_block_reversible_1d_i32,
                     rev::decode_block_reversible_1d_i64,
                     rev::decode_block_reversible_1d_f32,
                     rev::decode_block_reversible_1d_f64,
                 ],
-                d2: [
+                D2(16): [
                     rev::decode_block_reversible_2d_i32,
                     rev::decode_block_reversible_2d_i64,
                     rev::decode_block_reversible_2d_f32,
                     rev::decode_block_reversible_2d_f64,
                 ],
-                d3: [
+                D3(64): [
                     rev::decode_block_reversible_3d_i32,
                     rev::decode_block_reversible_3d_i64,
                     rev::decode_block_reversible_3d_f32,
                     rev::decode_block_reversible_3d_f64,
                 ],
-                d4: [
+                D4(256): [
                     rev::decode_block_reversible_4d_i32,
                     rev::decode_block_reversible_4d_i64,
                     rev::decode_block_reversible_4d_f32,
