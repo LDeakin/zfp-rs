@@ -122,7 +122,7 @@ macro_rules! typed_block {
     };
 }
 
-/// Expand the reversible dispatch over the contiguous block `gather_block`
+/// Expand the reversible dispatch over the contiguous block `with_gathered`
 /// produced (encode) or `scatter_block` will consume (decode).
 macro_rules! reversible_dispatch {
     (
@@ -311,101 +311,47 @@ macro_rules! reversible_dispatch {
 // Reversible gather+encode helpers for compress
 // ---------------------------------------------------------------------------
 
-/// Gather a 4^d contiguous block from strided data.
+/// Run `f` on the 4^d block gathered from strided data.
 ///
 /// `dims` is 1–4, `strides` has effective (non-zero) strides.
 /// For partial blocks, `lengths` gives the count per dimension (1–4), and
-/// elements outside the field boundary are padded with the nearest value.
+/// elements outside the field boundary are padded as C's `pad_block` does, by
+/// the same gathers the lossy coder uses.
 ///
 /// # Safety
-/// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
-#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
-#[expect(
-    clippy::arithmetic_side_effects,
-    reason = "the lengths are at least 1, and the offsets lie in the span the caller's contract covers"
-)]
-unsafe fn gather_block<T: ZfpScalar>(
+/// Each of the first `dims` entries of `lengths` must be in 1..=4, and `data`
+/// must be valid for every offset the strides generate over those lengths. See
+/// the [`crate::codec::block`] module documentation.
+unsafe fn with_gathered<T: ZfpScalar, R>(
     data: *const T,
     dims: ZfpDimensionality,
     strides: &[isize; 4],
     lengths: [usize; 4],
-    block: &mut [T],
-) {
-    // Map a block index `i` (0..4) with `n` valid elements to the source data index.
-    // Mirrors C's `pad_block`: position 3 always comes from position 0; positions
-    // n..2 come from position n-1; positions 0..n are the real data.
-    fn pad_idx(i: isize, n: isize) -> isize {
-        if i < n {
-            i
-        } else if i == 3 {
-            0
-        } else {
-            n - 1
-        }
-    }
+    f: impl FnOnce(&mut [T]) -> R,
+) -> R {
+    use crate::codec::encode::{dim1, dim2, dim3, dim4};
 
-    debug_assert_eq!(block.len(), dims.block_size());
     let [sx, sy, sz, sw] = *strides;
-    let [lx, ly, lz, lw] = lengths.map(|n| n as isize);
-    // The block holds exactly 4^d values, so `values` yields one for every
-    // index the loops visit.
-    let mut values = block.iter_mut();
-    match dims {
-        ZfpDimensionality::D1 => {
-            for x in 0..4isize {
-                let px = pad_idx(x, lx);
-                if let Some(value) = values.next() {
-                    // SAFETY: px is a valid source index within [0, lx-1].
-                    *value = unsafe { *data.offset(px * sx) };
-                }
-            }
-        }
-        ZfpDimensionality::D2 => {
-            for y in 0..4isize {
-                let py = pad_idx(y, ly);
-                for x in 0..4isize {
-                    let px = pad_idx(x, lx);
-                    if let Some(value) = values.next() {
-                        // SAFETY: px, py are valid source indices.
-                        *value = unsafe { *data.offset(px * sx + py * sy) };
-                    }
-                }
-            }
-        }
-        ZfpDimensionality::D3 => {
-            for z in 0..4isize {
-                let pz = pad_idx(z, lz);
-                for y in 0..4isize {
-                    let py = pad_idx(y, ly);
-                    for x in 0..4isize {
-                        let px = pad_idx(x, lx);
-                        if let Some(value) = values.next() {
-                            // SAFETY: px, py, pz are valid source indices.
-                            *value = unsafe { *data.offset(px * sx + py * sy + pz * sz) };
-                        }
-                    }
-                }
-            }
-        }
-        ZfpDimensionality::D4 => {
-            for w in 0..4isize {
-                let pw = pad_idx(w, lw);
-                for z in 0..4isize {
-                    let pz = pad_idx(z, lz);
-                    for y in 0..4isize {
-                        let py = pad_idx(y, ly);
-                        for x in 0..4isize {
-                            let px = pad_idx(x, lx);
-                            if let Some(value) = values.next() {
-                                // SAFETY: px, py, pz, pw are valid source indices.
-                                *value =
-                                    unsafe { *data.offset(px * sx + py * sy + pz * sz + pw * sw) };
-                            }
-                        }
-                    }
-                }
-            }
+    let [lx, ly, lz, lw] = lengths;
+    // A whole block has nothing to pad, and its gather has fixed bounds.
+    let whole = lengths
+        .iter()
+        .take(usize::from(dims))
+        .all(|&length| length == 4);
+    // SAFETY: the caller's contract, which bounds the lengths as the partial
+    // gathers require.
+    unsafe {
+        match dims {
+            ZfpDimensionality::D1 if whole => f(&mut dim1::gather_1d(data, sx)),
+            ZfpDimensionality::D1 => f(&mut dim1::gather_partial_1d(data, lx, sx)),
+            ZfpDimensionality::D2 if whole => f(&mut dim2::gather_2d(data, sx, sy)),
+            ZfpDimensionality::D2 => f(&mut dim2::gather_partial_2d(data, lx, ly, sx, sy)),
+            ZfpDimensionality::D3 if whole => f(&mut dim3::gather_3d(data, sx, sy, sz)),
+            ZfpDimensionality::D3 => f(&mut dim3::gather_partial_3d(data, lx, ly, lz, sx, sy, sz)),
+            ZfpDimensionality::D4 if whole => f(&mut dim4::gather_4d(data, sx, sy, sz, sw)),
+            ZfpDimensionality::D4 => f(&mut dim4::gather_partial_4d(
+                data, lx, ly, lz, lw, sx, sy, sz, sw,
+            )),
         }
     }
 }
@@ -540,8 +486,7 @@ pub(crate) unsafe fn encode_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::encode::reversible as rev;
 
-        with_block(dims, |block: &mut [T]| {
-            gather_block(data, dims, strides, lengths, block);
+        with_gathered(data, dims, strides, lengths, |block: &mut [T]| {
             reversible_dispatch! {
                 encode bs, dims, block, config,
                 d1: [
@@ -1025,8 +970,8 @@ mod tests {
                     unsafe {
                         let want = expected(ptr, dims, strides, lengths);
 
-                        let mut reversible = vec![0.0; dims.block_size()];
-                        gather_block(ptr, dims, &strides, lengths, &mut reversible);
+                        let reversible =
+                            with_gathered(ptr, dims, &strides, lengths, |block| block.to_vec());
                         assert_eq!(reversible, want, "reversible: {context}");
 
                         let lossy = match dims {

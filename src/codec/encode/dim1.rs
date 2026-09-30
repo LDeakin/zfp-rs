@@ -19,7 +19,7 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 ///
 /// # Safety
 /// Caller must ensure `data` spans at least 4 elements with stride `sx`.
-unsafe fn gather_1d<T: Copy + Default>(data: *const T, sx: isize) -> [T; 4] {
+pub(crate) unsafe fn gather_1d<T: Copy + Default>(data: *const T, sx: isize) -> [T; 4] {
     let mut block = [T::default(); 4];
     for (dst, x) in block.iter_mut().zip(0isize..4) {
         // SAFETY: caller guarantees valid strides

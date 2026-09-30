@@ -21,7 +21,12 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 /// # Safety
 /// The caller must ensure the array spans at least 4 elements in each
 /// dimension with the given strides.
-unsafe fn gather_3d<T: Copy + Default>(data: *const T, sx: isize, sy: isize, sz: isize) -> [T; 64] {
+pub(crate) unsafe fn gather_3d<T: Copy + Default>(
+    data: *const T,
+    sx: isize,
+    sy: isize,
+    sz: isize,
+) -> [T; 64] {
     let mut block = [T::default(); 64];
     let mut q = 0usize;
     for z in 0isize..4 {
