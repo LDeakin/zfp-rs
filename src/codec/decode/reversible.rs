@@ -37,65 +37,52 @@ const TCMASK_F64: u64 = 0x7fff_ffff_ffff_ffff;
 const NO_ROUNDING: ZfpRounding = ZfpRounding::Never;
 
 // ---------------------------------------------------------------------------
-// rev_decode_int_block: shared integer reversible-decode helper
+// rev_decode_int_block_u32 / u64: shared integer reversible-decode helpers
 // ---------------------------------------------------------------------------
 
-/// Decode a reversibly-encoded integer block into `iblock`.
-/// Returns bits read. Callers skip the whole block's padding to `min_bits`,
-/// which keeps it out of the plane loop.
-fn rev_decode_int_block_u32<const N: usize>(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    iblock: &mut [i32; N],
-    perm: &[u8; N],
-) -> u32
-where
-    [u32; N]: PlaneBlock,
-{
-    // Read prec-1 (PBITS_32 bits), then prec = bits+1
-    let prec_minus_1 = bs.read_bits(PBITS_32) as u32;
-    let prec = prec_minus_1 + 1;
+/// Generate a helper that decodes a reversibly-encoded integer block into
+/// `iblock`, and returns the bits it reads.
+///
+/// Callers skip the whole block's padding to `min_bits`, which keeps it out of
+/// the plane loop. A macro rather than a generic function, as for
+/// `decode_int_block!`.
+macro_rules! rev_decode_int_block {
+    ($name:ident, $int:ty, $uint:ty, $pbits:ident, $inv_order:ident) => {
+        fn $name<const N: usize>(
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
+            maxbits: u32,
+            iblock: &mut [$int; N],
+            perm: &[u8; N],
+        ) -> u32
+        where
+            [$uint; N]: PlaneBlock,
+        {
+            // Read prec-1, then prec = bits+1
+            let prec_minus_1 = bs.read_bits($pbits) as u32;
+            let prec = prec_minus_1 + 1;
 
-    // A budget that cannot bind, the usual case, is passed as a constant,
-    // which lets the plane coder drop its budget checks. Each arm reorders its
-    // own block, as merging the two blocks would copy them.
-    let maxbits = maxbits.saturating_sub(PBITS_32);
-    let ubits = if with_maxbits(maxbits, prec, <[u32; N]>::SIZE) {
-        let (ublock, ubits) = decode_bounded::<[u32; N]>(bs, maxbits, prec);
-        inv_order_i32(&ublock, iblock, perm);
-        ubits
-    } else {
-        let (ublock, ubits, _) = decode_ints::<[u32; N], false>(bs, u32::MAX, prec, NO_ROUNDING);
-        inv_order_i32(&ublock, iblock, perm);
-        ubits
+            // A budget that cannot bind, the usual case, is passed as a
+            // constant, which lets the plane coder drop its budget checks.
+            // Each arm reorders its own block, as merging the two blocks would
+            // copy them.
+            let maxbits = maxbits.saturating_sub($pbits);
+            let ubits = if with_maxbits(maxbits, prec, <[$uint; N]>::SIZE) {
+                let (ublock, ubits) = decode_bounded::<[$uint; N]>(bs, maxbits, prec);
+                $inv_order(&ublock, iblock, perm);
+                ubits
+            } else {
+                let (ublock, ubits, _) =
+                    decode_ints::<[$uint; N], false>(bs, u32::MAX, prec, NO_ROUNDING);
+                $inv_order(&ublock, iblock, perm);
+                ubits
+            };
+            $pbits + ubits
+        }
     };
-    PBITS_32 + ubits
 }
 
-fn rev_decode_int_block_u64<const N: usize>(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    maxbits: u32,
-    iblock: &mut [i64; N],
-    perm: &[u8; N],
-) -> u32
-where
-    [u64; N]: PlaneBlock,
-{
-    let prec_minus_1 = bs.read_bits(PBITS_64) as u32;
-    let prec = prec_minus_1 + 1;
-
-    let maxbits = maxbits.saturating_sub(PBITS_64);
-    let ubits = if with_maxbits(maxbits, prec, <[u64; N]>::SIZE) {
-        let (ublock, ubits) = decode_bounded::<[u64; N]>(bs, maxbits, prec);
-        inv_order_i64(&ublock, iblock, perm);
-        ubits
-    } else {
-        let (ublock, ubits, _) = decode_ints::<[u64; N], false>(bs, u32::MAX, prec, NO_ROUNDING);
-        inv_order_i64(&ublock, iblock, perm);
-        ubits
-    };
-    PBITS_64 + ubits
-}
+rev_decode_int_block!(rev_decode_int_block_u32, i32, u32, PBITS_32, inv_order_i32);
+rev_decode_int_block!(rev_decode_int_block_u64, i64, u64, PBITS_64, inv_order_i64);
 
 /// [`decode_ints`] under a budget that binds. Out of line, so that the
 /// unbounded call stays inlined.
@@ -149,300 +136,152 @@ fn rev_inv_reinterpret_f64(iblock: &[i64], fblock: &mut [f64]) {
 // rev_decode_float_block / rev_decode_double_block
 //
 // The closure `rev_decode_int` receives the mutable iblock and the remaining
-// `maxbits`. It is responsible for:
-//   - decoding the integers
-//   - converting the slice to a fixed-size array (the size is determined by
-//     the caller's block parameter, so this is guaranteed to succeed)
-//   - applying the inverse transform
+// `maxbits`. It decodes the integers and applies the inverse transform.
 // ---------------------------------------------------------------------------
 
-fn rev_decode_float_block<B: ZfpBitStreamOps + ?Sized, const N: usize>(
-    bs: &mut B,
-    fblock: &mut [f32; N],
-    budget: Budget,
-    rev_decode_int: impl FnOnce(&mut B, &mut [i32; N], u32) -> u32,
-) -> usize {
-    // Read 1 bit: is block non-zero?
-    let nonzero = bs.read_bits(1);
-    let mut bits = 1u32;
+/// Generate the reversible float decoder for one float type.
+macro_rules! rev_decode_float_block {
+    (
+        $name:ident, $float:ty, $int:ty, $ebits:ident, $ebias:ident, $inv_reinterpret:ident,
+        $inv_cast:ident $(,)?
+    ) => {
+        fn $name<B: ZfpBitStreamOps + ?Sized, const N: usize>(
+            bs: &mut B,
+            fblock: &mut [$float; N],
+            budget: Budget,
+            rev_decode_int: impl FnOnce(&mut B, &mut [$int; N], u32) -> u32,
+        ) -> usize {
+            // Read 1 bit: is block non-zero?
+            let nonzero = bs.read_bits(1);
+            let mut bits = 1u32;
 
-    if nonzero == 0 {
-        // All-zero block
-        for v in fblock.iter_mut() {
-            *v = 0.0;
+            if nonzero == 0 {
+                // All-zero block
+                for v in fblock.iter_mut() {
+                    *v = 0.0;
+                }
+                return skip_to(bs, 1, budget.min);
+            }
+
+            // Read 1 more bit: BFP path (0) or reinterpret path (1)?
+            let reinterpret = bs.read_bits(1);
+            bits += 1;
+
+            let mut iblock: [$int; N] = [0; N];
+
+            if reinterpret != 0 {
+                // Reinterpret path ("11" header)
+                bits += rev_decode_int(bs, &mut iblock, budget.after(bits).max);
+                $inv_reinterpret(&iblock, fblock);
+            } else {
+                // BFP path ("01" header): read EBITS exponent
+                let e_raw = bs.read_bits($ebits) as i32;
+                bits += $ebits;
+                let emax = e_raw - $ebias;
+                bits += rev_decode_int(bs, &mut iblock, budget.after(bits).max);
+                $inv_cast(&iblock, fblock, emax);
+            }
+
+            skip_to(bs, bits, budget.min)
         }
-        return skip_to(bs, 1, budget.min);
-    }
-
-    // Read 1 more bit: BFP path (0) or reinterpret path (1)?
-    let reinterpret = bs.read_bits(1);
-    bits += 1;
-
-    let mut iblock = [0i32; N];
-
-    if reinterpret != 0 {
-        // Reinterpret path ("11" header)
-        bits += rev_decode_int(bs, &mut iblock, budget.after(bits).max);
-        rev_inv_reinterpret_f32(&iblock, fblock);
-    } else {
-        // BFP path ("01" header): read EBITS exponent
-        let e_raw = bs.read_bits(EBITS_F32) as i32;
-        bits += EBITS_F32;
-        let emax = e_raw - EBIAS_F32;
-        bits += rev_decode_int(bs, &mut iblock, budget.after(bits).max);
-        inv_cast_f32(&iblock, fblock, emax);
-    }
-
-    skip_to(bs, bits, budget.min)
+    };
 }
 
-fn rev_decode_double_block<B: ZfpBitStreamOps + ?Sized, const N: usize>(
-    bs: &mut B,
-    fblock: &mut [f64; N],
-    budget: Budget,
-    rev_decode_int: impl FnOnce(&mut B, &mut [i64; N], u32) -> u32,
-) -> usize {
-    let nonzero = bs.read_bits(1);
-    let mut bits = 1u32;
+rev_decode_float_block!(
+    rev_decode_float_block,
+    f32,
+    i32,
+    EBITS_F32,
+    EBIAS_F32,
+    rev_inv_reinterpret_f32,
+    inv_cast_f32,
+);
+rev_decode_float_block!(
+    rev_decode_double_block,
+    f64,
+    i64,
+    EBITS_F64,
+    EBIAS_F64,
+    rev_inv_reinterpret_f64,
+    inv_cast_f64,
+);
 
-    if nonzero == 0 {
-        for v in fblock.iter_mut() {
-            *v = 0.0;
+// ---------------------------------------------------------------------------
+// Public API: 16 reversible decode functions
+// ---------------------------------------------------------------------------
+
+/// Generate the reversible decoders of one dimensionality: floats through the
+/// BFP path, integers directly.
+macro_rules! reversible_decoders {
+    (
+        $d:literal, $n:literal, $perm:ident:
+        [$i32:ident, $i64:ident, $f32:ident, $f64:ident $(,)?]
+    ) => {
+        reversible_decoders!(@int $i32, i32, rev_decode_int_block_u32, $d, $n, $perm);
+        reversible_decoders!(@int $i64, i64, rev_decode_int_block_u64, $d, $n, $perm);
+        reversible_decoders!(@float $f32, f32, rev_decode_float_block, rev_decode_int_block_u32, $d, $n, $perm);
+        reversible_decoders!(@float $f64, f64, rev_decode_double_block, rev_decode_int_block_u64, $d, $n, $perm);
+    };
+    (@int $name:ident, $ty:ty, $int_block:ident, $d:literal, $n:literal, $perm:ident) => {
+        #[doc = concat!(
+            "Reversible decode of a ", $d, "-D block of `", stringify!($ty),
+            "` values; return bits read."
+        )]
+        pub fn $name(
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
+            block: &mut [$ty; $n],
+            config: &ZfpConfig,
+        ) -> usize {
+            let budget = Budget::of(config);
+            let bits = $int_block(bs, budget.max, block, &$perm);
+            let bits = skip_to(bs, bits, budget.min);
+            rev_inv_xform(block);
+            bits
         }
-        return skip_to(bs, 1, budget.min);
-    }
-
-    let reinterpret = bs.read_bits(1);
-    bits += 1;
-
-    let mut iblock = [0i64; N];
-
-    if reinterpret != 0 {
-        bits += rev_decode_int(bs, &mut iblock, budget.after(bits).max);
-        rev_inv_reinterpret_f64(&iblock, fblock);
-    } else {
-        let e_raw = bs.read_bits(EBITS_F64) as i32;
-        bits += EBITS_F64;
-        let emax = e_raw - EBIAS_F64;
-        bits += rev_decode_int(bs, &mut iblock, budget.after(bits).max);
-        inv_cast_f64(&iblock, fblock, emax);
-    }
-
-    skip_to(bs, bits, budget.min)
+    };
+    (
+        @float $name:ident, $ty:ty, $float_block:ident, $int_block:ident, $d:literal,
+        $n:literal, $perm:ident
+    ) => {
+        #[doc = concat!(
+            "Reversible decode of a ", $d, "-D block of `", stringify!($ty),
+            "` values; return bits read."
+        )]
+        pub fn $name(
+            bs: &mut (impl ZfpBitStreamOps + ?Sized),
+            block: &mut [$ty; $n],
+            config: &ZfpConfig,
+        ) -> usize {
+            $float_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
+                let bits = $int_block(bs, maxbits, iblock, &$perm);
+                rev_inv_xform(iblock);
+                bits
+            })
+        }
+    };
 }
 
-// ---------------------------------------------------------------------------
-// Public API: 8 reversible decode functions
-// ---------------------------------------------------------------------------
-
-/// Reversible decode of a 1-D block of `f32` values; return bits read.
-pub fn decode_block_reversible_1d_f32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f32; 4],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_float_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_1);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-/// Reversible decode of a 1-D block of `f64` values; return bits read.
-pub fn decode_block_reversible_1d_f64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f64; 4],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_double_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_1);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-/// Reversible decode of a 2-D block of `f32` values; return bits read.
-pub fn decode_block_reversible_2d_f32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f32; 16],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_float_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_2);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-/// Reversible decode of a 2-D block of `f64` values; return bits read.
-pub fn decode_block_reversible_2d_f64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f64; 16],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_double_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_2);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-/// Reversible decode of a 3-D block of `f32` values; return bits read.
-pub fn decode_block_reversible_3d_f32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f32; 64],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_float_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_3);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-/// Reversible decode of a 3-D block of `f64` values; return bits read.
-pub fn decode_block_reversible_3d_f64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f64; 64],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_double_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_3);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-/// Reversible decode of a 4-D block of `f32` values; return bits read.
-pub fn decode_block_reversible_4d_f32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f32; 256],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_float_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u32(bs, maxbits, iblock, &PERM_4);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-/// Reversible decode of a 4-D block of `f64` values; return bits read.
-pub fn decode_block_reversible_4d_f64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [f64; 256],
-    config: &ZfpConfig,
-) -> usize {
-    rev_decode_double_block(bs, block, Budget::of(config), |bs, iblock, maxbits| {
-        let bits = rev_decode_int_block_u64(bs, maxbits, iblock, &PERM_4);
-        rev_inv_xform(iblock);
-        bits
-    })
-}
-
-// ---------------------------------------------------------------------------
-// Reversible decode for integers: direct (no BFP step)
-// ---------------------------------------------------------------------------
-
-/// Reversible decode of a 1-D block of `i32` values; return bits read.
-pub fn decode_block_reversible_1d_i32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i32; 4],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_1);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
-
-/// Reversible decode of a 1-D block of `i64` values; return bits read.
-pub fn decode_block_reversible_1d_i64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i64; 4],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_1);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
-
-/// Reversible decode of a 2-D block of `i32` values; return bits read.
-pub fn decode_block_reversible_2d_i32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i32; 16],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_2);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
-
-/// Reversible decode of a 2-D block of `i64` values; return bits read.
-pub fn decode_block_reversible_2d_i64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i64; 16],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_2);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
-
-/// Reversible decode of a 3-D block of `i32` values; return bits read.
-pub fn decode_block_reversible_3d_i32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i32; 64],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_3);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
-
-/// Reversible decode of a 3-D block of `i64` values; return bits read.
-pub fn decode_block_reversible_3d_i64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i64; 64],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_3);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
-
-/// Reversible decode of a 4-D block of `i32` values; return bits read.
-pub fn decode_block_reversible_4d_i32(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i32; 256],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_4);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
-
-/// Reversible decode of a 4-D block of `i64` values; return bits read.
-pub fn decode_block_reversible_4d_i64(
-    bs: &mut (impl ZfpBitStreamOps + ?Sized),
-    block: &mut [i64; 256],
-    config: &ZfpConfig,
-) -> usize {
-    let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_4);
-    let bits = skip_to(bs, bits, budget.min);
-    rev_inv_xform(block);
-    bits
-}
+reversible_decoders!("1", 4, PERM_1: [
+    decode_block_reversible_1d_i32,
+    decode_block_reversible_1d_i64,
+    decode_block_reversible_1d_f32,
+    decode_block_reversible_1d_f64,
+]);
+reversible_decoders!("2", 16, PERM_2: [
+    decode_block_reversible_2d_i32,
+    decode_block_reversible_2d_i64,
+    decode_block_reversible_2d_f32,
+    decode_block_reversible_2d_f64,
+]);
+reversible_decoders!("3", 64, PERM_3: [
+    decode_block_reversible_3d_i32,
+    decode_block_reversible_3d_i64,
+    decode_block_reversible_3d_f32,
+    decode_block_reversible_3d_f64,
+]);
+reversible_decoders!("4", 256, PERM_4: [
+    decode_block_reversible_4d_i32,
+    decode_block_reversible_4d_i64,
+    decode_block_reversible_4d_f32,
+    decode_block_reversible_4d_f64,
+]);
