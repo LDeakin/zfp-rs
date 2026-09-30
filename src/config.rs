@@ -618,6 +618,14 @@ impl ZfpConfig {
         mode_of(self.min_bits, self.max_bits, self.max_prec, self.min_exp)
     }
 
+    /// Whether these parameters select the reversible coder, as C's
+    /// `REVERSIBLE` does. Unlike [`mode`][Self::mode], this ignores the other
+    /// parameters.
+    #[inline]
+    pub(crate) fn is_reversible(&self) -> bool {
+        self.min_exp < ZFP_MIN_EXP
+    }
+
     /// Return the rate (compressed bits per scalar) for the given
     /// dimensionality, or [`None`] if this is not a fixed-rate config.
     #[must_use]
@@ -731,7 +739,7 @@ impl ZfpConfig {
             ZfpScalarType::I32 | ZfpScalarType::F32 => 32u32,
             ZfpScalarType::I64 | ZfpScalarType::F64 => 64u32,
         };
-        let header = if self.min_exp < ZFP_MIN_EXP {
+        let header = if self.is_reversible() {
             // Precision bits, after a zero-block bit, a path bit and the
             // exponent for floats (mirrors zfp_stream_maximum_size in zfp.c).
             match ty {

@@ -11,7 +11,7 @@ use crate::bitstream::{ZfpBitStreamOps, overread, reset_overread};
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
 use crate::field_plan::FieldPlan;
-use crate::types::{ZFP_MIN_EXP, ZfpDecompressionError, ZfpScalar, ZfpScalarType};
+use crate::types::{ZfpDecompressionError, ZfpScalar, ZfpScalarType};
 use std::ops::Range;
 
 // ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ unsafe fn decompress_typed<T: ZfpScalar>(
     let dims = info.dims_enum;
     let strides = &info.strides;
     // The strided decoders check this per block; hoisting it is faster.
-    let reversible = config.min_exp() < ZFP_MIN_EXP;
+    let reversible = config.is_reversible();
     for (block_idx, coords) in range.clone().zip(info.blocks(range)) {
         if let Some((start, bits)) = seek {
             bs.seek_read(start + block_idx as u64 * bits);

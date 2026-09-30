@@ -11,7 +11,7 @@ use crate::bitstream::ZfpBitStreamMutOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpField;
 use crate::field_plan::FieldPlan;
-use crate::types::{ZFP_MIN_EXP, ZfpCompressionError, ZfpScalar, ZfpScalarType};
+use crate::types::{ZfpCompressionError, ZfpScalar, ZfpScalarType};
 use std::ops::Range;
 
 // ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ unsafe fn compress_typed<T: ZfpScalar>(
     let dims = info.dims_enum;
     let strides = &info.strides;
     // The strided encoders check this per block; hoisting it is faster.
-    let reversible = config.min_exp() < ZFP_MIN_EXP;
+    let reversible = config.is_reversible();
     for coords in info.blocks(range) {
         let (offset, lengths) = info.block_geometry(coords);
         // SAFETY: `base` is the field's whole data buffer, and `offset` is

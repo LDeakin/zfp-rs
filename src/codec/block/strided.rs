@@ -14,7 +14,7 @@ use super::{
 };
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
-use crate::types::{ZFP_MIN_EXP, ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
+use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
 
 /// Reinterpret a scalar pointer as the concrete type the enclosing match arm has
 /// already proven `T` to be.
@@ -607,12 +607,6 @@ fn with_block<T: ZfpScalar, R>(dims: ZfpDimensionality, f: impl FnOnce(&mut [T])
     }
 }
 
-/// Whether `config` selects the reversible coder, as C's `REVERSIBLE` does.
-#[inline]
-fn reversible(config: &ZfpConfig) -> bool {
-    config.min_exp() < ZFP_MIN_EXP
-}
-
 /// The lengths of a whole 4^d block, for the reversible coder.
 fn whole(dims: ZfpDimensionality) -> [usize; 4] {
     std::array::from_fn(|axis| if axis < usize::from(dims) { 4 } else { 0 })
@@ -650,7 +644,7 @@ pub unsafe fn encode_block_strided<T: ZfpScalar>(
     strides: &[isize; 4],
     config: &ZfpConfig,
 ) -> usize {
-    if reversible(config) {
+    if config.is_reversible() {
         // SAFETY: the caller's contract, and whole blocks have valid lengths.
         return unsafe { encode_reversible(bs, data, dims, strides, whole(dims), config) };
     }
@@ -726,7 +720,7 @@ pub(crate) unsafe fn encode_partial<T: ZfpScalar>(
     strides: &[isize; 4],
     config: &ZfpConfig,
 ) -> usize {
-    if reversible(config) {
+    if config.is_reversible() {
         // SAFETY: the caller's contract.
         return unsafe { encode_reversible(bs, data, dims, strides, lengths, config) };
     }
@@ -781,7 +775,7 @@ pub unsafe fn decode_block_strided<T: ZfpScalar>(
     strides: &[isize; 4],
     config: &ZfpConfig,
 ) -> usize {
-    if reversible(config) {
+    if config.is_reversible() {
         // SAFETY: the caller's contract, and whole blocks have valid lengths.
         return unsafe { decode_reversible(bs, data, dims, strides, whole(dims), config) };
     }
@@ -857,7 +851,7 @@ pub(crate) unsafe fn decode_partial<T: ZfpScalar>(
     strides: &[isize; 4],
     config: &ZfpConfig,
 ) -> usize {
-    if reversible(config) {
+    if config.is_reversible() {
         // SAFETY: the caller's contract.
         return unsafe { decode_reversible(bs, data, dims, strides, lengths, config) };
     }
