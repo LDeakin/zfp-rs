@@ -26,17 +26,9 @@ impl BitStreamStorage for ZfpBitStream {
     fn state(&self) -> &BitStreamState {
         &self.state
     }
-
-    fn state_mut(&mut self) -> &mut BitStreamState {
-        &mut self.state
-    }
 }
 
 impl BitStreamStorageMut for ZfpBitStream {
-    fn words_mut(&mut self) -> &mut [ZfpBitStreamWord] {
-        &mut self.words
-    }
-
     fn split_mut(&mut self) -> (&mut [ZfpBitStreamWord], &mut BitStreamState) {
         (&mut self.words, &mut self.state)
     }

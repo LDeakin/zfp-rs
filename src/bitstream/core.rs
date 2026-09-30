@@ -38,9 +38,13 @@ impl BitStreamState {
 pub trait BitStreamStorage {
     fn words(&self) -> &[ZfpBitStreamWord];
     fn state(&self) -> &BitStreamState;
-    fn state_mut(&mut self) -> &mut BitStreamState;
     /// The buffer and the cursor at once, for [`BitReader`].
     fn split(&mut self) -> (&[ZfpBitStreamWord], &mut BitStreamState);
+
+    #[inline]
+    fn state_mut(&mut self) -> &mut BitStreamState {
+        self.split().1
+    }
 
     /// Read a single bit as 0 or 1 (C `stream_read_bit`).
     #[inline]
@@ -61,9 +65,13 @@ pub trait BitStreamStorage {
 /// Mutable counterpart of [`BitStreamStorage`], sealing
 /// [`ZfpBitStreamMutOps`][super::ZfpBitStreamMutOps].
 pub trait BitStreamStorageMut: BitStreamStorage {
-    fn words_mut(&mut self) -> &mut [ZfpBitStreamWord];
     /// The buffer and the cursor at once, for [`BitWriter`].
     fn split_mut(&mut self) -> (&mut [ZfpBitStreamWord], &mut BitStreamState);
+
+    #[inline]
+    fn words_mut(&mut self) -> &mut [ZfpBitStreamWord] {
+        self.split_mut().0
+    }
 
     /// Write `bit` and return it (C `stream_write_bit`).
     ///

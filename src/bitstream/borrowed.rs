@@ -50,10 +50,6 @@ impl BitStreamStorage for ZfpBitStreamRef<'_> {
     fn state(&self) -> &BitStreamState {
         &self.state
     }
-
-    fn state_mut(&mut self) -> &mut BitStreamState {
-        &mut self.state
-    }
 }
 
 impl std::fmt::Debug for ZfpBitStreamRefMut<'_> {
@@ -102,17 +98,9 @@ impl BitStreamStorage for ZfpBitStreamRefMut<'_> {
     fn state(&self) -> &BitStreamState {
         &self.state
     }
-
-    fn state_mut(&mut self) -> &mut BitStreamState {
-        &mut self.state
-    }
 }
 
 impl BitStreamStorageMut for ZfpBitStreamRefMut<'_> {
-    fn words_mut(&mut self) -> &mut [ZfpBitStreamWord] {
-        self.words
-    }
-
     fn split_mut(&mut self) -> (&mut [ZfpBitStreamWord], &mut BitStreamState) {
         (&mut *self.words, &mut self.state)
     }
