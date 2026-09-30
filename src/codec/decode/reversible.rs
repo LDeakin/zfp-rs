@@ -349,12 +349,10 @@ pub fn decode_block_reversible_1d_i32(
     block: &mut [i32; 4],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i32; 4] = [0; 4];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, &mut iblock, &PERM_1);
+    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_1);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }
 
@@ -364,12 +362,10 @@ pub fn decode_block_reversible_1d_i64(
     block: &mut [i64; 4],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i64; 4] = [0; 4];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, &mut iblock, &PERM_1);
+    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_1);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }
 
@@ -379,12 +375,10 @@ pub fn decode_block_reversible_2d_i32(
     block: &mut [i32; 16],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i32; 16] = [0; 16];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, &mut iblock, &PERM_2);
+    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_2);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }
 
@@ -394,12 +388,10 @@ pub fn decode_block_reversible_2d_i64(
     block: &mut [i64; 16],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i64; 16] = [0; 16];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, &mut iblock, &PERM_2);
+    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_2);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }
 
@@ -409,12 +401,10 @@ pub fn decode_block_reversible_3d_i32(
     block: &mut [i32; 64],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i32; 64] = [0; 64];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, &mut iblock, &PERM_3);
+    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_3);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }
 
@@ -424,12 +414,10 @@ pub fn decode_block_reversible_3d_i64(
     block: &mut [i64; 64],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i64; 64] = [0; 64];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, &mut iblock, &PERM_3);
+    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_3);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }
 
@@ -439,12 +427,10 @@ pub fn decode_block_reversible_4d_i32(
     block: &mut [i32; 256],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i32; 256] = [0; 256];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u32(bs, budget.max, &mut iblock, &PERM_4);
+    let bits = rev_decode_int_block_u32(bs, budget.max, block, &PERM_4);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }
 
@@ -454,11 +440,9 @@ pub fn decode_block_reversible_4d_i64(
     block: &mut [i64; 256],
     config: &ZfpConfig,
 ) -> usize {
-    let mut iblock: [i64; 256] = [0; 256];
     let budget = Budget::of(config);
-    let bits = rev_decode_int_block_u64(bs, budget.max, &mut iblock, &PERM_4);
+    let bits = rev_decode_int_block_u64(bs, budget.max, block, &PERM_4);
     let bits = skip_to(bs, bits, budget.min);
-    crate::codec::transform::rev_inv_xform(&mut iblock);
-    *block = iblock;
+    rev_inv_xform(block);
     bits
 }

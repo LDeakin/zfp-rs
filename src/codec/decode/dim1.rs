@@ -20,7 +20,7 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap)] // usize→isize for pointer offset
-unsafe fn scatter_1d<T: Copy>(block: &[T; 4], data: *mut T, sx: isize) {
+pub(crate) unsafe fn scatter_1d<T: Copy>(block: &[T; 4], data: *mut T, sx: isize) {
     for (x, &val) in block.iter().enumerate() {
         // SAFETY: caller guarantees data spans 4 elements with stride sx
         unsafe { *data.offset(x as isize * sx) = val };
@@ -30,7 +30,12 @@ unsafe fn scatter_1d<T: Copy>(block: &[T; 4], data: *mut T, sx: isize) {
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for pointer offset
-unsafe fn scatter_partial_1d<T: Copy>(block: &[T; 4], data: *mut T, nx: usize, sx: isize) {
+pub(crate) unsafe fn scatter_partial_1d<T: Copy>(
+    block: &[T; 4],
+    data: *mut T,
+    nx: usize,
+    sx: isize,
+) {
     for (x, &val) in block[..nx].iter().enumerate() {
         unsafe { *data.offset(x as isize * sx) = val };
     }

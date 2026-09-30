@@ -15,7 +15,13 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
-unsafe fn scatter_3d<T: Copy>(block: &[T; 64], data: *mut T, sx: isize, sy: isize, sz: isize) {
+pub(crate) unsafe fn scatter_3d<T: Copy>(
+    block: &[T; 64],
+    data: *mut T,
+    sx: isize,
+    sy: isize,
+    sz: isize,
+) {
     for (z, plane) in (0isize..).zip(block.as_chunks::<16>().0) {
         for (y, row) in (0isize..).zip(plane.as_chunks::<4>().0) {
             // SAFETY: caller guarantees data spans 4^3 elements with strides sx, sy, sz
@@ -27,7 +33,7 @@ unsafe fn scatter_3d<T: Copy>(block: &[T; 64], data: *mut T, sx: isize, sy: isiz
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
-unsafe fn scatter_partial_3d<T: Copy>(
+pub(crate) unsafe fn scatter_partial_3d<T: Copy>(
     block: &[T; 64],
     data: *mut T,
     nx: usize,

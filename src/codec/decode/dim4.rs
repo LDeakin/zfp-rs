@@ -15,7 +15,7 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
-unsafe fn scatter_4d<T: Copy>(
+pub(crate) unsafe fn scatter_4d<T: Copy>(
     block: &[T; 256],
     data: *mut T,
     sx: isize,
@@ -36,7 +36,7 @@ unsafe fn scatter_4d<T: Copy>(
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
-unsafe fn scatter_partial_4d<T: Copy>(
+pub(crate) unsafe fn scatter_partial_4d<T: Copy>(
     block: &[T; 256],
     data: *mut T,
     nx: usize,

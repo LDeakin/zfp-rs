@@ -15,7 +15,7 @@ use crate::types::{ZfpDimensionality, ZfpScalarType};
 
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
-unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: *mut T, sx: isize, sy: isize) {
+pub(crate) unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: *mut T, sx: isize, sy: isize) {
     for (y, row) in (0isize..).zip(block.as_chunks::<4>().0) {
         // SAFETY: caller guarantees valid strides
         unsafe { write_row(data.offset(y * sy), sx, row) };
@@ -25,7 +25,7 @@ unsafe fn scatter_2d<T: Copy>(block: &[T; 16], data: *mut T, sx: isize, sy: isiz
 /// # Safety
 /// `data` must be valid for every offset the strides generate.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize→isize for pointer offset
-unsafe fn scatter_partial_2d<T: Copy>(
+pub(crate) unsafe fn scatter_partial_2d<T: Copy>(
     block: &[T; 16],
     data: *mut T,
     nx: usize,

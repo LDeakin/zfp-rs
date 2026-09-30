@@ -123,7 +123,7 @@ macro_rules! typed_block {
 }
 
 /// Expand the reversible dispatch over the contiguous block `with_gathered`
-/// produced (encode) or `scatter_block` will consume (decode).
+/// produced (encode) or `with_scattered` will scatter (decode).
 macro_rules! reversible_dispatch {
     (
         encode $bs:ident, $dims:ident, $block:ident, $config:ident,
@@ -356,89 +356,75 @@ unsafe fn with_gathered<T: ZfpScalar, R>(
     }
 }
 
-/// Scatter a 4^d contiguous block back into strided data.
+/// Run `f` on a 4^d block, then scatter it into strided data.
 ///
-/// Only the `lengths` elements in each dimension are written; padding elements
-/// are discarded.
+/// `dims` is 1–4, `strides` has effective (non-zero) strides. Only the
+/// `lengths` elements in each dimension are written, by the same scatters the
+/// lossy coder uses; padding elements are discarded. `f` must fill the block.
 ///
 /// # Safety
-/// `data` must be valid for every offset the strides generate over the
-/// block's extent. See the [`crate::codec::block`] module documentation.
-#[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
-#[expect(
-    clippy::arithmetic_side_effects,
-    reason = "the offsets lie in the span the caller's contract covers"
-)]
-unsafe fn scatter_block<T: ZfpScalar>(
-    block: &[T],
+/// Each of the first `dims` entries of `lengths` must be in 1..=4, and `data`
+/// must be valid for every offset the strides generate over those lengths. See
+/// the [`crate::codec::block`] module documentation.
+unsafe fn with_scattered<T: ZfpScalar, R>(
     data: *mut T,
     dims: ZfpDimensionality,
     strides: &[isize; 4],
     lengths: [usize; 4],
-) {
+    f: impl FnOnce(&mut [T]) -> R,
+) -> R {
+    use crate::codec::decode::{dim1, dim2, dim3, dim4};
+
     let [sx, sy, sz, sw] = *strides;
     let [lx, ly, lz, lw] = lengths;
-    // The block holds exactly 4^d values, one for every index the loops visit.
-    let mut values = block.iter();
-    match dims {
-        ZfpDimensionality::D1 => {
-            for (x, &v) in values.take(lx).enumerate() {
-                unsafe { *data.offset(x as isize * sx) = v };
-            }
-        }
-        ZfpDimensionality::D2 => {
-            for y in 0..4 {
-                for x in 0..4 {
-                    if let Some(&v) = values.next()
-                        && x < lx
-                        && y < ly
-                    {
-                        unsafe { *data.offset(x as isize * sx + y as isize * sy) = v };
-                    }
+    // A whole block has nothing to discard, and its scatter has fixed bounds.
+    let whole = lengths
+        .iter()
+        .take(usize::from(dims))
+        .all(|&length| length == 4);
+    // SAFETY: the caller's contract, which bounds the lengths as the partial
+    // scatters require.
+    unsafe {
+        match dims {
+            ZfpDimensionality::D1 => {
+                let mut block = [T::default(); 4];
+                let r = f(&mut block);
+                if whole {
+                    dim1::scatter_1d(&block, data, sx);
+                } else {
+                    dim1::scatter_partial_1d(&block, data, lx, sx);
                 }
+                r
             }
-        }
-        ZfpDimensionality::D3 => {
-            for z in 0..4 {
-                for y in 0..4 {
-                    for x in 0..4 {
-                        if let Some(&v) = values.next()
-                            && x < lx
-                            && y < ly
-                            && z < lz
-                        {
-                            unsafe {
-                                *data.offset(x as isize * sx + y as isize * sy + z as isize * sz) =
-                                    v;
-                            }
-                        }
-                    }
+            ZfpDimensionality::D2 => {
+                let mut block = [T::default(); 16];
+                let r = f(&mut block);
+                if whole {
+                    dim2::scatter_2d(&block, data, sx, sy);
+                } else {
+                    dim2::scatter_partial_2d(&block, data, lx, ly, sx, sy);
                 }
+                r
             }
-        }
-        ZfpDimensionality::D4 => {
-            for w in 0..4 {
-                for z in 0..4 {
-                    for y in 0..4 {
-                        for x in 0..4 {
-                            if let Some(&v) = values.next()
-                                && x < lx
-                                && y < ly
-                                && z < lz
-                                && w < lw
-                            {
-                                unsafe {
-                                    *data.offset(
-                                        x as isize * sx
-                                            + y as isize * sy
-                                            + z as isize * sz
-                                            + w as isize * sw,
-                                    ) = v;
-                                }
-                            }
-                        }
-                    }
+            ZfpDimensionality::D3 => {
+                let mut block = [T::default(); 64];
+                let r = f(&mut block);
+                if whole {
+                    dim3::scatter_3d(&block, data, sx, sy, sz);
+                } else {
+                    dim3::scatter_partial_3d(&block, data, lx, ly, lz, sx, sy, sz);
                 }
+                r
+            }
+            ZfpDimensionality::D4 => {
+                let mut block = [T::default(); 256];
+                let r = f(&mut block);
+                if whole {
+                    dim4::scatter_4d(&block, data, sx, sy, sz, sw);
+                } else {
+                    dim4::scatter_partial_4d(&block, data, lx, ly, lz, lw, sx, sy, sz, sw);
+                }
+                r
             }
         }
     }
@@ -560,8 +546,8 @@ pub(crate) unsafe fn decode_reversible<T: ZfpScalar>(
     unsafe {
         use crate::codec::decode::reversible as rev;
 
-        with_block(dims, |mut block: &mut [T]| {
-            let bits = reversible_dispatch! {
+        with_scattered(data, dims, strides, lengths, |mut block: &mut [T]| {
+            reversible_dispatch! {
                 decode bs, dims, block, config,
                 d1: [
                     rev::decode_block_reversible_1d_i32,
@@ -587,23 +573,8 @@ pub(crate) unsafe fn decode_reversible<T: ZfpScalar>(
                     rev::decode_block_reversible_4d_f32,
                     rev::decode_block_reversible_4d_f64,
                 ],
-            };
-
-            scatter_block(block, data, dims, strides, lengths);
-            bits
+            }
         })
-    }
-}
-
-/// Run `f` on a block of zeros on the stack, sized for `dims`: zeroing a 4-D
-/// block for every 1-D block would cost more than coding it.
-#[inline]
-fn with_block<T: ZfpScalar, R>(dims: ZfpDimensionality, f: impl FnOnce(&mut [T]) -> R) -> R {
-    match dims {
-        ZfpDimensionality::D1 => f(&mut [T::default(); 4]),
-        ZfpDimensionality::D2 => f(&mut [T::default(); 16]),
-        ZfpDimensionality::D3 => f(&mut [T::default(); 64]),
-        ZfpDimensionality::D4 => f(&mut [T::default(); 256]),
     }
 }
 
