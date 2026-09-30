@@ -23,12 +23,55 @@ pub enum ZfpExecution {
     /// same element). Both run serially if the thread pool or the chunks'
     /// buffers cannot be created.
     ///
-    /// With `threads: 0`, Rayon's global pool runs the chunks, starting it if
-    /// needed. Rayon panics if it cannot start that pool's threads, and zfp-rs
-    /// cannot detect this beforehand; pass a thread count to have a failure
-    /// fall back to serial execution instead.
+    /// With `threads: 0`, the current pool runs the chunks: Rayon's global
+    /// pool, starting it if needed, outside any other. Rayon panics if it
+    /// cannot start that pool's threads, and zfp-rs cannot detect this
+    /// beforehand; pass a thread count to have a failure fall back to serial
+    /// execution instead.
+    ///
+    /// A nonzero `threads` builds a new pool for every call and drops it
+    /// afterwards. That costs tens of microseconds, which is lost in the time
+    /// to code a field of 64³ values but can exceed the whole serial time for
+    /// one of a few thousand. To code many small fields, build a pool once and
+    /// make the calls inside its `install` with `threads: 0`, so that they
+    /// share its threads:
+    ///
+    /// ```
+    /// # #[cfg(feature = "rayon")]
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use zfp_rs::{ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpExecution, ZfpField};
+    /// use zfp_rs::{ZfpScalarType, ZfpStreamAlignment};
+    ///
+    /// let config = ZfpConfig::fixed_rate(
+    ///     8.0,
+    ///     ZfpScalarType::F64,
+    ///     ZfpDimensionality::D2,
+    ///     ZfpStreamAlignment::Unaligned,
+    /// )?;
+    /// let data = vec![0.5f64; 16 * 16];
+    /// let field = ZfpField::new(&data, [16usize, 16])?;
+    /// let capacity = config.maximum_size(ZfpScalarType::F64, field.dims()).unwrap();
+    /// let mut bs = ZfpBitStream::new(capacity)?;
+    ///
+    /// // One pool for every call, rather than one built for each.
+    /// let pool = rayon::ThreadPoolBuilder::new().num_threads(4).build()?;
+    /// let execution = ZfpExecution::Rayon {
+    ///     threads: 0,
+    ///     chunk_size: 0,
+    /// };
+    /// for _ in 0..100 {
+    ///     bs.rewind();
+    ///     pool.install(|| bs.compress_with_execution(&config, &field, execution))?;
+    /// }
+    /// # Ok(())
+    /// # }
+    /// # #[cfg(not(feature = "rayon"))]
+    /// # fn main() {}
+    /// ```
     Rayon {
-        /// Number of threads; 0 uses Rayon's global pool.
+        /// Number of threads; 0 uses the current pool, which is Rayon's global
+        /// pool outside any other. A nonzero count builds a new pool for each
+        /// call.
         threads: u32,
         /// Number of blocks per chunk; 0 means one chunk per thread.
         chunk_size: u32,
