@@ -1,5 +1,9 @@
 //! Per-field block iteration plan, shared by compression and decompression.
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use std::ops::Range;
 
 use crate::field::{checked_num_blocks, dimensionality, field_index_span, logical_shape_fits};
@@ -73,7 +77,12 @@ impl FieldPlan {
         let bw = if dim_count >= 4 { nw.div_ceil(4) } else { 1 };
 
         let num_blocks = checked_num_blocks(&dims).ok_or(ZfpFieldError::ShapeTooLarge { dims })?;
-        debug_assert_eq!(num_blocks, bx * by * bz * bw);
+        debug_assert_eq!(
+            Some(num_blocks),
+            bx.checked_mul(by)
+                .and_then(|n| n.checked_mul(bz))
+                .and_then(|n| n.checked_mul(bw))
+        );
 
         Ok(Self {
             num_blocks,
@@ -102,29 +111,41 @@ impl FieldPlan {
     // Only the rayon path consults it; the unit tests below cover it either way.
     #[cfg_attr(not(feature = "rayon"), allow(dead_code))]
     pub(crate) fn strides_may_alias(&self) -> bool {
-        let mut axes = [(0usize, 0usize); 4];
-        let mut count = 0;
-        for (&stride, &dim) in self.strides.iter().zip(&self.dims).take(self.dim_count()) {
+        // Axes of length 0 or 1 cannot alias. They sort last with a stride no
+        // reach exceeds and an extent of nothing, so they never decide.
+        let mut axes = [(usize::MAX, 1usize); 4];
+        for ((axis, &stride), &dim) in axes
+            .iter_mut()
+            .zip(&self.strides)
+            .zip(&self.dims)
+            .take(self.dim_count())
+        {
             if dim >= 2 {
-                axes[count] = (stride.unsigned_abs(), dim);
-                count += 1;
+                *axis = (stride.unsigned_abs(), dim);
             }
         }
-        let axes = &mut axes[..count];
         axes.sort_unstable();
 
         let mut reach = 1usize;
-        for &(stride, dim) in &*axes {
+        for (stride, dim) in axes {
             if stride < reach {
                 return true;
             }
-            reach = stride.saturating_mul(dim - 1).saturating_add(reach);
+            reach = stride
+                .saturating_mul(dim.saturating_sub(1))
+                .saturating_add(reach);
         }
         false
     }
 
     /// Block grid coordinates of a linear block index.
+    ///
+    /// Only for an index below `num_blocks`, so the grid is not empty.
     #[inline]
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "the grid's dimensions are nonzero and multiply out to `num_blocks`, which fits"
+    )]
     pub(crate) fn block_coords(&self, block_idx: usize) -> [usize; 4] {
         let rem = block_idx;
         let iw = rem / (self.bx * self.by * self.bz);
@@ -140,6 +161,10 @@ impl FieldPlan {
     ///
     /// Divides once, for the first block, then steps like an odometer: a
     /// division per block is a measurable share of coding a 2-D block.
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "each coordinate stays below its grid dimension, and the last below `num_blocks`"
+    )]
     pub(crate) fn blocks(&self, range: Range<usize>) -> impl Iterator<Item = [usize; 4]> {
         // An empty grid has nothing to divide by.
         let mut next = if range.is_empty() {
@@ -172,13 +197,23 @@ impl FieldPlan {
     /// along each axis (zero past the dimensionality).
     #[inline]
     #[allow(clippy::cast_possible_wrap)] // block indices fit in isize for a valid field
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "`FieldPlan::new` checked the field's index span fits `isize`, and a block's origin lies inside the field"
+    )]
     pub(crate) fn block_geometry(&self, coords: [usize; 4]) -> (usize, [usize; 4]) {
         let mut offset = -self.imin;
         let mut lengths = [0; 4];
-        for axis in 0..self.dim_count() {
-            let origin = 4 * coords[axis];
-            offset += origin as isize * self.strides[axis];
-            lengths[axis] = (self.dims[axis] - origin).min(4);
+        for (((length, &coord), &stride), &dim) in lengths
+            .iter_mut()
+            .zip(&coords)
+            .zip(&self.strides)
+            .zip(&self.dims)
+            .take(self.dim_count())
+        {
+            let origin = 4 * coord;
+            offset += origin as isize * stride;
+            *length = (dim - origin).min(4);
         }
         // `-imin` is where index zero sits, so every block starts at or above
         // the buffer's low end.
@@ -188,11 +223,12 @@ impl FieldPlan {
     /// Whether `lengths`, from [`Self::block_geometry`], is a whole block.
     #[inline]
     pub(crate) fn is_full(&self, lengths: [usize; 4]) -> bool {
-        lengths[..self.dim_count()].iter().all(|&n| n == 4)
+        lengths.iter().take(self.dim_count()).all(|&n| n == 4)
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::arithmetic_side_effects, reason = "test spans are small")]
 mod tests {
     use super::*;
 

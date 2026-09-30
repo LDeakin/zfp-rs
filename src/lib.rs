@@ -82,6 +82,17 @@
 
 #![allow(clippy::too_many_arguments)]
 #![warn(clippy::pedantic)]
+// No function in this crate may panic; see the crate documentation. Tests may,
+// as `clippy.toml` allows.
+#![warn(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    clippy::panic_in_result_fn
+)]
 
 pub mod bitstream;
 pub mod codec;

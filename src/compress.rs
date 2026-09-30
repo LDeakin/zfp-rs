@@ -3,6 +3,10 @@
 //! Provides the borrow-based implementation used by
 //! [`ZfpBitStream::compress`][crate::ZfpBitStream::compress].
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use crate::bitstream::ZfpBitStreamMutOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpField;
@@ -186,6 +190,10 @@ pub(crate) fn compress_rayon(
 /// zero, as they do from a stream.
 #[cfg(feature = "rayon")]
 #[allow(clippy::cast_possible_truncation)] // `bits / 64` counts words in memory
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "`bits / 64` counts whole words and `bits % 64` is below 64"
+)]
 fn append_bits(bs: &mut (impl ZfpBitStreamMutOps + ?Sized), words: &[u64], bits: u64) {
     let mut w = crate::bitstream::BitWriter::new(bs);
     let word = |i: usize| words.get(i).copied().unwrap_or(0);
@@ -216,7 +224,9 @@ fn compress_one_chunk(
     let chunk_bits = u64::try_from(range.len()).ok()?.checked_mul(u64::from(
         config.block_bits(info.scalar_type, info.dims_enum),
     ))?;
-    let chunk_bytes = usize::try_from(chunk_bits / 64 + 1).ok()?.checked_mul(8)?;
+    // One word more than the blocks need, for the final flush.
+    let chunk_words = (chunk_bits / 64).checked_add(1)?;
+    let chunk_bytes = usize::try_from(chunk_words).ok()?.checked_mul(8)?;
     let mut local_bs = ZfpBitStream::new(chunk_bytes).ok()?;
     // SAFETY: `buf` is the field's whole data buffer, validated by `FieldPlan::new`.
     unsafe { compress_blocks(&mut local_bs, buf.as_ptr(), info, config, range) };

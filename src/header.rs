@@ -1,5 +1,9 @@
 //! Header read/write logic (magic, metadata, mode).
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
 use crate::config::{STREAM_WORD_BITS, STREAM_WORD_BYTES};
@@ -82,20 +86,21 @@ pub(crate) fn write_header_bs(
         ZFP_MODE_SHORT_BITS
     };
 
-    let mut bits = 0usize;
-    if mask.contains(ZfpHeaderMask::MAGIC) {
-        bits += ZFP_MAGIC_BITS as usize;
-    }
-    if meta.is_some() {
-        bits += ZFP_META_BITS as usize;
-    }
-    if mask.contains(ZfpHeaderMask::MODE) {
-        bits += mode_size as usize;
-    }
+    // At most `ZFP_HEADER_MAX_BITS`.
+    let bits = [
+        (mask.contains(ZfpHeaderMask::MAGIC), ZFP_MAGIC_BITS),
+        (meta.is_some(), ZFP_META_BITS),
+        (mask.contains(ZfpHeaderMask::MODE), mode_size),
+    ]
+    .into_iter()
+    .filter_map(|(written, bits)| written.then_some(bits as usize))
+    .sum::<usize>();
     let capacity = bs.capacity();
     let end = bs.write_pos().saturating_add(bits as u64);
     if end > (capacity as u64).saturating_mul(8) {
-        let required = end.div_ceil(u64::from(STREAM_WORD_BITS)) * STREAM_WORD_BYTES as u64;
+        let required = end
+            .div_ceil(u64::from(STREAM_WORD_BITS))
+            .saturating_mul(STREAM_WORD_BYTES as u64);
         return Err(ZfpCompressionError::BufferTooSmall {
             required: usize::try_from(required).unwrap_or(usize::MAX),
             capacity,
@@ -118,6 +123,10 @@ pub(crate) fn write_header_bs(
 }
 
 /// Read header from `bs`.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the sections total at most `ZFP_HEADER_MAX_BITS`"
+)]
 pub(crate) fn read_header_bs(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     mask: ZfpHeaderMask,

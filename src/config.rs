@@ -9,6 +9,10 @@
 //! [`ZfpBitStream`][crate::ZfpBitStream]
 //! that take `&ZfpConfig`.
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use crate::types::{
     ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_BITS, ZFP_MIN_EXP, ZfpDimensionality, ZfpDims, ZfpMode,
     ZfpScalarType,
@@ -207,6 +211,10 @@ fn mode_of(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> ZfpMode
 
 /// Compute the compact mode encoding from expert parameters.
 #[allow(clippy::cast_sign_loss)] // i32→u64 for mode encoding
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "`mode_of` gives these modes only for `max_bits`, `max_prec` >= 1 and `min_exp` >= `ZFP_MIN_EXP`, and the guards bound them above"
+)]
 fn mode_bits_of(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u64 {
     match mode_of(min_bits, max_bits, max_prec, min_exp) {
         ZfpMode::FixedRate if max_bits <= 2048 => u64::from(max_bits - 1),
@@ -282,6 +290,10 @@ pub fn mode_bits_from_params(min_bits: u32, max_bits: u32, max_prec: u32, min_ex
 
 /// Encode expert-mode parameters into the 64-bit long-form mode word.
 #[allow(clippy::cast_sign_loss)] // i32→u64 for mode encoding
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "each field is clamped to at least 1 before it is decremented"
+)]
 fn encode_expert_mode(min_bits: u32, max_bits: u32, max_prec: u32, min_exp: i32) -> u64 {
     let min_bits = u64::from(min_bits.clamp(1, 0x8000) - 1);
     let max_bits = u64::from(max_bits.clamp(1, 0x8000) - 1);
@@ -311,6 +323,10 @@ impl ZfpConfig {
     /// [`ZfpRounding::Never`].
     #[must_use]
     #[allow(clippy::cast_possible_truncation)] // encoded bounded by prior branch conditions
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "each field is masked or bounded by its branch, well inside `u32` and `i32`"
+    )]
     pub fn from_mode_bits(encoded: u64) -> Option<Self> {
         let (min_bits, max_bits, max_prec, min_exp) = if encoded <= MODE_SHORT_MAX {
             if encoded < 2048 {
@@ -371,7 +387,7 @@ impl ZfpConfig {
         if !rate.is_finite() || rate < 0.0 {
             return Err(ZfpConfigError::InvalidRate);
         }
-        let n = 1u32 << (2 * u32::from(dims));
+        let n = dims.block_values();
         let rounded = (f64::from(n) * rate + 0.5).floor();
         if !rounded.is_finite() || rounded > f64::from(ZFP_MAX_BITS) {
             return Err(ZfpConfigError::InvalidRate);
@@ -438,8 +454,9 @@ impl ZfpConfig {
     #[must_use]
     pub fn fixed_accuracy(tolerance: f64) -> Self {
         let emin = if tolerance > 0.0 {
+            // At most 1025, for infinity, so this cannot overflow.
             let (_, e) = libm::frexp(tolerance);
-            e - 1
+            e.saturating_sub(1)
         } else {
             ZFP_MIN_EXP
         };
@@ -521,13 +538,12 @@ impl ZfpConfig {
     /// Block-codec defaults when the caller passes no stream config: no rate
     /// constraint and full precision, down to the type's smallest exponent.
     #[cfg(feature = "internals")]
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "at most 64 bits for each of 256 values"
+    )]
     pub(crate) const fn block_default(ty: ZfpScalarType, dims: ZfpDimensionality) -> Self {
-        let values = match dims {
-            ZfpDimensionality::D1 => 4,
-            ZfpDimensionality::D2 => 16,
-            ZfpDimensionality::D3 => 64,
-            ZfpDimensionality::D4 => 256,
-        };
+        let values = dims.block_values();
         // max_bits exceeds every value at full precision, plus the float exponent.
         let (max_bits, max_prec, min_exp) = match ty {
             ZfpScalarType::I32 => (32 * values + 1, 32, ZFP_MIN_EXP),
@@ -607,7 +623,7 @@ impl ZfpConfig {
     #[must_use]
     pub fn rate(&self, dims: ZfpDimensionality) -> Option<f64> {
         (self.mode() == ZfpMode::FixedRate)
-            .then(|| f64::from(self.max_bits) / f64::from(1u32 << (2 * u32::from(dims))))
+            .then(|| f64::from(self.max_bits) / f64::from(dims.block_values()))
     }
 
     /// Return the precision (uncompressed bits per scalar), or [`None`] if
@@ -686,8 +702,9 @@ impl ZfpConfig {
         let dimensionality = crate::field::dimensionality(&dims);
         let maxbits = self.block_bits(ty, dimensionality);
 
-        let blocks = dims[..usize::from(dimensionality)]
+        let blocks = dims
             .iter()
+            .take(usize::from(dimensionality))
             .try_fold(1usize, |acc, &n| acc.checked_mul(n.div_ceil(4)))?;
         // Maximum header size in bits (mirrors ZFP_HEADER_MAX_BITS / zfp_stream_maximum_size in zfp.c).
         let header_max: u64 = 148;
@@ -704,9 +721,12 @@ impl ZfpConfig {
     /// capped at `max_bits` and raised to `min_bits`, except that it is never
     /// less than the headers. A block writes those whatever `max_bits` is, so
     /// C under-reports when `max_bits` is smaller.
+    #[expect(
+        clippy::arithmetic_side_effects,
+        reason = "at most 19 header bits and 64 bits for each of 256 values"
+    )]
     pub(crate) fn block_bits(&self, ty: ZfpScalarType, dims: ZfpDimensionality) -> u32 {
-        let d = u32::from(dims);
-        let values = 1u32 << (2 * d);
+        let values = dims.block_values();
         let type_prec = match ty {
             ZfpScalarType::I32 | ZfpScalarType::F32 => 32u32,
             ZfpScalarType::I64 | ZfpScalarType::F64 => 64u32,

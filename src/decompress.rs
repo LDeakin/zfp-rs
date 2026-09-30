@@ -3,6 +3,10 @@
 //! Provides the borrow-based implementation used by
 //! [`ZfpBitStream::decompress`][crate::ZfpBitStream::decompress].
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use crate::bitstream::ZfpBitStreamOps;
 use crate::config::ZfpConfig;
 use crate::field::ZfpFieldMut;
@@ -89,6 +93,10 @@ unsafe fn decompress_blocks(
 ///
 /// # Safety
 /// As for [`decompress_blocks`], with `base` cast to `T`.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "`decompress_rayon` checked that the offset past the last block fits `u64`"
+)]
 unsafe fn decompress_typed<T: ZfpScalar>(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
     base: *mut T,
@@ -275,7 +283,8 @@ fn decompress_chunks(
     });
 }
 
-#[cfg(all(test, feature = "rayon"))]
+#[cfg(test)]
+#[cfg(feature = "rayon")]
 mod tests {
     use crate::config::{ZfpConfig, ZfpStreamAlignment};
     use crate::execution::ZfpExecution;

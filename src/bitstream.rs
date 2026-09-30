@@ -7,6 +7,10 @@
 //! and provides methods for compression, decompression, and header I/O.
 //! This mirrors the C API where the `bitstream` struct is the active I/O handle.
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 pub(crate) mod borrowed;
 mod core;
 mod ops;

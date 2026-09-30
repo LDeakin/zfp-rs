@@ -28,6 +28,17 @@
     clippy::missing_safety_doc
 )]
 #![warn(clippy::pedantic)]
+// A panic cannot unwind out of an `extern "C"` function, so it would abort the
+// caller's process. Tests may panic, as `clippy.toml` allows.
+#![warn(
+    clippy::panic,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    clippy::panic_in_result_fn
+)]
 
 mod abi;
 #[path = "bitstream.rs"]

@@ -4,7 +4,7 @@ use crate::bitstream::core::{
     seek_read_impl, seek_write_impl, skip_impl, write_bits_impl, write_pos_impl, write_word_impl,
 };
 use crate::bitstream::{ZfpBitStream, ZfpBitStreamRef, ZfpBitStreamRefMut};
-use crate::config::{STREAM_WORD_BYTES, ZfpConfig};
+use crate::config::ZfpConfig;
 use crate::field::{ZfpField, ZfpFieldMetadata, ZfpFieldMut};
 use crate::types::{ZfpBitStreamWord, ZfpHeaderMask};
 
@@ -294,7 +294,7 @@ macro_rules! impl_bitstream_ops {
             }
 
             pub fn capacity(&self) -> usize {
-                BitStreamStorage::words(self).len() * STREAM_WORD_BYTES
+                size_of_val(BitStreamStorage::words(self))
             }
 
             pub fn as_words(&self) -> &[ZfpBitStreamWord] {

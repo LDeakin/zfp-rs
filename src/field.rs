@@ -1,6 +1,10 @@
 #![allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
 //! `ZfpField` and `ZfpFieldMut`: uncompressed array descriptors.
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use crate::types::{
     ZfpDimensionality, ZfpDims, ZfpFieldError, ZfpMetadataError, ZfpScalar, ZfpScalarType,
     ZfpStrides,
@@ -54,8 +58,7 @@ impl ZfpFieldMetadata {
 /// Whether `dims` has a nonzero first dimension and no nonzero dimension after
 /// a zero one.
 pub(crate) fn valid_dims(dims: &[usize; 4]) -> bool {
-    let active = dims.iter().take_while(|&&n| n != 0).count();
-    active > 0 && dims[active..].iter().all(|&n| n == 0)
+    dims[0] != 0 && dims.iter().skip_while(|&&n| n != 0).all(|&n| n == 0)
 }
 
 /// Check that a field's dimensions are well formed and that `data` covers its
@@ -553,21 +556,21 @@ pub(crate) fn logical_shape_fits(dims: &[usize; 4]) -> bool {
 
 /// The stride an axis takes when its own is 0: the product of the dims below it.
 fn natural_stride(dims: &[usize; 4], axis: usize) -> isize {
-    dims[..axis]
-        .iter()
+    dims.iter()
+        .take(axis)
         .try_fold(1usize, |stride, &dim| stride.checked_mul(dim))
         .and_then(|stride| isize::try_from(stride).ok())
         .unwrap_or(isize::MAX)
 }
 
 fn effective_strides(dims: &[usize; 4], strides: &[isize; 4]) -> [isize; 4] {
-    std::array::from_fn(|axis| {
-        if strides[axis] != 0 {
-            strides[axis]
-        } else {
-            natural_stride(dims, axis)
+    let mut effective = *strides;
+    for (axis, stride) in effective.iter_mut().enumerate() {
+        if *stride == 0 {
+            *stride = natural_stride(dims, axis);
         }
-    })
+    }
+    effective
 }
 
 fn is_contiguous(dims: &[usize; 4], strides: &[isize; 4]) -> bool {
@@ -581,14 +584,10 @@ fn is_contiguous(dims: &[usize; 4], strides: &[isize; 4]) -> bool {
     // Otherwise check each active stride matches the natural layout
     let eff = effective_strides(dims, strides);
     let nat = effective_strides(dims, &[0; 4]);
-    let d = dimensionality(dims);
-    let active = match d {
-        ZfpDimensionality::D1 => 1,
-        ZfpDimensionality::D2 => 2,
-        ZfpDimensionality::D3 => 3,
-        ZfpDimensionality::D4 => 4,
-    };
-    eff[..active] == nat[..active]
+    eff.iter()
+        .zip(&nat)
+        .take(usize::from(dimensionality(dims)))
+        .all(|(e, n)| e == n)
 }
 
 /// Compute the min and max scalar index offsets spanned by the field.
@@ -609,21 +608,25 @@ pub(crate) fn field_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> (isiz
 pub fn checked_index_span(dims: &[usize; 4], strides: &[isize; 4]) -> Option<(isize, isize)> {
     let mut imin: isize = 0;
     let mut imax: isize = 0;
-    for axis in 0..usize::from(dimensionality(dims)) {
-        if dims[axis] == 0 {
+    // The product of the dims below the axis, its natural stride; `None` once
+    // it overflows, which matters only if an axis takes it.
+    let mut below = Some(1usize);
+    for (&dim, &stride) in dims
+        .iter()
+        .zip(strides)
+        .take(usize::from(dimensionality(dims)))
+    {
+        let natural = below;
+        below = below.and_then(|product| product.checked_mul(dim));
+        if dim == 0 {
             continue;
         }
-        let stride = if strides[axis] != 0 {
-            strides[axis]
+        let stride = if stride != 0 {
+            stride
         } else {
-            isize::try_from(
-                dims[..axis]
-                    .iter()
-                    .try_fold(1usize, |acc, &d| acc.checked_mul(d))?,
-            )
-            .ok()?
+            isize::try_from(natural?).ok()?
         };
-        let extent = stride.checked_mul(isize::try_from(dims[axis]).ok()?.checked_sub(1)?)?;
+        let extent = stride.checked_mul(isize::try_from(dim).ok()?.checked_sub(1)?)?;
         imin = imin.checked_add(extent.min(0))?;
         imax = imax.checked_add(extent.max(0))?;
     }
@@ -655,6 +658,10 @@ pub(crate) fn checked_size_bytes(
 /// Returns [`ZfpMetadataError::InvalidDims`] if the dimensions are malformed, or
 /// [`ZfpMetadataError::DimensionTooLarge`] if any dimension exceeds the
 /// encodable range for a 52-bit metadata word.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "`valid_dims` makes each active dim at least 1, and the shifts total at most 52 bits"
+)]
 pub(crate) fn field_metadata(
     scalar_type: ZfpScalarType,
     dims: &[usize; 4],
@@ -678,7 +685,7 @@ pub(crate) fn field_metadata(
     let max_encoded_dimension = (1u64 << bit_width) - 1;
     let mut meta = 0u64;
     let mut shift = 0;
-    for &dim in &dims[..usize::from(d)] {
+    for &dim in dims.iter().take(usize::from(d)) {
         let encoded = u64::try_from(dim - 1).map_err(|_| ZfpMetadataError::DimensionTooLarge)?;
         if encoded > max_encoded_dimension {
             return Err(ZfpMetadataError::DimensionTooLarge);
@@ -695,6 +702,10 @@ pub(crate) fn field_metadata(
 
 /// Decode the dims portion of a 52-bit metadata word (type is ignored).
 /// Returns `None` if the metadata is out of range.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the dimensionality is 2 bits plus 1, and each dim is masked to at most 48 bits"
+)]
 pub(crate) fn decode_metadata(meta: u64) -> Option<[usize; 4]> {
     if meta >> 52 != 0 {
         return None;
@@ -713,7 +724,7 @@ pub(crate) fn decode_metadata(meta: u64) -> Option<[usize; 4]> {
     let mask = (1u64 << bit_width) - 1;
     let mut encoded = meta;
     let mut dims = [0; 4];
-    for dim in &mut dims[..d] {
+    for dim in dims.iter_mut().take(d) {
         *dim = usize::try_from((encoded & mask) + 1).ok()?;
         encoded >>= bit_width;
     }

@@ -7,6 +7,10 @@
 //!
 //! Block element count = 1 << (2 * dims).
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use crate::types::{ZfpBlockError, ZfpDimensionality};
 
 /// Map the first `dims.block_size()` values of `src` into `dst` with `f`.
@@ -51,6 +55,10 @@ pub fn promote_i8_to_i32(
 /// # Errors
 ///
 /// Returns [`ZfpBlockError`] if `dst` or `src` is shorter than a block.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the values are 8 or 16 bits, shifted within 32"
+)]
 pub fn promote_u8_to_i32(
     dst: &mut [i32],
     src: &[u8],
@@ -79,6 +87,10 @@ pub fn promote_i16_to_i32(
 /// # Errors
 ///
 /// Returns [`ZfpBlockError`] if `dst` or `src` is shorter than a block.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the values are 8 or 16 bits, shifted within 32"
+)]
 pub fn promote_u16_to_i32(
     dst: &mut [i32],
     src: &[u16],
@@ -107,6 +119,10 @@ pub fn demote_i32_to_i8(
 ///
 /// Returns [`ZfpBlockError`] if `dst` or `src` is shorter than a block.
 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // clamped to [0x00, 0xff]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the values are 8 or 16 bits, shifted within 32"
+)]
 pub fn demote_i32_to_u8(
     dst: &mut [u8],
     src: &[i32],
@@ -137,6 +153,10 @@ pub fn demote_i32_to_i16(
 ///
 /// Returns [`ZfpBlockError`] if `dst` or `src` is shorter than a block.
 #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)] // clamped to [0x0000, 0xffff]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the values are 8 or 16 bits, shifted within 32"
+)]
 pub fn demote_i32_to_u16(
     dst: &mut [u16],
     src: &[i32],

@@ -100,29 +100,33 @@ pub(crate) fn vec_with_capacity<T>(n: usize) -> Result<Vec<T>, ZfpAllocError> {
 }
 
 pub(super) fn bytes_to_words(buf: &[u8]) -> Result<Vec<ZfpBitStreamWord>, ZfpAllocError> {
-    let (chunks, tail) = buf.as_chunks::<{ size_of::<ZfpBitStreamWord>() }>();
+    let (chunks, tail) = buf.as_chunks::<STREAM_WORD_BYTES>();
     let mut out: Vec<ZfpBitStreamWord> = vec_with_capacity(buf.len().div_ceil(STREAM_WORD_BYTES))?;
-    match bytemuck::try_cast_slice::<u8, ZfpBitStreamWord>(&buf[..chunks.len() * STREAM_WORD_BYTES])
-    {
+    match bytemuck::try_cast_slice::<u8, ZfpBitStreamWord>(chunks.as_flattened()) {
         Ok(words) => out.extend_from_slice(words),
         Err(_) => out.extend(chunks.iter().map(|c| ZfpBitStreamWord::from_ne_bytes(*c))),
     }
     if !tail.is_empty() {
         let mut last = [0u8; STREAM_WORD_BYTES];
-        last[..tail.len()].copy_from_slice(tail);
+        for (byte, &value) in last.iter_mut().zip(tail) {
+            *byte = value;
+        }
         out.push(ZfpBitStreamWord::from_ne_bytes(last));
     }
     Ok(out)
 }
 
 pub(super) fn cast_bytes_to_words(buf: &[u8]) -> Option<&[ZfpBitStreamWord]> {
-    let nbytes = (buf.len() / STREAM_WORD_BYTES) * STREAM_WORD_BYTES;
-    bytemuck::try_cast_slice::<u8, ZfpBitStreamWord>(&buf[..nbytes]).ok()
+    let whole = buf.as_chunks::<STREAM_WORD_BYTES>().0.as_flattened();
+    bytemuck::try_cast_slice::<u8, ZfpBitStreamWord>(whole).ok()
 }
 
 pub(super) fn cast_bytes_to_words_mut(buf: &mut [u8]) -> Option<&mut [ZfpBitStreamWord]> {
-    let nbytes = (buf.len() / STREAM_WORD_BYTES) * STREAM_WORD_BYTES;
-    bytemuck::try_cast_slice_mut::<u8, ZfpBitStreamWord>(&mut buf[..nbytes]).ok()
+    let whole = buf
+        .as_chunks_mut::<STREAM_WORD_BYTES>()
+        .0
+        .as_flattened_mut();
+    bytemuck::try_cast_slice_mut::<u8, ZfpBitStreamWord>(whole).ok()
 }
 
 fn read_word_raw<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u64 {
@@ -149,8 +153,7 @@ fn write_word_raw<S: BitStreamStorageMut + ?Sized>(stream: &mut S, value: u64) {
 pub(super) fn committed_words<S: BitStreamStorage + ?Sized>(stream: &S) -> &[ZfpBitStreamWord] {
     // Clamped: reads and dropped writes may carry `word_pos` past the buffer.
     let words = stream.words();
-    let end = stream.state().word_pos.min(words.len());
-    &words[..end]
+    words.get(..stream.state().word_pos).unwrap_or(words)
 }
 
 pub(super) fn backing_bytes<S: BitStreamStorage + ?Sized>(stream: &S) -> &[u8] {
@@ -163,6 +166,10 @@ pub(super) fn read_word_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u6
 
 /// Read `n` bits, least significant first; `n` above 64 is read as 64, the
 /// most C's `stream_read_bits` supports.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the cursor keeps `bits < 64` between operations, and bit counts are at most 64"
+)]
 pub(super) fn read_bits_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: u32) -> u64 {
     let n = n.min(WSIZE);
     let mut value = stream.state().buffer;
@@ -202,6 +209,10 @@ pub(super) fn read_bits_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: u3
     value
 }
 
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "`bits` is refilled to 64 before it is decremented"
+)]
 pub(super) fn read_bit_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u32 {
     if stream.state().bits == 0 {
         let word = read_word_raw(stream);
@@ -222,11 +233,16 @@ pub(super) fn read_bit_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u32
 /// Saturates where `usize` is narrower than the offset. No allocation exceeds
 /// `isize::MAX` bytes, so that is past the end of any buffer, with room for the
 /// cursor to advance without overflowing.
+#[expect(clippy::arithmetic_side_effects, reason = "division by the word size")]
 fn word_index(offset: u64) -> usize {
     usize::try_from(offset / u64::from(WSIZE)).unwrap_or(usize::MAX / 2)
 }
 
 #[allow(clippy::cast_possible_truncation)]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the offset within a word is below 64"
+)]
 pub(super) fn seek_read_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offset: u64) {
     let n = (offset % u64::from(WSIZE)) as u32;
     // Kept past the end of the buffer, as C's `stream_rseek` does, so the
@@ -250,6 +266,10 @@ pub(super) fn write_word_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, w
 
 /// Write the low `n` bits of `value` and return `value >> n`; `n` above 64 is
 /// written as 64, the most C's `stream_write_bits` supports.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the cursor keeps `bits < 64` between operations, and bit counts are at most 64"
+)]
 pub(super) fn write_bits_impl<S: BitStreamStorageMut + ?Sized>(
     stream: &mut S,
     value: u64,
@@ -282,6 +302,10 @@ pub(super) fn write_bits_impl<S: BitStreamStorageMut + ?Sized>(
     if n < 64 { value >> n } else { 0 }
 }
 
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the cursor keeps `bits < 64` between operations"
+)]
 pub(super) fn write_bit_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, bit: u32) -> u32 {
     {
         let state = stream.state_mut();
@@ -300,6 +324,10 @@ pub(super) fn write_bit_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, bi
 }
 
 #[allow(clippy::cast_possible_truncation)]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the offset within a word is below 64"
+)]
 pub(super) fn seek_write_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, offset: u64) {
     let n = (offset % u64::from(WSIZE)) as u32;
     // Kept past the end, as in `seek_read_impl`; writes there are dropped.
@@ -359,6 +387,10 @@ pub(super) fn skip_impl<S: BitStreamStorage + ?Sized>(stream: &mut S, n: u64) {
 /// compression 5%.
 #[inline(never)]
 #[allow(clippy::cast_possible_truncation)]
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the loop subtracts a word only while `bits` holds one"
+)]
 pub(super) fn pad_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, n: u64) {
     let mut bits = u64::from(stream.state().bits).saturating_add(n);
     while bits >= u64::from(WSIZE) {
@@ -385,6 +417,10 @@ pub(super) fn pad_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S, n: u64) 
 /// writes are dropped, so the remaining whole words are skipped at once. That
 /// leaves both streams exactly as copying them one at a time would, and bounds
 /// the work by the buffer lengths whatever `n` is.
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the loop subtracts at most `remaining - 1` bits, and only while more than a word remains"
+)]
 pub(super) fn copy_impl<D, S>(dst: &mut D, src: &mut S, n: u64)
 where
     D: BitStreamStorageMut + ?Sized,
@@ -427,6 +463,10 @@ pub(super) fn align_impl<S: BitStreamStorage + ?Sized>(stream: &mut S) -> u32 {
     bits
 }
 
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the cursor keeps `bits < 64` between operations"
+)]
 pub(super) fn flush_impl<S: BitStreamStorageMut + ?Sized>(stream: &mut S) -> u32 {
     let pad = (WSIZE - stream.state().bits) % WSIZE;
     if pad != 0 {
@@ -448,6 +488,10 @@ pub(crate) struct BitReader<'a> {
     bits: u32,
 }
 
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the cursor keeps `bits < 64` between reads, and each reads at most 64 bits"
+)]
 impl<'a> BitReader<'a> {
     #[inline]
     pub(crate) fn new<S: BitStreamStorage + ?Sized>(stream: &'a mut S) -> Self {
@@ -527,6 +571,10 @@ pub(crate) struct BitWriter<'a> {
     overflowed: bool,
 }
 
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the cursor keeps `bits < 64` between writes, and `put` writes at most 64 bits"
+)]
 impl<'a> BitWriter<'a> {
     #[inline]
     pub(crate) fn new<S: BitStreamStorageMut + ?Sized>(stream: &'a mut S) -> Self {

@@ -3,6 +3,10 @@
 //! Provides [`ZfpExecution`], which selects between serial and Rayon-based
 //! parallel block processing.
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 /// Execution policy for compression / decompression.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum ZfpExecution {
@@ -86,7 +90,8 @@ pub(crate) fn chunk_ranges(
     Some(ranges)
 }
 
-#[cfg(all(test, feature = "rayon"))]
+#[cfg(test)]
+#[cfg(feature = "rayon")]
 mod tests {
     use super::chunk_ranges;
 

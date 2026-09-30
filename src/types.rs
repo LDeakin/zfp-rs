@@ -1,5 +1,9 @@
 //! Core ZFP types, constants, and the sealed `ZfpScalar` trait.
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use bitflags::bitflags;
 use std::convert::TryFrom;
 use std::fmt;
@@ -338,6 +342,17 @@ impl ZfpDimensionality {
     #[must_use]
     pub const fn block_size(self) -> usize {
         4usize.pow(self as u32)
+    }
+
+    /// [`block_size`][Self::block_size] as a `u32`, for bit arithmetic.
+    #[inline]
+    pub(crate) const fn block_values(self) -> u32 {
+        match self {
+            ZfpDimensionality::D1 => 4,
+            ZfpDimensionality::D2 => 16,
+            ZfpDimensionality::D3 => 64,
+            ZfpDimensionality::D4 => 256,
+        }
     }
 }
 

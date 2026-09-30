@@ -23,6 +23,10 @@
 //! validate the field's index span and alignment against its buffer and derive
 //! the pointer accordingly.
 
+// The API and validation layer computes with caller-supplied sizes, so its
+// arithmetic and indexing must be checked; see the crate's panic guarantee.
+#![warn(clippy::indexing_slicing, clippy::arithmetic_side_effects)]
+
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
 use crate::types::{ZfpBlockError, ZfpDimensionality, ZfpScalar};

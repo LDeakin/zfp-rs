@@ -314,13 +314,17 @@ macro_rules! reversible_dispatch {
 /// Gather a 4^d contiguous block from strided data.
 ///
 /// `dims` is 1–4, `strides` has effective (non-zero) strides.
-/// For partial blocks, `lengths` gives the count per dimension (≤ 4), and
+/// For partial blocks, `lengths` gives the count per dimension (1–4), and
 /// elements outside the field boundary are padded with the nearest value.
 ///
 /// # Safety
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the lengths are at least 1, and the offsets lie in the span the caller's contract covers"
+)]
 unsafe fn gather_block<T: ZfpScalar>(
     data: *const T,
     dims: ZfpDimensionality,
@@ -342,63 +346,49 @@ unsafe fn gather_block<T: ZfpScalar>(
     }
 
     debug_assert_eq!(block.len(), dims.block_size());
+    let [sx, sy, sz, sw] = *strides;
+    let [lx, ly, lz, lw] = lengths.map(|n| n as isize);
+    // The block holds exactly 4^d values, so `values` yields one for every
+    // index the loops visit.
+    let mut values = block.iter_mut();
     match dims {
         ZfpDimensionality::D1 => {
-            let sx = strides[0];
-            let lx = lengths[0] as isize;
             for x in 0..4isize {
                 let px = pad_idx(x, lx);
-                // SAFETY: px is a valid source index within [0, lx-1].
-                block[x as usize] = unsafe { *data.offset(px * sx) };
+                if let Some(value) = values.next() {
+                    // SAFETY: px is a valid source index within [0, lx-1].
+                    *value = unsafe { *data.offset(px * sx) };
+                }
             }
         }
         ZfpDimensionality::D2 => {
-            let sx = strides[0];
-            let sy = strides[1];
-            let lx = lengths[0] as isize;
-            let ly = lengths[1] as isize;
-            let mut i = 0;
             for y in 0..4isize {
                 let py = pad_idx(y, ly);
                 for x in 0..4isize {
                     let px = pad_idx(x, lx);
-                    // SAFETY: px, py are valid source indices.
-                    block[i] = unsafe { *data.offset(px * sx + py * sy) };
-                    i += 1;
+                    if let Some(value) = values.next() {
+                        // SAFETY: px, py are valid source indices.
+                        *value = unsafe { *data.offset(px * sx + py * sy) };
+                    }
                 }
             }
         }
         ZfpDimensionality::D3 => {
-            let sx = strides[0];
-            let sy = strides[1];
-            let sz = strides[2];
-            let lx = lengths[0] as isize;
-            let ly = lengths[1] as isize;
-            let lz = lengths[2] as isize;
-            let mut i = 0;
             for z in 0..4isize {
                 let pz = pad_idx(z, lz);
                 for y in 0..4isize {
                     let py = pad_idx(y, ly);
                     for x in 0..4isize {
                         let px = pad_idx(x, lx);
-                        // SAFETY: px, py, pz are valid source indices.
-                        block[i] = unsafe { *data.offset(px * sx + py * sy + pz * sz) };
-                        i += 1;
+                        if let Some(value) = values.next() {
+                            // SAFETY: px, py, pz are valid source indices.
+                            *value = unsafe { *data.offset(px * sx + py * sy + pz * sz) };
+                        }
                     }
                 }
             }
         }
         ZfpDimensionality::D4 => {
-            let sx = strides[0];
-            let sy = strides[1];
-            let sz = strides[2];
-            let sw = strides[3];
-            let lx = lengths[0] as isize;
-            let ly = lengths[1] as isize;
-            let lz = lengths[2] as isize;
-            let lw = lengths[3] as isize;
-            let mut i = 0;
             for w in 0..4isize {
                 let pw = pad_idx(w, lw);
                 for z in 0..4isize {
@@ -407,10 +397,11 @@ unsafe fn gather_block<T: ZfpScalar>(
                         let py = pad_idx(y, ly);
                         for x in 0..4isize {
                             let px = pad_idx(x, lx);
-                            // SAFETY: px, py, pz, pw are valid source indices.
-                            block[i] =
-                                unsafe { *data.offset(px * sx + py * sy + pz * sz + pw * sw) };
-                            i += 1;
+                            if let Some(value) = values.next() {
+                                // SAFETY: px, py, pz, pw are valid source indices.
+                                *value =
+                                    unsafe { *data.offset(px * sx + py * sy + pz * sz + pw * sw) };
+                            }
                         }
                     }
                 }
@@ -428,6 +419,10 @@ unsafe fn gather_block<T: ZfpScalar>(
 /// `data` must be valid for every offset the strides generate over the
 /// block's extent. See the [`crate::codec::block`] module documentation.
 #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)] // usize↔isize for stride computation
+#[expect(
+    clippy::arithmetic_side_effects,
+    reason = "the offsets lie in the span the caller's contract covers"
+)]
 unsafe fn scatter_block<T: ZfpScalar>(
     block: &[T],
     data: *mut T,
@@ -435,76 +430,66 @@ unsafe fn scatter_block<T: ZfpScalar>(
     strides: &[isize; 4],
     lengths: [usize; 4],
 ) {
+    let [sx, sy, sz, sw] = *strides;
+    let [lx, ly, lz, lw] = lengths;
+    // The block holds exactly 4^d values, one for every index the loops visit.
+    let mut values = block.iter();
     match dims {
         ZfpDimensionality::D1 => {
-            let sx = strides[0];
-            let lx = lengths[0];
-            for (x, &v) in block.iter().take(lx).enumerate() {
+            for (x, &v) in values.take(lx).enumerate() {
                 unsafe { *data.offset(x as isize * sx) = v };
             }
         }
         ZfpDimensionality::D2 => {
-            let sx = strides[0];
-            let sy = strides[1];
-            let lx = lengths[0];
-            let ly = lengths[1];
-            let mut i = 0;
             for y in 0..4 {
                 for x in 0..4 {
-                    if x < lx && y < ly {
-                        unsafe { *data.offset(x as isize * sx + y as isize * sy) = block[i] };
+                    if let Some(&v) = values.next()
+                        && x < lx
+                        && y < ly
+                    {
+                        unsafe { *data.offset(x as isize * sx + y as isize * sy) = v };
                     }
-                    i += 1;
                 }
             }
         }
         ZfpDimensionality::D3 => {
-            let sx = strides[0];
-            let sy = strides[1];
-            let sz = strides[2];
-            let lx = lengths[0];
-            let ly = lengths[1];
-            let lz = lengths[2];
-            let mut i = 0;
             for z in 0..4 {
                 for y in 0..4 {
                     for x in 0..4 {
-                        if x < lx && y < ly && z < lz {
+                        if let Some(&v) = values.next()
+                            && x < lx
+                            && y < ly
+                            && z < lz
+                        {
                             unsafe {
                                 *data.offset(x as isize * sx + y as isize * sy + z as isize * sz) =
-                                    block[i];
+                                    v;
                             }
                         }
-                        i += 1;
                     }
                 }
             }
         }
         ZfpDimensionality::D4 => {
-            let sx = strides[0];
-            let sy = strides[1];
-            let sz = strides[2];
-            let sw = strides[3];
-            let lx = lengths[0];
-            let ly = lengths[1];
-            let lz = lengths[2];
-            let lw = lengths[3];
-            let mut i = 0;
             for w in 0..4 {
                 for z in 0..4 {
                     for y in 0..4 {
                         for x in 0..4 {
-                            if x < lx && y < ly && z < lz && w < lw {
+                            if let Some(&v) = values.next()
+                                && x < lx
+                                && y < ly
+                                && z < lz
+                                && w < lw
+                            {
                                 unsafe {
                                     *data.offset(
                                         x as isize * sx
                                             + y as isize * sy
                                             + z as isize * sz
                                             + w as isize * sw,
-                                    ) = block[i];
+                                    ) = v;
                                 }
                             }
-                            i += 1;
                         }
                     }
                 }

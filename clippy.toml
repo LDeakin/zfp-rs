@@ -1,0 +1,5 @@
+# Tests report failures by panicking; the library itself must not panic.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
