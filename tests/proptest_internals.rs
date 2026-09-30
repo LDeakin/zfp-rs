@@ -8,3 +8,6 @@
 mod block_decode_compat;
 #[path = "proptest/block_encode_compat.rs"]
 mod block_encode_compat;
+#[cfg(feature = "ffi")]
+#[path = "proptest/strategies.rs"]
+mod strategies;

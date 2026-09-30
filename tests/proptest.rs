@@ -8,6 +8,10 @@
 mod bitstream_compat;
 #[path = "proptest/budget.rs"]
 mod budget;
+#[path = "proptest/c_1d.rs"]
+mod c_1d;
+#[path = "proptest/compat_modes.rs"]
+mod compat_modes;
 #[path = "proptest/compress_compat.rs"]
 mod compress_compat;
 #[path = "proptest/decompress_compat.rs"]
@@ -18,6 +22,8 @@ mod differences;
 mod header_compat;
 #[path = "proptest/rounding.rs"]
 mod rounding;
+#[path = "proptest/strategies.rs"]
+mod strategies;
 #[path = "proptest/tiny_blocks.rs"]
 mod tiny_blocks;
 #[path = "proptest/wide_range_accuracy.rs"]

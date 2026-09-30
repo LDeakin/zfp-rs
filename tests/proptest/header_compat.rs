@@ -7,8 +7,8 @@
 //! type, dimensionality, and compression mode, we write the header with both
 //! the Rust `write_header` and C `zfp_write_header`, then compare
 //! the resulting bitstream bytes.
-#![expect(unsafe_op_in_unsafe_fn)]
 
+use crate::compat_modes::{apply_mode_c, apply_mode_rust, preset_mode_strategy};
 use proptest::prelude::*;
 use zfp_rs::{
     ZfpBitStream, ZfpConfig, ZfpDimensionality, ZfpField,
@@ -59,83 +59,6 @@ impl Drop for CHeader {
 }
 
 // ---------------------------------------------------------------------------
-// Helper: set the same mode on both Rust ZfpConfig and C zfp_stream
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Debug)]
-enum Mode {
-    FixedRate(u32),      // bits per block (1..=2048)
-    FixedPrecision(u32), // precision (1..=64)
-    FixedAccuracy(i32),  // min_exp (-1074..=843)
-    Reversible,
-}
-
-fn mode_strategy() -> impl Strategy<Value = Mode> {
-    prop_oneof![
-        (1u32..=2048u32).prop_map(Mode::FixedRate),
-        (1u32..=64u32).prop_map(Mode::FixedPrecision),
-        (-1074i32..=843i32).prop_map(Mode::FixedAccuracy),
-        Just(Mode::Reversible),
-    ]
-}
-
-fn apply_mode_rust(
-    config: &mut ZfpConfig,
-    mode: &Mode,
-    ty: ZfpScalarType,
-    dims: ZfpDimensionality,
-) {
-    match *mode {
-        Mode::FixedRate(bits) => {
-            *config = ZfpConfig::fixed_rate(
-                f64::from(bits) / f64::from(1u32 << (2 * u32::from(dims))),
-                ty,
-                dims,
-                zfp_rs::ZfpStreamAlignment::Unaligned,
-            )
-            .unwrap();
-        }
-        Mode::FixedPrecision(p) => {
-            *config = ZfpConfig::fixed_precision(p);
-        }
-        Mode::FixedAccuracy(e) => {
-            *config = ZfpConfig::fixed_accuracy(libm::ldexp(1.0, e));
-        }
-        Mode::Reversible => {
-            *config = ZfpConfig::reversible();
-        }
-    }
-}
-
-unsafe fn apply_mode_c(
-    zfp: *mut zfp_sys::zfp_stream,
-    mode: &Mode,
-    c_type: zfp_sys::zfp_type,
-    dims: u32,
-) {
-    match *mode {
-        Mode::FixedRate(bits) => {
-            zfp_sys::zfp_stream_set_rate(
-                zfp,
-                f64::from(bits) / f64::from(1u32 << (2 * dims)),
-                c_type,
-                dims,
-                0,
-            );
-        }
-        Mode::FixedPrecision(p) => {
-            zfp_sys::zfp_stream_set_precision(zfp, p);
-        }
-        Mode::FixedAccuracy(e) => {
-            zfp_sys::zfp_stream_set_accuracy(zfp, libm::ldexp(1.0, e));
-        }
-        Mode::Reversible => {
-            zfp_sys::zfp_stream_set_reversible(zfp);
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Macro: header write compatibility for one scalar type
 // ---------------------------------------------------------------------------
 
@@ -150,7 +73,7 @@ macro_rules! header_write_compat {
             #[test]
             fn $test_name(
                 nx in 1usize..=1024usize,
-                mode in mode_strategy(),
+                mode in preset_mode_strategy(),
             ) {
                 // Use full header (MAGIC | META | MODE)
                 let mask = ZfpHeaderMask::MAGIC | ZfpHeaderMask::META | ZfpHeaderMask::MODE;
