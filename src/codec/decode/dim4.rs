@@ -23,11 +23,9 @@ unsafe fn scatter_4d<T: Copy>(
     sz: isize,
     sw: isize,
 ) {
-    let mut rows = block.as_chunks::<4>().0.iter();
-    for w in 0isize..4 {
-        for z in 0isize..4 {
-            for y in 0isize..4 {
-                let row = rows.next().unwrap_or_else(|| unreachable!());
+    for (w, cube) in (0isize..).zip(block.as_chunks::<64>().0) {
+        for (z, plane) in (0isize..).zip(cube.as_chunks::<16>().0) {
+            for (y, row) in (0isize..).zip(plane.as_chunks::<4>().0) {
                 // SAFETY: caller guarantees data spans 4^4 elements with strides
                 unsafe { write_row(data.offset(w * sw + z * sz + y * sy), sx, row) };
             }

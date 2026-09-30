@@ -96,17 +96,18 @@ pub fn decode_block<T: ZfpScalar>(
 /// Reinterpret a `&[T]` slice as a `[U; 4]` array via bytemuck casting for 1-D blocks.
 ///
 /// Performs two conversions:
-/// 1. `bytemuck::cast_slice` reinterprets `&[T]` → `&[U]`
+/// 1. `bytemuck::try_cast_slice` reinterprets `&[T]` → `&[U]`
 /// 2. `try_into()` converts `&[U]` → `&[U; 4]`
 ///
 /// # Errors
 ///
-/// Returns [`ZfpBlockError`] if `data.len()` is not 4.
+/// Returns [`ZfpBlockError`] if `data.len()` is not 4, or `T` and `U` differ
+/// in size or alignment.
 #[inline]
 pub(crate) fn as_typed_block_1d<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &[T],
 ) -> Result<&'_ [U; 4], ZfpBlockError> {
-    let slice = bytemuck::cast_slice::<T, U>(data);
+    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
@@ -115,7 +116,7 @@ pub(crate) fn as_typed_block_1d<T: bytemuck::Pod, U: bytemuck::Pod>(
 pub(crate) fn as_typed_block_1d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
 ) -> Result<&'_ mut [U; 4], ZfpBlockError> {
-    let slice = bytemuck::cast_slice_mut::<T, U>(data);
+    let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
@@ -126,7 +127,7 @@ pub(crate) fn as_typed_block_1d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
 pub(crate) fn as_typed_block_2d<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &[T],
 ) -> Result<&'_ [U; 16], ZfpBlockError> {
-    let slice = bytemuck::cast_slice::<T, U>(data);
+    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
@@ -135,7 +136,7 @@ pub(crate) fn as_typed_block_2d<T: bytemuck::Pod, U: bytemuck::Pod>(
 pub(crate) fn as_typed_block_2d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
 ) -> Result<&'_ mut [U; 16], ZfpBlockError> {
-    let slice = bytemuck::cast_slice_mut::<T, U>(data);
+    let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
@@ -146,7 +147,7 @@ pub(crate) fn as_typed_block_2d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
 pub(crate) fn as_typed_block_3d<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &[T],
 ) -> Result<&'_ [U; 64], ZfpBlockError> {
-    let slice = bytemuck::cast_slice::<T, U>(data);
+    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
@@ -155,7 +156,7 @@ pub(crate) fn as_typed_block_3d<T: bytemuck::Pod, U: bytemuck::Pod>(
 pub(crate) fn as_typed_block_3d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
 ) -> Result<&'_ mut [U; 64], ZfpBlockError> {
-    let slice = bytemuck::cast_slice_mut::<T, U>(data);
+    let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
@@ -166,7 +167,7 @@ pub(crate) fn as_typed_block_3d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
 pub(crate) fn as_typed_block_4d<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &[T],
 ) -> Result<&'_ [U; 256], ZfpBlockError> {
-    let slice = bytemuck::cast_slice::<T, U>(data);
+    let slice = bytemuck::try_cast_slice::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 
@@ -175,7 +176,7 @@ pub(crate) fn as_typed_block_4d<T: bytemuck::Pod, U: bytemuck::Pod>(
 pub(crate) fn as_typed_block_4d_mut<T: bytemuck::Pod, U: bytemuck::Pod>(
     data: &mut [T],
 ) -> Result<&'_ mut [U; 256], ZfpBlockError> {
-    let slice = bytemuck::cast_slice_mut::<T, U>(data);
+    let slice = bytemuck::try_cast_slice_mut::<T, U>(data).map_err(|_| ZfpBlockError)?;
     slice.try_into().map_err(|_| ZfpBlockError)
 }
 

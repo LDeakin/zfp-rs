@@ -14,9 +14,7 @@ use super::{
 };
 use crate::bitstream::{ZfpBitStreamMutOps, ZfpBitStreamOps};
 use crate::config::ZfpConfig;
-#[cfg(feature = "ffi")]
-use crate::types::ZfpBlockError;
-use crate::types::{ZFP_MIN_EXP, ZfpDimensionality, ZfpScalar, ZfpScalarType};
+use crate::types::{ZFP_MIN_EXP, ZfpBlockError, ZfpDimensionality, ZfpScalar, ZfpScalarType};
 
 /// Reinterpret a scalar pointer as the concrete type the enclosing match arm has
 /// already proven `T` to be.
@@ -112,10 +110,15 @@ macro_rules! strided_dispatch {
     };
 }
 
-/// The block is sized from `dims`, so reinterpreting it cannot fail.
+/// The block is sized from `dims`, and the enclosing match arm pins `T` to the
+/// target type, so reinterpreting it cannot fail. If it did, the block would
+/// code nothing.
 macro_rules! typed_block {
     ($e:expr) => {
-        $e.unwrap_or_else(|_| unreachable!("block size matches dimensionality"))
+        match $e {
+            Ok(block) => block,
+            Err(ZfpBlockError) => return 0,
+        }
     };
 }
 

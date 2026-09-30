@@ -211,7 +211,8 @@ pub(crate) fn precision_f(
     // Both exponents may span the full i32 range. Clamp before converting
     // back to u32 so neither subtraction nor conversion wraps.
     let raw = i64::from(maxexp) - i64::from(minexp) + 2 * i64::from(dims) + i64::from(slack);
-    u32::try_from(raw.clamp(0, i64::from(maxprec))).expect("bounded by maxprec")
+    // The clamp bounds `raw` by `maxprec`, so the conversion cannot fail.
+    u32::try_from(raw.clamp(0, i64::from(maxprec))).unwrap_or(maxprec)
 }
 
 /// Largest `|x|` in a block; NaNs are skipped, as C's `max < f` test never

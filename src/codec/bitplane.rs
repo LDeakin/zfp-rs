@@ -341,7 +341,10 @@ fn top_to_planes<const R: usize>(coeff: impl Fn(usize) -> u64, planes: &mut [u64
         })
     });
     transpose(&mut rows);
-    planes[shift..].copy_from_slice(&rows);
+    // `planes` holds at least `R` words, as the callers pick `R <= P`.
+    if let Some(top) = planes.last_chunk_mut::<R>() {
+        *top = rows;
+    }
 }
 
 /// Inverse of [`chunk_to_planes`], given that every plane below `kmin` is zero.
@@ -360,9 +363,11 @@ fn chunk_from_planes<const P: usize>(planes: &[u64; P], kmin: u32, store: impl F
 #[inline(always)]
 fn top_from_planes<const R: usize>(planes: &[u64], mut store: impl FnMut(usize, u64)) {
     let shift = planes.len() - R;
-    let mut rows: [u64; R] = planes[shift..]
-        .try_into()
-        .unwrap_or_else(|_| unreachable!());
+    // `planes` holds at least `R` words, as the callers pick `R <= P`.
+    let Some(&top) = planes.last_chunk::<R>() else {
+        return;
+    };
+    let mut rows = top;
     transpose(&mut rows);
     for (c, &row) in rows.iter().enumerate() {
         for l in 0..64 / R {
