@@ -12,7 +12,6 @@ use zfp_rs::{
 
 /// Values that vary in sign and magnitude, so blocks have many bit planes.
 trait Sample: ZfpScalar + Copy + Default + std::fmt::Debug + PartialEq {
-    const TYPE: ZfpScalarType;
     fn sample(i: usize) -> Self;
 }
 
@@ -21,25 +20,21 @@ fn noise(i: usize) -> u64 {
 }
 
 impl Sample for i32 {
-    const TYPE: ZfpScalarType = ZfpScalarType::I32;
     fn sample(i: usize) -> Self {
         noise(i) as i32 - (1 << 23)
     }
 }
 impl Sample for i64 {
-    const TYPE: ZfpScalarType = ZfpScalarType::I64;
     fn sample(i: usize) -> Self {
         (noise(i) as i64 - (1 << 23)) << 20
     }
 }
 impl Sample for f32 {
-    const TYPE: ZfpScalarType = ZfpScalarType::F32;
     fn sample(i: usize) -> Self {
         (noise(i) as f32 - 8.0e6) * 1.0e-3
     }
 }
 impl Sample for f64 {
-    const TYPE: ZfpScalarType = ZfpScalarType::F64;
     fn sample(i: usize) -> Self {
         (noise(i) as f64 - 8.0e6) * 1.0e-3
     }
@@ -61,15 +56,6 @@ const SHAPES: [[usize; 4]; 12] = [
     [5, 2, 3, 4],
 ];
 
-fn rank(shape: &[usize; 4]) -> ZfpDimensionality {
-    match shape.iter().filter(|&&n| n > 0).count() {
-        1 => ZfpDimensionality::D1,
-        2 => ZfpDimensionality::D2,
-        3 => ZfpDimensionality::D3,
-        _ => ZfpDimensionality::D4,
-    }
-}
-
 /// A config with a name, and whether every block has the same size.
 struct Case {
     name: String,
@@ -88,7 +74,7 @@ fn cases<T: Sample>(dims: ZfpDimensionality) -> Vec<Case> {
         ] {
             cases.push(Case {
                 name: format!("fixed_rate({rate}, {align:?})"),
-                config: ZfpConfig::fixed_rate(rate, T::TYPE, dims, align).unwrap(),
+                config: ZfpConfig::fixed_rate(rate, T::SCALAR_TYPE, dims, align).unwrap(),
                 fixed_size: true,
             });
         }
@@ -148,8 +134,8 @@ fn for_each_stream<T: Sample>(check: impl Fn(&Case, [usize; 4], &[u64], usize, &
         let n = shape.iter().filter(|&&n| n > 0).product();
         let data: Vec<T> = (0..n).map(T::sample).collect();
         let field = ZfpField::new(&data, shape).unwrap();
-        for case in cases::<T>(rank(&shape)) {
-            let capacity = case.config.maximum_size(T::TYPE, shape).unwrap();
+        for case in cases::<T>(field.dimensionality()) {
+            let capacity = case.config.maximum_size(T::SCALAR_TYPE, shape).unwrap();
             let mut bs = ZfpBitStream::new(capacity).unwrap();
             let size = bs.compress(&case.config, &field).unwrap();
             let words = bs.as_words().to_vec();
@@ -163,7 +149,7 @@ fn for_each_stream<T: Sample>(check: impl Fn(&Case, [usize; 4], &[u64], usize, &
 /// exactly-sized buffer, owned or borrowed, however it ends in its last word.
 fn whole_streams_are_not_truncated<T: Sample>() {
     for_each_stream::<T>(|case, shape, words, size, _| {
-        let context = format!("{:?} {} {shape:?}", T::TYPE, case.name);
+        let context = format!("{:?} {} {shape:?}", T::SCALAR_TYPE, case.name);
         for execution in executions() {
             let mut borrowed = ZfpBitStreamRef::from_words(words);
             assert_eq!(
@@ -189,7 +175,7 @@ fn whole_streams_are_not_truncated<T: Sample>() {
 /// reported fixed-rate stream reports the size it needs.
 fn missing_words_are_reported<T: Sample>() {
     for_each_stream::<T>(|case, shape, words, size, _| {
-        let context = format!("{:?} {} {shape:?}", T::TYPE, case.name);
+        let context = format!("{:?} {} {shape:?}", T::SCALAR_TYPE, case.name);
         let serial = ZfpExecution::Serial;
         let whole = decode::<T>(&mut ZfpBitStreamRef::from_words(words), case, shape, serial);
         for kept in [words.len() - 1, words.len() / 2] {
@@ -267,7 +253,7 @@ fn missing_padding_is_not_truncated() {
 /// and so is whole.
 fn a_cut_inside_the_last_word_is_seen_only_without_padding<T: Sample>() {
     for_each_stream::<T>(|case, shape, words, size, bs| {
-        let context = format!("{:?} {} {shape:?}", T::TYPE, case.name);
+        let context = format!("{:?} {} {shape:?}", T::SCALAR_TYPE, case.name);
         let cut = &bs.as_bytes()[..size - 1];
         let serial = ZfpExecution::Serial;
 
@@ -294,7 +280,7 @@ fn a_cursor_past_the_end_is_reported<T: Sample>() {
         assert!(
             matches!(result, Err(ZfpDecompressionError::Truncated { .. })),
             "{:?} {} {shape:?}: {result:?}",
-            T::TYPE,
+            T::SCALAR_TYPE,
             case.name
         );
     });

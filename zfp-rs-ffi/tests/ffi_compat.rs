@@ -4,6 +4,7 @@ use proptest::prelude::*;
 use std::ffi::c_void;
 use std::mem::size_of;
 use zfp_rs_ffi as ffi;
+use zfp_rs_ffi::{ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_EXP};
 
 #[allow(non_camel_case_types, non_upper_case_globals)]
 mod zfp_sys {
@@ -469,8 +470,6 @@ mod zfp_sys {
 }
 
 const CAPACITY: usize = 1 << 20;
-const ZFP_MAX_PREC: u32 = 64;
-const ZFP_MIN_EXP: i32 = -1074;
 const ZFP_RATE_PARAM_BITS: u32 = 19;
 
 #[test]
@@ -504,8 +503,6 @@ fn stream_maximum_size_holds_blocks_longer_than_max_bits() {
         ffi::zfp_stream_close(zfp);
     }
 }
-
-const ZFP_MAX_BITS: u32 = 16658;
 
 fn stream_params(zfp: *const ffi::zfp_stream) -> (u32, u32, u32, i32) {
     unsafe {
