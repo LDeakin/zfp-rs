@@ -25,9 +25,18 @@ pub(crate) fn compress(
     config: &ZfpConfig,
 ) -> Result<usize, ZfpCompressionError> {
     let info = field.plan()?;
-    // SAFETY: `field.data()` is the buffer `FieldPlan::new` validated.
-    unsafe { compress_blocks(bs, field.data().as_ptr(), &info, config, 0..info.num_blocks) };
+    compress_planned(bs, &info, field.data(), config)
+}
 
+/// [`compress`] of a field `info` planned, whose data buffer is `buf`.
+fn compress_planned(
+    bs: &mut (impl ZfpBitStreamMutOps + ?Sized),
+    info: &FieldPlan,
+    buf: &[u8],
+    config: &ZfpConfig,
+) -> Result<usize, ZfpCompressionError> {
+    // SAFETY: `buf` is the buffer `FieldPlan::new` validated.
+    unsafe { compress_blocks(bs, buf.as_ptr(), info, config, 0..info.num_blocks) };
     finish(bs)
 }
 
@@ -127,49 +136,61 @@ pub(crate) fn compress_rayon(
     threads: u32,
     chunk_size: u32,
 ) -> Result<usize, ZfpCompressionError> {
-    use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
-
     let info = field.plan()?;
     let buf = field.data();
-    let blocks = info.num_blocks;
-    if blocks == 0 {
-        return finish(bs);
-    }
-
-    let Some(ranges) = crate::execution::chunk_ranges(blocks, threads, chunk_size) else {
-        return compress(bs, field, config);
+    let Some(chunks) = compress_chunks(&info, buf, config, threads, chunk_size) else {
+        return compress_planned(bs, &info, buf, config);
     };
-    let Ok(mut chunk_results) = crate::bitstream::vec_with_capacity(ranges.len()) else {
-        return compress(bs, field, config);
-    };
-
-    // Each chunk returns its words and bit count, for bit-level
-    // concatenation, or `None` if its buffer could not be allocated or it
-    // outgrew it. `chunk_results` already has room for them all.
-    let run = || {
-        ranges
-            .par_iter()
-            .map(|range| compress_one_chunk(range.clone(), &info, buf, config))
-            .collect_into_vec(&mut chunk_results);
-    };
-    if crate::execution::install(threads, run).is_none() {
-        return compress(bs, field, config);
-    }
-
-    // Chunk buffers are sized to fit every block of a valid config, so a chunk
-    // fails if its buffer cannot be allocated, or for unvalidated C parameters.
-    // Compressing serially needs no buffer, and gets the stream right.
-    if chunk_results.iter().any(Option::is_none) {
-        return compress(bs, field, config);
-    }
 
     // Concatenate chunks at bit-level granularity, matching C's stream_copy.
     // Write chunks sequentially (no seeking) to avoid buffer clobbering.
-    for (bits_written, chunk_words) in chunk_results.iter().flatten() {
+    for (bits_written, chunk_words) in chunks.iter().flatten() {
         append_bits(bs, chunk_words, *bits_written);
     }
 
     finish(bs)
+}
+
+/// A compressed chunk of blocks: its bit count and its words.
+#[cfg(feature = "rayon")]
+type Chunk = (u64, Vec<u64>);
+
+/// Compress each chunk of blocks into its own buffer, in parallel.
+///
+/// Returns `None` if there are no blocks, or the pool, the chunks or their
+/// buffers cannot be created. Otherwise every entry is `Some`: its words and
+/// bit count, for bit-level concatenation.
+#[cfg(feature = "rayon")]
+fn compress_chunks(
+    info: &FieldPlan,
+    buf: &[u8],
+    config: &ZfpConfig,
+    threads: u32,
+    chunk_size: u32,
+) -> Option<Vec<Option<Chunk>>> {
+    use rayon::iter::{IndexedParallelIterator, IntoParallelRefIterator, ParallelIterator};
+
+    if info.num_blocks == 0 {
+        return None;
+    }
+    let ranges = crate::execution::chunk_ranges(info.num_blocks, threads, chunk_size)?;
+    let mut chunk_results = crate::bitstream::vec_with_capacity(ranges.len()).ok()?;
+    // `chunk_results` already has room for every chunk.
+    let run = || {
+        ranges
+            .par_iter()
+            .map(|range| compress_one_chunk(range.clone(), info, buf, config))
+            .collect_into_vec(&mut chunk_results);
+    };
+    crate::execution::install(threads, run)?;
+
+    // Chunk buffers are sized to fit every block of a valid config, so a chunk
+    // fails if its buffer cannot be allocated, or for unvalidated C parameters.
+    // Compressing serially needs no buffer, and gets the stream right.
+    chunk_results
+        .iter()
+        .all(Option::is_some)
+        .then_some(chunk_results)
 }
 
 /// Append the first `bits` bits of `words`, as `copy_from` would, but a word at
@@ -205,7 +226,7 @@ fn compress_one_chunk(
     info: &FieldPlan,
     buf: &[u8],
     config: &ZfpConfig,
-) -> Option<(u64, Vec<u64>)> {
+) -> Option<Chunk> {
     use crate::ZfpBitStream;
 
     let chunk_bits = u64::try_from(range.len()).ok()?.checked_mul(u64::from(

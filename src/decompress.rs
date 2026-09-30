@@ -28,11 +28,24 @@ pub(crate) fn decompress(
     // Derived once: a fresh `&mut` retag per block would be needless work, and
     // interleaving it with shared borrows of `field` is a hazard worth avoiding.
     let base = field.data_mut().as_mut_ptr();
-    reset_overread(bs);
-    // SAFETY: `FieldPlan::new` validated the buffer's length and alignment,
-    // which is exactly `decompress_blocks`' contract.
-    unsafe { decompress_blocks(bs, base, &info, config, 0..info.num_blocks) };
+    // SAFETY: `FieldPlan::new` validated the buffer `base` points to.
+    unsafe { decompress_planned(bs, &info, base, config) }
+}
 
+/// [`decompress`] into a field `info` planned, whose data buffer `base` points
+/// to.
+///
+/// # Safety
+/// As for [`decompress_blocks`].
+unsafe fn decompress_planned(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    info: &FieldPlan,
+    base: *mut u8,
+    config: &ZfpConfig,
+) -> Result<usize, ZfpDecompressionError> {
+    reset_overread(bs);
+    // SAFETY: the caller's contract.
+    unsafe { decompress_blocks(bs, base, info, config, 0..info.num_blocks) };
     finish(bs)
 }
 
@@ -149,54 +162,60 @@ pub(crate) fn decompress_rayon(
     threads: u32,
     chunk_size: u32,
 ) -> Result<usize, ZfpDecompressionError> {
-    let is_fixed_rate = config.mode() == crate::types::ZfpMode::FixedRate;
-
-    if !is_fixed_rate {
-        return decompress(bs, field, config);
-    }
-
     let info = field.plan()?;
+    let base = FieldPtr(field.data_mut().as_mut_ptr());
+    if decompress_parallel(bs, &info, base, config, threads, chunk_size).is_none() {
+        // SAFETY: `FieldPlan::new` validated the buffer `base` points to.
+        return unsafe { decompress_planned(bs, &info, base.ptr(), config) };
+    }
+    finish(bs)
+}
+
+/// Decode every block in parallel chunks, then leave the cursor, and the
+/// overread flag, where serial decompression would.
+///
+/// Returns `None`, having decoded nothing, where the blocks cannot be decoded
+/// independently or would run past the largest bit offset, or the pool or the
+/// chunks cannot be created.
+#[cfg(feature = "rayon")]
+fn decompress_parallel(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    info: &FieldPlan,
+    base: FieldPtr,
+    config: &ZfpConfig,
+    threads: u32,
+    chunk_size: u32,
+) -> Option<()> {
     // A fixed-rate config only gives each block a fixed physical size if its
     // budget can hold the type's block header. Below 9 bits for f32 or 12 for
     // f64, zero blocks use max_bits but nonzero blocks write the full header.
     // The maximum-size calculation already accounts for this distinction.
-    if info.strides_may_alias()
+    if config.mode() != crate::types::ZfpMode::FixedRate
+        || info.strides_may_alias()
         || config.block_bits(info.scalar_type, info.dims_enum) != config.max_bits()
+        || info.num_blocks == 0
     {
-        return decompress(bs, field, config);
-    }
-
-    let blocks = info.num_blocks;
-    if blocks == 0 {
-        return decompress(bs, field, config);
+        return None;
     }
     let bits_per_block = config.max_bits();
     let start_read_bit = bs.read_pos();
     // Where serial decompression would leave the cursor. Bounding it bounds
-    // every block's offset, so the per-block seeks cannot overflow.
-    let Some(end) = u64::try_from(blocks)
-        .ok()
-        .and_then(|blocks| blocks.checked_mul(u64::from(bits_per_block)))
-        .and_then(|bits| bits.checked_add(start_read_bit))
-    else {
-        return decompress(bs, field, config);
-    };
-    let Some(ranges) = crate::execution::chunk_ranges(blocks, threads, chunk_size) else {
-        return decompress(bs, field, config);
-    };
+    // every block's offset, so the per-chunk seeks cannot overflow.
+    let end = u64::try_from(info.num_blocks)
+        .ok()?
+        .checked_mul(u64::from(bits_per_block))?
+        .checked_add(start_read_bit)?;
+    let ranges = crate::execution::chunk_ranges(info.num_blocks, threads, chunk_size)?;
 
     // Shared read-only slice of all words in the bitstream buffer.
     // `word_pos` tracks the current read cursor (reset by rewind), so we use
     // the full buffer length to cover all compressed data.
     let words = bs.backing_words();
-
-    let base = FieldPtr(field.data_mut().as_mut_ptr());
-
     let run = || {
         decompress_chunks(
             words,
             &ranges,
-            &info,
+            info,
             config,
             bits_per_block,
             start_read_bit,
@@ -205,16 +224,12 @@ pub(crate) fn decompress_rayon(
     };
     // The pool is built before any block is decoded, so if it cannot be, the
     // serial decoder fills the whole field.
-    let Some(overread_chunks) = crate::execution::install(threads, run) else {
-        return decompress(bs, field, config);
-    };
+    let overread_chunks = crate::execution::install(threads, run)?;
 
-    // Leave the cursor, and the overread flag, where serial decompression
-    // would.
     reset_overread(bs);
     bs.seek_read(end);
     bs.state_mut().overread |= overread_chunks;
-    finish(bs)
+    Some(())
 }
 
 /// A `*mut u8` into the field's data buffer, handed to worker threads.
