@@ -948,3 +948,104 @@ pub(crate) unsafe fn decode_partial<T: ZfpScalar>(
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::arithmetic_side_effects, reason = "test offsets are small")]
+mod tests {
+    use super::*;
+    use crate::codec::encode::{dim1, dim2, dim3, dim4};
+
+    /// Where C's `pad_block` takes position `i` of a run of four with `n` real
+    /// values from: position 3 repeats position 0, and positions from `n` up to
+    /// 2 repeat position `n - 1`.
+    fn padded_source(i: usize, n: usize) -> usize {
+        if i < n {
+            i
+        } else if i == 3 {
+            0
+        } else {
+            n - 1
+        }
+    }
+
+    /// The block C builds for a partial block, one axis at a time: the value at
+    /// `[x, y, z, w]` comes from `[pad(x), pad(y), pad(z), pad(w)]`.
+    ///
+    /// # Safety
+    /// `data` must be valid for every offset the strides generate over `lengths`.
+    unsafe fn expected(
+        data: *const f64,
+        dims: ZfpDimensionality,
+        strides: [isize; 4],
+        lengths: [usize; 4],
+    ) -> Vec<f64> {
+        (0..dims.block_size())
+            .map(|i| {
+                let offset: isize = (0..usize::from(dims))
+                    .map(|axis| {
+                        let coordinate = (i >> (2 * axis)) & 3;
+                        padded_source(coordinate, lengths[axis]).cast_signed() * strides[axis]
+                    })
+                    .sum();
+                unsafe { *data.offset(offset) }
+            })
+            .collect()
+    }
+
+    /// Both partial-block gathers, the lossy coder's and the reversible
+    /// coder's, build C's padded block for every combination of lengths, along
+    /// ascending and descending strides.
+    #[test]
+    fn partial_gathers_pad_as_c_does_for_every_length() {
+        let data: Vec<f64> = (0..2048).map(|i| f64::from(i) + 0.5).collect();
+        for strides in [[1isize, 7, 53, 401], [-1, -7, -53, -401]] {
+            // Three steps along each axis, which the longest partial block
+            // takes, fit the span from the origin: for descending strides the
+            // origin is at the top.
+            let origin: isize = strides.iter().filter(|&&s| s < 0).map(|&s| -3 * s).sum();
+            // SAFETY: `origin` and the steps from it stay inside `data`.
+            let ptr = unsafe { data.as_ptr().offset(origin) };
+            for dims in [
+                ZfpDimensionality::D1,
+                ZfpDimensionality::D2,
+                ZfpDimensionality::D3,
+                ZfpDimensionality::D4,
+            ] {
+                let rank = usize::from(dims);
+                for combination in 0..4usize.pow(u32::from(dims)) {
+                    let mut lengths = [0usize; 4];
+                    for (axis, length) in lengths.iter_mut().take(rank).enumerate() {
+                        *length = ((combination >> (2 * axis)) & 3) + 1;
+                    }
+                    let [nx, ny, nz, nw] = lengths;
+                    let [sx, sy, sz, sw] = strides;
+                    let context = format!("{dims:?} {lengths:?} {strides:?}");
+
+                    // SAFETY: as for `origin` above.
+                    unsafe {
+                        let want = expected(ptr, dims, strides, lengths);
+
+                        let mut reversible = vec![0.0; dims.block_size()];
+                        gather_block(ptr, dims, &strides, lengths, &mut reversible);
+                        assert_eq!(reversible, want, "reversible: {context}");
+
+                        let lossy = match dims {
+                            ZfpDimensionality::D1 => dim1::gather_partial_1d(ptr, nx, sx).to_vec(),
+                            ZfpDimensionality::D2 => {
+                                dim2::gather_partial_2d(ptr, nx, ny, sx, sy).to_vec()
+                            }
+                            ZfpDimensionality::D3 => {
+                                dim3::gather_partial_3d(ptr, nx, ny, nz, sx, sy, sz).to_vec()
+                            }
+                            ZfpDimensionality::D4 => {
+                                dim4::gather_partial_4d(ptr, nx, ny, nz, nw, sx, sy, sz, sw)
+                                    .to_vec()
+                            }
+                        };
+                        assert_eq!(lossy, want, "lossy: {context}");
+                    }
+                }
+            }
+        }
+    }
+}
