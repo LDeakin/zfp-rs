@@ -41,6 +41,20 @@
 //! - `ffi`: low-level APIs for the `zfp-rs-ffi` C ABI.
 //! - `internals`: the monomorphised codec, for this crate's test suites.
 //!
+//! ## Panics
+//!
+//! No function in this crate panics, for any argument, in debug or release
+//! builds. Invalid parameters, fields and block data are rejected with an
+//! error, and allocation failure is returned as [`ZfpAllocError`]. Bitstream
+//! operations accept any bit count and offset: they behave as C does where C
+//! is defined, and are documented where it is not. The exceptions are:
+//!
+//! - an `unsafe` function whose safety contract is broken;
+//! - [`ZfpExecution::Rayon`] with `threads: 0`, which runs on Rayon's global
+//!   pool: Rayon panics if it cannot start that pool's threads, which zfp-rs
+//!   cannot detect beforehand;
+//! - the test-only `internals` feature.
+//!
 //! ## Quick start
 //!
 //! See the [CHANGELOG] for release notes.

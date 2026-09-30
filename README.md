@@ -13,6 +13,7 @@ Produces bit-for-bit identical compressed output to the original C implementatio
 Where it differs (see [docs/differences-from-c.md](docs/differences-from-c.md) for every known difference in behaviour, including C bugs it does not reproduce):
 
 - **Idiomatic and Safe API**: Safe public API with lifetime-checked borrows.
+- **Panic free**: No function panics, for any argument. Invalid input and allocation failure are returned as errors; see the crate documentation for the exceptions.
 - **Performance**: 2–4x faster than the serial C reference across all modes and types.
 - **Parallel compression and fixed-rate decompression**: With the `rayon` feature, compression can be parallelized across all modes.
   Fixed-rate decompression is parallelized via per-thread bitstream seeking.
