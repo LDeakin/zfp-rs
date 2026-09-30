@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ZfpAllocError`, returned when a stream's buffer cannot be allocated.
 - `ZfpConfig::from_raw_params`, behind `ffi`, which holds unvalidated parameters from a C `zfp_stream`.
+- `ZfpConfig::from_raw_rate`, behind `ffi`, which computes a fixed-rate budget as C's `zfp_stream_set_rate` does, without validating it.
 - `ZfpConfig::checked_mode_bits` and `ZfpConfigError`, which report parameters that a header's mode word cannot hold.
 - `field::checked_index_span`, the overflow-checked form of `field::index_span`.
 - `ZfpFieldError`, returned by the field constructors and setters, and `ZfpFieldMut::set_strides`.

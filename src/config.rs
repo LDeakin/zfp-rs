@@ -78,6 +78,29 @@ pub enum ZfpStreamAlignment {
     WordAligned,
 }
 
+/// The block budget C's `zfp_stream_set_rate` computes: `rate` bits per value,
+/// rounded, raised to the block header and optionally word aligned. `None`
+/// where the rounded budget does not fit a `u32` (also for NaN), or the word
+/// alignment overflows.
+fn rate_bits(
+    rate: f64,
+    ty: ZfpScalarType,
+    dims: ZfpDimensionality,
+    align: ZfpStreamAlignment,
+) -> Option<u32> {
+    let rounded = (f64::from(dims.block_values()) * rate + 0.5).floor();
+    if !(0.0..=f64::from(u32::MAX)).contains(&rounded) {
+        return None;
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    // The check above bounds `rounded` to the range of `u32`.
+    let bits = (rounded as u32).max(ty.header_bits());
+    match align {
+        ZfpStreamAlignment::Unaligned => Some(bits),
+        ZfpStreamAlignment::WordAligned => bits.checked_next_multiple_of(STREAM_WORD_BITS),
+    }
+}
+
 /// Validate expert-mode parameters. Any `min_exp` is valid.
 const fn valid_params(min_bits: u32, max_bits: u32, max_prec: u32) -> bool {
     min_bits <= max_bits && (0 < max_prec && max_prec <= 64)
@@ -383,30 +406,33 @@ impl ZfpConfig {
         dims: ZfpDimensionality,
         align: ZfpStreamAlignment,
     ) -> Result<Self, ZfpConfigError> {
-        if !rate.is_finite() || rate < 0.0 {
+        // C rounds a small negative rate to zero bits, which floats raise.
+        if rate < 0.0 {
             return Err(ZfpConfigError::InvalidRate);
         }
-        let n = dims.block_values();
-        let rounded = (f64::from(n) * rate + 0.5).floor();
-        if !rounded.is_finite() || rounded > f64::from(ZFP_MAX_BITS) {
-            return Err(ZfpConfigError::InvalidRate);
+        match rate_bits(rate, ty, dims, align) {
+            Some(bits @ 1..=ZFP_MAX_BITS) => Ok(Self::raw(bits, bits, ZFP_MAX_PREC, ZFP_MIN_EXP)),
+            _ => Err(ZfpConfigError::InvalidRate),
         }
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        // The checks above bound rounded to [0, ZFP_MAX_BITS].
-        // Floats take at least their block header.
-        let mut bits = (rounded as u32).max(ty.header_bits());
+    }
 
-        if align == ZfpStreamAlignment::WordAligned {
-            bits = bits
-                .checked_next_multiple_of(STREAM_WORD_BITS)
-                .ok_or(ZfpConfigError::InvalidRate)?;
-        }
-
-        if bits == 0 || bits > ZFP_MAX_BITS {
-            return Err(ZfpConfigError::InvalidRate);
-        }
-
-        Ok(Self::raw(bits, bits, ZFP_MAX_PREC, ZFP_MIN_EXP))
+    /// Fixed-rate parameters as C's `zfp_stream_set_rate` sets them, without
+    /// validation.
+    ///
+    /// Unlike [`fixed_rate`][Self::fixed_rate], this keeps a budget of zero
+    /// bits or above [`ZFP_MAX_BITS`]. Returns [`None`] where C's conversion
+    /// of the rounded budget to `uint` is undefined, or its word alignment
+    /// wraps around to zero.
+    #[cfg(feature = "ffi")]
+    #[must_use]
+    pub fn from_raw_rate(
+        rate: f64,
+        ty: ZfpScalarType,
+        dims: ZfpDimensionality,
+        align: ZfpStreamAlignment,
+    ) -> Option<Self> {
+        let bits = rate_bits(rate, ty, dims, align)?;
+        Some(Self::raw(bits, bits, ZFP_MAX_PREC, ZFP_MIN_EXP))
     }
 
     /// Fixed-precision mode.
