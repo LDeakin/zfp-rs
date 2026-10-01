@@ -17,6 +17,9 @@ They are separate because `zfp-sys` and `zfp-rs-ffi` both define the C symbols `
 Linked into one binary, every `zfp-sys` call binds to the `zfp-rs-ffi` definitions and the "C" results are really the Rust implementation.
 `api_compare_c` asserts at startup that `zfp-sys` resolves into `libzfp`, and `api_compare` must stay the only binary that links `zfp-rs-ffi`.
 
+Fixed accuracy is not benchmarked for `i32` and `i64`; see `Case::is_supported`.
+zfp ignores the tolerance for integers and encodes them at full precision, so those cases would measure full-precision compression under the name of an accuracy mode.
+
 Both binaries take their Criterion settings from `common::criterion_config`, so the results are comparable.
 The settings favour stable means for charting over speed.
 

@@ -31,6 +31,10 @@ impl ScalarKind {
             Self::F64 => "f64",
         }
     }
+
+    const fn is_float(self) -> bool {
+        matches!(self, Self::F32 | Self::F64)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -67,6 +71,14 @@ impl Case {
             self.dims,
             self.mode.label()
         )
+    }
+
+    /// Whether the mode means anything for the scalar type.
+    ///
+    /// Fixed accuracy is for floating-point data only: zfp ignores the tolerance for
+    /// integers, which are then encoded at full precision.
+    pub const fn is_supported(self) -> bool {
+        !matches!(self.mode, ModeKind::FixedAccuracy) || self.scalar.is_float()
     }
 
     fn dimensionality(self) -> ZfpDimensionality {
@@ -182,7 +194,8 @@ pub fn dims4(dims: &[usize]) -> [usize; 4] {
     out
 }
 
-/// Call `$bench_case::<T>(criterion, case)` for every scalar type, dimensionality and mode.
+/// Call `$bench_case::<T>(criterion, case)` for every scalar type, dimensionality and mode
+/// that [`Case::is_supported`].
 ///
 /// A macro rather than a generic function, as each binary bounds `T` by its own
 /// extension of [`BenchScalar`].
@@ -192,6 +205,9 @@ macro_rules! run_cases {
             for &dims in common::DIMS {
                 for &mode in common::MODES {
                     let case = common::Case { scalar, dims, mode };
+                    if !case.is_supported() {
+                        continue;
+                    }
                     match scalar {
                         common::ScalarKind::I32 => $bench_case::<i32>($criterion, case),
                         common::ScalarKind::I64 => $bench_case::<i64>($criterion, case),
