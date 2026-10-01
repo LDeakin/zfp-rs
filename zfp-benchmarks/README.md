@@ -32,3 +32,7 @@ Generate local SVG plots from Criterion output, which needs both binaries to hav
 ```bash
 scripts/plot_benchmarks.py
 ```
+
+This writes `docs/benchmarks/api_compare_compress.svg` and `docs/benchmarks/api_compare_decompress.svg`, each on a single set of axes.
+A block of bars per case, such as Fixed Rate 2D, holds a group for each scalar type that has results.
+It plots every result in `target/criterion`, including stale ones, so clear that directory first to chart only a filtered run such as `just bench_f32`.

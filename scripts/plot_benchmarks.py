@@ -3,7 +3,10 @@
 # requires-python = ">=3.12"
 # dependencies = ["matplotlib"]
 # ///
-"""Generate local SVG comparison plots from Criterion benchmark output."""
+"""Generate local SVG comparison plots from Criterion benchmark output.
+
+There is one plot per operation, holding every scalar type.
+"""
 
 from __future__ import annotations
 
@@ -44,6 +47,23 @@ VARIANT_MAP: dict[str, tuple[str, str]] = {
     "zfp-sys": ("zfp-sys", "serial"),
     "zfp-sys-omp2": ("zfp-sys", "2T"),
 }
+
+# Layout: horizontal bars, one block per case.
+# Each block has a header row, then a group of one stacked bar per base
+# implementation for each scalar type.
+# Distances along the y-axis are in bar pitches.
+BAR_HEIGHT = 0.88
+GROUP_GAP = 0.8
+BLOCK_HEADER = 2.0
+
+# Stack layers: (label, hatch)
+STACK_LAYERS = [("serial", None), ("2T", "//")]
+
+# Figure size in inches
+FIG_WIDTH = 10
+INCHES_PER_PITCH = 0.1
+# Room for the title, legends and both x-axes
+MARGIN_HEIGHT = 1.8
 
 
 @dataclass(frozen=True)
@@ -145,39 +165,115 @@ def _format_case(case: str) -> str:
     return f"{mode_name} {dim_str}"
 
 
+def draw_group(ax, throughput: dict[str, float], top: float) -> None:
+    """Draw one stacked bar per base implementation, the first starting at `top`.
+
+    `throughput` maps a variant to its throughput for one scalar type and case.
+    """
+    for b_idx, base in enumerate(BASES):
+        by = top + b_idx + 0.5
+
+        # Gather throughputs per layer for this base
+        layer_vals: list[float] = []
+        for layer_label, _hatch in STACK_LAYERS:
+            v = _variant_for(base, layer_label)
+            layer_vals.append(throughput.get(v, 0.0) if v else 0.0)
+
+        # Draw stacked segments
+        start = 0.0
+        for layer_idx in range(len(STACK_LAYERS)):
+            layer_label, hatch = STACK_LAYERS[layer_idx]
+            width = layer_vals[layer_idx] - start
+            # Skip empty segments (a missing thread level, e.g. parallel
+            # decompression outside fixed rate).
+            # Matplotlib keeps a bar's autoscale margin from crossing the
+            # bar's start, so an empty segment starting at the end of the
+            # longest bar removes the margin beyond it and clips the bar.
+            if width > 0:
+                ax.barh(
+                    by,
+                    width,
+                    BAR_HEIGHT,
+                    left=start,
+                    color=BASE_COLOR[base],
+                    hatch=hatch,
+                    edgecolor="white",
+                    linewidth=0.3,
+                )
+            start = layer_vals[layer_idx]
+
+
 def plot_operation(
     results: list[BenchResult],
     operation: str,
-    scalar: str,
     output_dir: Path,
 ) -> None:
-    selected = [
-        r for r in results if r.operation == operation and r.scalar == scalar
-    ]
-    if not selected:
+    """Plot every scalar type of one operation on a single set of axes."""
+    selected = [r for r in results if r.operation == operation]
+    scalars = [s for s in SCALARS if any(r.scalar == s for r in selected)]
+    if not scalars:
         return
 
     cases = sorted({r.case for r in selected}, key=case_key)
-    lookup = {(r.case, r.variant): r.melem_per_s for r in selected}
+    lookup: dict[tuple[str, str], dict[str, float]] = {}
+    for r in selected:
+        lookup.setdefault((r.scalar, r.case), {})[r.variant] = r.melem_per_s
+    group_pitch = len(BASES) + GROUP_GAP
 
-    n_cases = len(cases)
-    n_bases = len(BASES)
+    # A type with no results for a case, such as an integer type in fixed
+    # accuracy, which is not benchmarked, gets no group in that case's block
+    block_scalars = [[s for s in scalars if (s, case) in lookup] for case in cases]
+    block_pitches = [BLOCK_HEADER + len(ss) * group_pitch for ss in block_scalars]
+    total = sum(block_pitches) - GROUP_GAP
 
-    # Layout: x-axis = cases, each case has n_bases stacked bars side-by-side
-    bar_width = 0.30
-    case_gap = bar_width + 0.04
-    case_group_width = n_bases * case_gap + 0.4
-    fig_width = max(10, case_group_width * n_cases + 0.5)
+    fig, ax = plt.subplots(
+        figsize=(FIG_WIDTH, total * INCHES_PER_PITCH + MARGIN_HEIGHT),
+        constrained_layout=True,
+    )
 
-    fig, ax = plt.subplots(figsize=(fig_width, 5.5), constrained_layout=True)
+    yticks: list[float] = []
+    ylabels: list[str] = []
+    block_top = 0.0
+    for c_idx, case in enumerate(cases):
+        # Block header, below a rule that separates it from the previous block
+        if c_idx > 0:
+            ax.axhline(block_top - GROUP_GAP / 2, color="#d0d0d0", linewidth=0.7)
+        ax.text(
+            0.005,
+            block_top + BLOCK_HEADER / 2,
+            _format_case(case),
+            transform=ax.get_yaxis_transform(),
+            ha="left",
+            va="center",
+            fontsize=10,
+            fontweight="bold",
+        )
 
-    # Stack layers: (label, hatch)
-    stack_layers = [("serial", None), ("2T", "//")]
+        for s_idx, scalar in enumerate(block_scalars[c_idx]):
+            top = block_top + BLOCK_HEADER + s_idx * group_pitch
+            draw_group(ax, lookup[(scalar, case)], top)
+            yticks.append(top + len(BASES) / 2)
+            ylabels.append(scalar)
+
+        block_top += block_pitches[c_idx]
+
+    # Y-axis ticks at the middle implementation of each group
+    ax.set_yticks(yticks)
+    ax.set_yticklabels(ylabels, fontsize=9)
+    ax.set_ylim(total, 0)
+    ax.set_xlim(left=0)
+
+    # The plot is tall, so label the throughput axis at both ends
+    ax.tick_params(axis="x", top=True, labeltop=True)
+    ax.set_xlabel("throughput (Melem/s)", fontsize=10)
+    ax.grid(axis="x", color="#d0d0d0", linewidth=0.7)
+    ax.set_axisbelow(True)
+
+    fig.suptitle(f"ZFP {operation} throughput")
 
     # Legend 1: base implementations (colours)
     leg1_handles = [
-        plt.Rectangle((0, 0), 1, 1, facecolor=BASE_COLOR[base])
-        for base in BASES
+        plt.Rectangle((0, 0), 1, 1, facecolor=BASE_COLOR[base]) for base in BASES
     ]
 
     # Legend 2: thread levels (hatch patterns)
@@ -189,51 +285,10 @@ def plot_operation(
             edgecolor="#555",
             linewidth=0.6,
         )
-        for _, hatch in stack_layers
+        for _, hatch in STACK_LAYERS
     ]
 
-    # Draw bars
-    for c_idx, case in enumerate(cases):
-        group_x = c_idx * case_group_width
-
-        for b_idx, base in enumerate(BASES):
-            bx = group_x + b_idx * case_gap
-
-            # Gather throughputs per layer for this base+case
-            layer_vals: list[float] = []
-            for layer_label, _hatch in stack_layers:
-                v = _variant_for(base, layer_label)
-                layer_vals.append(lookup.get((case, v), 0.0) if v else 0.0)
-
-            # Draw stacked segments
-            bottom = 0.0
-            for layer_idx in range(len(stack_layers)):
-                layer_label, hatch = stack_layers[layer_idx]
-                height = layer_vals[layer_idx] - bottom
-                if height < 0:
-                    height = 0
-                ax.bar(
-                    bx,
-                    height,
-                    bar_width,
-                    bottom=bottom,
-                    color=BASE_COLOR[base],
-                    hatch=hatch,
-                    edgecolor="white",
-                    linewidth=0.3,
-                )
-                bottom = layer_vals[layer_idx]
-
-    # X-axis ticks at middle implementation of each case group
-    middle_idx = n_bases // 2
-    middle_offset = middle_idx * case_gap
-    ax.set_xticks([c * case_group_width + middle_offset for c in range(n_cases)])
-    ax.set_xticklabels([_format_case(c) for c in cases], fontsize=9, rotation=0, ha="center")
-
-    ax.set_title(f"ZFP {scalar} {operation} throughput")
-    ax.set_ylabel("throughput (Melem/s)")
-
-    # Figure-level legend placed outside the axes
+    # Figure-level legends placed outside the axes
     fig.legend(
         handles=leg1_handles,
         labels=BASES,
@@ -245,18 +300,15 @@ def plot_operation(
     )
     fig.legend(
         handles=leg2_handles,
-        labels=[label for label, _ in stack_layers],
+        labels=[label for label, _ in STACK_LAYERS],
         frameon=True,
         fontsize=9,
         loc="outside upper right",
-        ncol=3,
+        ncol=2,
         title="threads",
     )
 
-    ax.grid(axis="y", color="#d0d0d0", linewidth=0.7)
-    ax.set_axisbelow(True)
-
-    fig.savefig(output_dir / f"api_compare_{scalar}_{operation}.svg", format="svg")
+    fig.savefig(output_dir / f"api_compare_{operation}.svg", format="svg")
     plt.close(fig)
 
 
@@ -284,9 +336,8 @@ def main() -> None:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     write_summary(results, args.output_dir)
-    for scalar in SCALARS:
-        for operation in sorted({r.operation for r in results}):
-            plot_operation(results, operation, scalar, args.output_dir)
+    for operation in sorted({r.operation for r in results}):
+        plot_operation(results, operation, args.output_dir)
 
 
 if __name__ == "__main__":
