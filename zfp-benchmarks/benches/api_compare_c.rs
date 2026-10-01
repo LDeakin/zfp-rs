@@ -17,7 +17,6 @@ use common::{BenchScalar, Case, ModeKind, OMP_THREADS, STREAM_PAD_BYTES, dims4, 
 use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use std::ffi::c_void;
 use std::hint::black_box;
-use std::time::Duration;
 
 trait CScalar: BenchScalar {
     const C_TYPE: zfp_sys::zfp_type;
@@ -274,10 +273,7 @@ fn api_compare_c(criterion: &mut Criterion) {
 
 criterion_group! {
     name = benches;
-    config = Criterion::default()
-        .sample_size(10)
-        .measurement_time(Duration::from_secs(2))
-        .warm_up_time(Duration::from_millis(100));
+    config = common::criterion_config();
     targets = api_compare_c
 }
 criterion_main!(benches);

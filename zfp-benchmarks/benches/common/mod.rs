@@ -5,6 +5,8 @@
 //! definitions and the "C" results would silently be the Rust ones.
 //! Nothing here may name either crate, as that would link it into every binary.
 
+use criterion::Criterion;
+use std::time::Duration;
 use zfp_rs::{ZfpConfig, ZfpDimensionality, ZfpScalar, ZfpScalarType, ZfpStreamAlignment};
 
 pub const RATE: f64 = 8.0;
@@ -86,6 +88,16 @@ pub const MODES: &[ModeKind] = &[
     ModeKind::Reversible,
 ];
 pub const OMP_THREADS: &[u32] = &[2];
+
+/// The Criterion settings of every benchmark binary, so their results are comparable.
+///
+/// Long enough for stable means, as the results are charted by `scripts/plot_benchmarks.py`.
+pub fn criterion_config() -> Criterion {
+    Criterion::default()
+        .sample_size(50)
+        .measurement_time(Duration::from_secs(5))
+        .warm_up_time(Duration::from_secs(1))
+}
 
 pub trait BenchScalar: ZfpScalar + bytemuck::Pod + Default + Copy + 'static {
     const RUST_TYPE: ZfpScalarType;

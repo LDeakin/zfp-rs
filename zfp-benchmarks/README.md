@@ -17,6 +17,9 @@ They are separate because `zfp-sys` and `zfp-rs-ffi` both define the C symbols `
 Linked into one binary, every `zfp-sys` call binds to the `zfp-rs-ffi` definitions and the "C" results are really the Rust implementation.
 `api_compare_c` asserts at startup that `zfp-sys` resolves into `libzfp`, and `api_compare` must stay the only binary that links `zfp-rs-ffi`.
 
+Both binaries take their Criterion settings from `common::criterion_config`, so the results are comparable.
+The settings favour stable means for charting over speed.
+
 Run a single binary with `--bench`, for example `cargo bench -p zfp-benchmarks --bench api_compare_c`.
 Run them through cargo, as the C library is a shared library that is found through the `LD_LIBRARY_PATH` that cargo sets.
 
