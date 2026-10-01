@@ -8,3 +8,5 @@ pub mod dim4;
 pub mod float;
 pub mod integer;
 pub mod reversible;
+#[cfg(feature = "rayon")]
+pub(crate) mod staged;

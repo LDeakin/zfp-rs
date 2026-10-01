@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `ZfpExecution::Rayon` now pipelines variable-rate decompression with a serial plane reader and parallel reconstruction. A bounded queue of up to 16 reusable buffers (about 1 MiB by default) feeds reconstruction batches without a barrier between them; no stream index or format change is required. `chunk_size` sets the blocks per batch, and 0 targets 64 KiB of planes per batch, including through the C ABI's `zfp_stream_set_omp_chunk_size`.
 - `ZfpAllocError`, returned when a stream's buffer cannot be allocated.
 - `ZfpConfig::from_raw_params`, behind `ffi`, which holds unvalidated parameters from a C `zfp_stream`.
 - `ZfpConfig::from_raw_rate`, behind `ffi`, which computes a fixed-rate budget as C's `zfp_stream_set_rate` does, without validating it.

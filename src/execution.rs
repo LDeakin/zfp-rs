@@ -18,10 +18,18 @@ pub enum ZfpExecution {
     /// Without the `rayon` feature this runs serially, so code can select it
     /// unconditionally. The output is identical either way.
     ///
-    /// Decompression runs serially instead for streams that are not fixed-rate,
-    /// and for fields whose strides may alias (where two blocks could write the
-    /// same element). Both run serially if the thread pool or the chunks'
-    /// buffers cannot be created.
+    /// Fixed-rate decompression assigns independent chunks to workers.
+    /// Variable-rate decompression pipelines a serial plane reader with
+    /// reconstruction workers, using a bounded queue of reusable buffers (about
+    /// 1 MiB by default). The compressed format is unchanged and needs no block index.
+    /// Pipeline speed depends on how much work remains after the plane walk;
+    /// small blocks can be slower than serial decoding.
+    ///
+    /// Decompression runs serially for fields whose strides may alias (where
+    /// two blocks could write the same element). The variable-rate pipeline
+    /// also runs serially with fewer than two pool threads. Fixed-rate
+    /// decompression falls back to serial if the pool or the chunks' buffers
+    /// cannot be created, and the pipeline if the pool or its buffers cannot.
     ///
     /// With `threads: 0`, the current pool runs the chunks: Rayon's global
     /// pool, starting it if needed, outside any other. Rayon panics if it
@@ -73,7 +81,10 @@ pub enum ZfpExecution {
         /// pool outside any other. A nonzero count builds a new pool for each
         /// call.
         threads: u32,
-        /// Number of blocks per chunk; 0 means one chunk per thread.
+        /// Number of blocks per chunk. For compression and fixed-rate
+        /// decompression, 0 means one chunk per thread. For variable-rate
+        /// decompression this sets blocks per batch; 0 selects about
+        /// 64 KiB of planes per batch. Up to 16 reusable buffers are allocated.
         chunk_size: u32,
     },
 }

@@ -107,6 +107,10 @@ fn executions() -> Vec<ZfpExecution> {
     if cfg!(feature = "rayon") {
         executions.push(ZfpExecution::Rayon {
             threads: 2,
+            chunk_size: 3,
+        });
+        executions.push(ZfpExecution::Rayon {
+            threads: 2,
             chunk_size: 1,
         });
     }

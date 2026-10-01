@@ -224,7 +224,7 @@ impl Plane for [u64; 4] {
 pub(crate) trait PlaneBlock: Sized {
     type Plane: Plane;
     /// The block in bit-plane order.
-    type Planes;
+    type Planes: Send + Sync;
     /// Bits per coefficient (C `intprec`).
     const INTPREC: u32;
     /// Coefficients per block.
@@ -732,6 +732,74 @@ fn scan_zeros(r: &mut BitReader, bits: &mut u32, n: &mut u32, mut limit: u32) {
     }
 }
 
+/// A plane walk's output, retained until a reconstruction worker takes it.
+///
+/// Kept separate from `decode_ints` to avoid restructuring the serial hot
+/// path, so [`Self::read`] and [`Self::reconstruct`] must stay equivalent to it.
+#[cfg(feature = "rayon")]
+pub(crate) struct DecodedPlanes<B: PlaneBlock> {
+    planes: B::Planes,
+    low: u32,
+    /// The `ZFP_ROUND_LAST` state `(m, prec)`, if the block is rounded.
+    round: Option<(u32, u32)>,
+}
+
+#[cfg(feature = "rayon")]
+impl<B: PlaneBlock> DecodedPlanes<B> {
+    pub(crate) fn new() -> Self {
+        Self {
+            planes: B::zero_planes(),
+            low: B::INTPREC,
+            round: None,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn read(
+        &mut self,
+        bs: &mut (impl ZfpBitStreamOps + ?Sized),
+        maxbits: u32,
+        maxprec: u32,
+        rounding: ZfpRounding,
+    ) -> u32 {
+        let constrained = with_maxbits(maxbits, maxprec, B::SIZE);
+        let budget = if constrained { maxbits } else { u32::MAX };
+        let kmin = B::INTPREC.saturating_sub(maxprec);
+        self.planes = B::zero_planes();
+        let (bits, m, prec, low) = {
+            let mut reader = BitReader::new(bs);
+            decode_planes(&mut reader, budget, kmin, B::INTPREC, B::SIZE, |k, x| {
+                B::set_plane(&mut self.planes, k, x);
+            })
+        };
+        self.low = low;
+        self.round = matches!(rounding, ZfpRounding::Last { .. }).then(|| {
+            if constrained {
+                (m, prec)
+            } else {
+                // C's `decode_ints_prec` always exits with `k == kmin - 1` and
+                // `m == 0`.
+                (0, B::INTPREC.wrapping_sub(kmin.wrapping_sub(1)))
+            }
+        });
+        bits
+    }
+
+    #[inline]
+    pub(crate) fn reconstruct(&self) -> (B, bool) {
+        let zero = self.low == B::INTPREC;
+        let mut block = if zero {
+            B::zero()
+        } else {
+            B::from_planes(&self.planes, self.low)
+        };
+        if let Some((m, prec)) = self.round {
+            block.inv_round(m, prec);
+        }
+        (block, zero && self.round.is_none())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -781,6 +849,55 @@ mod tests {
             check_round_trip::<[u64; 64], _>(&std::array::from_fn(|i| pattern(i, salt)));
             check_round_trip::<[u32; 256], _>(&std::array::from_fn(|i| pattern(i, salt) as u32));
             check_round_trip::<[u64; 256], _>(&std::array::from_fn(|i| pattern(i, salt)));
+        }
+    }
+
+    /// `DecodedPlanes` must decode what `decode_ints` does: the block, the bits
+    /// read, and where the stream is left. One value is reused throughout, as
+    /// the pipeline recycles its buffers.
+    #[cfg(feature = "rayon")]
+    fn check_decoded_planes<B: PlaneBlock + PartialEq + std::fmt::Debug>(salt: u64) {
+        use crate::bitstream::ZfpBitStreamRef;
+
+        let words: Vec<u64> = (0..512).map(|i| pattern(i, salt)).collect();
+        let mut planes = DecodedPlanes::<B>::new();
+        for rounding in [
+            ZfpRounding::Never,
+            ZfpRounding::First { tight_error: true },
+            ZfpRounding::Last { tight_error: false },
+            ZfpRounding::Last { tight_error: true },
+        ] {
+            for maxprec in [0, 1, 7, B::INTPREC / 2, B::INTPREC, 64] {
+                for maxbits in [0, 1, 5, 40, 200, 1000, 20_000, u32::MAX] {
+                    let context = format!("maxbits {maxbits}, maxprec {maxprec}, {rounding:?}");
+                    let mut serial = ZfpBitStreamRef::from_words(&words);
+                    let (block, bits, zero) =
+                        decode_ints::<B, true>(&mut serial, maxbits, maxprec, rounding);
+                    let mut staged = ZfpBitStreamRef::from_words(&words);
+                    assert_eq!(
+                        planes.read(&mut staged, maxbits, maxprec, rounding),
+                        bits,
+                        "{context}"
+                    );
+                    assert_eq!(planes.reconstruct(), (block, zero), "{context}");
+                    assert_eq!(staged.read_pos(), serial.read_pos(), "{context}");
+                }
+            }
+        }
+    }
+
+    #[cfg(feature = "rayon")]
+    #[test]
+    fn decoded_planes_match_decode_ints() {
+        for salt in [0, 0xdead_beef, u64::MAX] {
+            check_decoded_planes::<[u32; 4]>(salt);
+            check_decoded_planes::<[u64; 4]>(salt);
+            check_decoded_planes::<[u32; 16]>(salt);
+            check_decoded_planes::<[u64; 16]>(salt);
+            check_decoded_planes::<[u32; 64]>(salt);
+            check_decoded_planes::<[u64; 64]>(salt);
+            check_decoded_planes::<[u32; 256]>(salt);
+            check_decoded_planes::<[u64; 256]>(salt);
         }
     }
 }

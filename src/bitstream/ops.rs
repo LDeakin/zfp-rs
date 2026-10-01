@@ -106,8 +106,8 @@ pub trait ZfpBitStreamOps: BitStreamStorage {
     /// Decompress from this bitstream into the field using the given execution policy.
     ///
     /// Returns the read position in bytes afterwards, which is word aligned.
-    /// Parallel decompression is only available for fixed-rate streams; other
-    /// modes run serially.
+    /// `Rayon` decodes fixed-rate streams in independent chunks and pipelines
+    /// variable-rate streams by overlapping plane reading and reconstruction.
     ///
     /// # Errors
     ///

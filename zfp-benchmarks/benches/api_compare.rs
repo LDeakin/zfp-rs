@@ -318,66 +318,62 @@ fn bench_case<T: FfiScalar>(criterion: &mut Criterion, case: Case) {
 
     // --- Parallel decompress benchmarks ---
     //
-    // NOTE: Parallel decompression is supported only for fixed-rate encoding.
-    // The other modes (fixed-precision, fixed-accuracy, reversible) do not
-    // produce bitstreams with a known layout, so the chunks cannot be split
-    // across threads in advance.
+    // Fixed-rate streams use independent chunks; variable-rate streams use
+    // the plane-reader / reconstruction pipeline.
     //
     // The upstream C library does not implement OpenMP decompression, so there
     // is no `zfp-sys-omp` counterpart; see `api_compare_c`.
 
-    if case.mode == ModeKind::FixedRate {
-        for &threads in OMP_THREADS {
-            {
-                let config = rust_config::<T>(case);
-                let mut output = vec![T::default(); data.len()];
-                let mut bs = ZfpBitStream::from_bytes(&rust_bytes).expect("the stream allocates");
-                group.bench_function(
-                    BenchmarkId::new("decompress", format!("{case_label}/zfp-rs-rayon{threads}")),
-                    |b| {
-                        b.iter(|| {
-                            bs.rewind();
-                            let mut field = rust_field_mut(&mut output, &dims);
-                            let execution = ZfpExecution::Rayon {
-                                threads,
-                                chunk_size: 0,
-                            };
-                            let bytes = bs
-                                .decompress_with_execution(
-                                    black_box(&config),
-                                    black_box(&mut field),
-                                    black_box(execution),
-                                )
-                                .expect("rust decompression failed");
-                            black_box(bytes);
-                        });
-                    },
-                );
-            }
+    for &threads in OMP_THREADS {
+        {
+            let config = rust_config::<T>(case);
+            let mut output = vec![T::default(); data.len()];
+            let mut bs = ZfpBitStream::from_bytes(&rust_bytes).expect("the stream allocates");
+            group.bench_function(
+                BenchmarkId::new("decompress", format!("{case_label}/zfp-rs-rayon{threads}")),
+                |b| {
+                    b.iter(|| {
+                        bs.rewind();
+                        let mut field = rust_field_mut(&mut output, &dims);
+                        let execution = ZfpExecution::Rayon {
+                            threads,
+                            chunk_size: 0,
+                        };
+                        let bytes = bs
+                            .decompress_with_execution(
+                                black_box(&config),
+                                black_box(&mut field),
+                                black_box(execution),
+                            )
+                            .expect("rust decompression failed");
+                        black_box(bytes);
+                    });
+                },
+            );
+        }
 
-            {
-                let mut output = vec![T::default(); data.len()];
-                let mut stream = FfiStream::with_bytes(&ffi_bytes);
-                unsafe {
-                    apply_mode_ffi::<T>(stream.zfp, case);
-                    ffi::zfp_stream_set_omp_threads(stream.zfp, threads);
-                }
-                let field = FfiField(ffi_field::<T>(output.as_mut_ptr().cast::<c_void>(), &dims));
-                assert!(!field.0.is_null());
-                group.bench_function(
-                    BenchmarkId::new(
-                        "decompress",
-                        format!("{case_label}/zfp-rs-ffi-omp{threads}"),
-                    ),
-                    |b| {
-                        b.iter(|| {
-                            stream.rewind();
-                            let bytes = unsafe { ffi::zfp_decompress(stream.zfp, field.0) };
-                            black_box(bytes);
-                        });
-                    },
-                );
+        {
+            let mut output = vec![T::default(); data.len()];
+            let mut stream = FfiStream::with_bytes(&ffi_bytes);
+            unsafe {
+                apply_mode_ffi::<T>(stream.zfp, case);
+                ffi::zfp_stream_set_omp_threads(stream.zfp, threads);
             }
+            let field = FfiField(ffi_field::<T>(output.as_mut_ptr().cast::<c_void>(), &dims));
+            assert!(!field.0.is_null());
+            group.bench_function(
+                BenchmarkId::new(
+                    "decompress",
+                    format!("{case_label}/zfp-rs-ffi-omp{threads}"),
+                ),
+                |b| {
+                    b.iter(|| {
+                        stream.rewind();
+                        let bytes = unsafe { ffi::zfp_decompress(stream.zfp, field.0) };
+                        black_box(bytes);
+                    });
+                },
+            );
         }
     }
 

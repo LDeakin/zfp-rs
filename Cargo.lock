@@ -1023,6 +1023,7 @@ dependencies = [
  "bytemuck",
  "criterion",
  "libc",
+ "rayon",
  "zfp-rs",
  "zfp-rs-ffi",
  "zfp-sys",

@@ -2,6 +2,11 @@
 /docs/benchmarks/*.svg
 /docs/benchmarks/*.json
 /docs/benchmarks/*.csv
+# Recorded pipeline evaluation, retained with its report.
+!/docs/benchmarks/pipeline.csv
+!/docs/benchmarks/pipeline_fresh.csv
+!/docs/benchmarks/pipeline_queue_production.csv
+!/docs/benchmarks/pipeline_queue_production_raw.csv
 *.pyc
 .cargo_vcs_info.json
 Cargo.toml.orig

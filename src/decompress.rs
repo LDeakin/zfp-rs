@@ -16,6 +16,9 @@ use crate::field_plan::FieldPlan;
 use crate::types::{ZfpDecompressionError, ZfpScalar, ZfpScalarType};
 use std::ops::Range;
 
+#[cfg(feature = "rayon")]
+mod pipeline;
+
 // ---------------------------------------------------------------------------
 // Serial decompression
 // ---------------------------------------------------------------------------
@@ -151,11 +154,13 @@ unsafe fn decompress_typed<T: ZfpScalar>(
 ///
 /// For **fixed-rate** streams, each thread creates an independent bitstream
 /// view and seeks directly to its block's bit position.
+/// This falls back to serial when field strides may alias (two blocks writing
+/// the same element would race), when the blocks would run past the largest
+/// bit offset, or when the pool or the chunks cannot be created.
 ///
-/// Falls back to serial decompression when block sizes can vary, when field
-/// strides may alias (two blocks writing the same element would race), when
-/// the blocks would run past the largest bit offset, or when the pool or the
-/// chunks cannot be created.
+/// Other streams use a plane-reader / reconstruction pipeline.
+/// This falls back to serial when field strides may alias, with fewer than two
+/// pool threads, or when the pool or the pipeline's buffers cannot be created.
 #[cfg(feature = "rayon")]
 pub(crate) fn decompress_rayon(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
@@ -165,20 +170,37 @@ pub(crate) fn decompress_rayon(
     chunk_size: u32,
 ) -> Result<usize, ZfpDecompressionError> {
     let info = field.plan()?;
-    let base = FieldPtr(field.data_mut().as_mut_ptr());
-    if decompress_parallel(bs, &info, base, config, threads, chunk_size).is_none() {
+    let base = field.data_mut().as_mut_ptr();
+    let done = FieldPtr::new(base, &info).and_then(|shared| {
+        if config.mode() == crate::types::ZfpMode::FixedRate {
+            decompress_parallel(bs, &info, shared, config, threads, chunk_size)
+        } else {
+            decompress_pipeline(bs, &info, shared, config, threads, chunk_size)
+        }
+    });
+    if done.is_none() {
         // SAFETY: `FieldPlan::new` validated the buffer `base` points to.
-        return unsafe { decompress_planned(bs, &info, base.ptr(), config) };
+        return unsafe { decompress_planned(bs, &info, base, config) };
     }
     finish(bs)
 }
 
-/// Decode every block in parallel chunks, then leave the cursor, and the
-/// overread flag, where serial decompression would.
+/// Leave the cursor, and the overread flag, where serial decompression would.
+#[cfg(feature = "rayon")]
+fn park(bs: &mut (impl ZfpBitStreamOps + ?Sized), end: u64, overread: bool) {
+    reset_overread(bs);
+    bs.seek_read(end);
+    if overread {
+        mark_overread(bs);
+    }
+}
+
+/// Decode every block of a fixed-rate stream in parallel chunks, then
+/// [`park`] the cursor.
 ///
-/// Returns `None`, having decoded nothing, where the blocks cannot be decoded
-/// independently or would run past the largest bit offset, or the pool or the
-/// chunks cannot be created.
+/// Returns `None`, having decoded nothing, where the blocks have no fixed size
+/// or would run past the largest bit offset, or the pool or the chunks cannot
+/// be created.
 #[cfg(feature = "rayon")]
 fn decompress_parallel(
     bs: &mut (impl ZfpBitStreamOps + ?Sized),
@@ -192,11 +214,7 @@ fn decompress_parallel(
     // budget can hold the type's block header. Below 9 bits for f32 or 12 for
     // f64, zero blocks use max_bits but nonzero blocks write the full header.
     // The maximum-size calculation already accounts for this distinction.
-    if config.mode() != crate::types::ZfpMode::FixedRate
-        || info.strides_may_alias()
-        || config.block_bits(info.scalar_type, info.dims_enum) != config.max_bits()
-        || info.num_blocks == 0
-    {
+    if config.block_bits(info.scalar_type, info.dims_enum) != config.max_bits() {
         return None;
     }
     let bits_per_block = config.max_bits();
@@ -228,11 +246,7 @@ fn decompress_parallel(
     // serial decoder fills the whole field.
     let overread_chunks = crate::execution::install(threads, run)?;
 
-    reset_overread(bs);
-    bs.seek_read(end);
-    if overread_chunks {
-        mark_overread(bs);
-    }
+    park(bs, end, overread_chunks);
     Some(())
 }
 
@@ -240,12 +254,22 @@ fn decompress_parallel(
 ///
 /// Carrying the real pointer rather than a `usize` round-trip keeps its
 /// provenance intact, which `-Zmiri-strict-provenance` requires.
+///
+/// Only [`Self::new`] makes one, and only where blocks write disjoint bytes.
 #[cfg(feature = "rayon")]
 #[derive(Clone, Copy)]
 struct FieldPtr(*mut u8);
 
 #[cfg(feature = "rayon")]
 impl FieldPtr {
+    /// Share `base`, the buffer `info` was planned for, with workers.
+    ///
+    /// `None` where two blocks could write the same element, as with strides
+    /// that may alias, and where there are no blocks to share out.
+    fn new(base: *mut u8, info: &FieldPlan) -> Option<Self> {
+        (info.num_blocks != 0 && !info.strides_may_alias()).then_some(Self(base))
+    }
+
     /// Take `self` by value so closures capture the whole `FieldPtr` rather
     /// than the bare `*mut u8` inside it: precise capture would otherwise grab
     /// `base.0`, and `&*mut u8` is not `Sync`.
@@ -254,10 +278,10 @@ impl FieldPtr {
     }
 }
 
-// SAFETY: chunks cover disjoint ranges of block indices, and `decompress_rayon`
-// only takes this path for non-aliasing strides, under which blocks map to
-// disjoint byte ranges. So no two threads write the same byte and no thread
-// reads a byte another thread writes.
+// SAFETY: chunks and pipeline batches cover disjoint ranges of block indices,
+// and `FieldPtr::new` only makes one for non-aliasing strides, under which
+// blocks map to disjoint byte ranges. So no two threads write the same byte and
+// no thread reads a byte another thread writes.
 #[cfg(feature = "rayon")]
 unsafe impl Send for FieldPtr {}
 #[cfg(feature = "rayon")]
@@ -303,6 +327,32 @@ fn decompress_chunks(
             overread(&local_bs)
         })
         .reduce(|| false, |a, b| a | b)
+}
+
+/// Decode every block through the plane-reader / reconstruction pipeline, then
+/// [`park`] the cursor.
+///
+/// Returns `None`, having read and written nothing, where only one thread is
+/// available, or the pool or the pipeline's buffers cannot be created.
+#[cfg(feature = "rayon")]
+fn decompress_pipeline(
+    bs: &mut (impl ZfpBitStreamOps + ?Sized),
+    info: &FieldPlan,
+    base: FieldPtr,
+    config: &ZfpConfig,
+    threads: u32,
+    batch_size: u32,
+) -> Option<()> {
+    if threads == 1 {
+        return None;
+    }
+    let start = bs.read_pos();
+    let words = bs.backing_words();
+    let (end, truncated) = crate::execution::install(threads, || {
+        pipeline::decode(words, start, base, info, config, batch_size)
+    })??;
+    park(bs, end, truncated);
+    Some(())
 }
 
 #[cfg(test)]

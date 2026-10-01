@@ -126,6 +126,7 @@ pub trait BenchScalar: ZfpScalar + bytemuck::Pod + Default + Copy + 'static {
 
 fn shape_for_dims(dims: u32) -> Vec<usize> {
     match dims {
+        1 => vec![1_048_576],
         2 => vec![1_024, 1_024],
         3 => vec![128, 128, 64],
         4 => vec![64, 64, 16, 16],

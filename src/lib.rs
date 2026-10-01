@@ -42,7 +42,7 @@
 //!
 //! ## Features
 //!
-//! - `rayon`: parallel compression, and fixed-rate decompression, with
+//! - `rayon`: parallel compression and decompression with
 //!   [`ZfpExecution::Rayon`]. Without it, that policy runs serially.
 //! - `ffi`: low-level APIs for the `zfp-rs-ffi` C ABI.
 //! - `internals`: the monomorphised codec, for this crate's test suites.

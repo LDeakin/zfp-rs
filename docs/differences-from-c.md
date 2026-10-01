@@ -14,7 +14,7 @@ Unless stated otherwise, the examples compress the 16 `f64` values `(0.37 * i).s
 | [Bit values above 1](#bit-values-above-1) | Added whole | Low bit written | **No** |
 | [Invalid fields and buffers](#field-validation) | Trusted | Rejected with an error | Yes |
 | [Rounding mode](#rounding) | Build-time option | Per-call `ZfpRounding` | Yes, with matching settings |
-| [Parallel execution](#parallel-execution) | OpenMP compression only | Rayon compression, and decompression of fixed-rate streams | Yes |
+| [Parallel execution](#parallel-execution) | OpenMP compression only | Rayon compression and decompression (variable-rate streams use a pipeline) | Yes |
 | [Out-of-range float-to-integer conversion](#platform-independent-output) | Undefined | x86-64 result everywhere | Yes, against x86-64 builds |
 | [Fixed rates C cannot convert](#fixed-rates-c-cannot-convert) | Undefined, or wraps to zero | Rejected | n/a |
 | [Build configurations](#unsupported-build-configurations) | Big-endian, strided streams, DAZ, CUDA | Default build only | n/a |
@@ -71,7 +71,10 @@ zfp-rs matches C built with `ZFP_ROUND_FIRST` and `ZFP_WITH_TIGHT_ERROR` ([`c_ro
 
 With the `rayon` feature, compression splits blocks into the same chunks as C's OpenMP code, and concatenates them at bit granularity, so it matches serial compression ([`compress_compat`](../tests/proptest/compress_compat.rs)).
 Fixed-rate streams also decompress in parallel ([`decompress_compat`](../tests/proptest/decompress_compat.rs), [`given_fixed_rate_stream_when_rayon_decompress_expect_serial_cursor_and_size`](../src/bitstream.rs)), which C does not do: the OpenMP entries of its dispatch table are empty ([`zfp.c`](../zfp/src/zfp.c) line 1182).
-Other modes, and fields whose strides may alias, decompress serially ([`aliasing_strides_decompress_serially`](../src/decompress.rs)).
+Variable-rate streams use a serial plane reader feeding parallel reconstruction workers through a bounded queue of reusable buffers, with no index or format change ([`pipeline_matches_serial_for_types_dimensions_modes_and_rounding`](../tests/pipeline.rs), [`queued_buffers_turn_over_for_all_types_and_dimensions`](../tests/pipeline.rs)).
+The C ABI's `zfp_stream_set_omp_threads` and `zfp_stream_set_omp_chunk_size` set the same `threads` and `chunk_size`, so for these streams the chunk size is the blocks per batch, and no setting changes the output ([`zfp_decompress_with_omp_settings_matches_serial_for_variable_rate_streams`](../zfp-rs-ffi/tests/ffi_compat.rs)).
+Fields whose strides may alias decompress serially ([`aliasing_strides_decompress_serially`](../src/decompress.rs) for fixed-rate streams, [`pipeline_matches_serial_for_types_dimensions_modes_and_rounding`](../tests/pipeline.rs) for the rest).
+So does a variable-rate stream decoded with fewer than two pool threads ([`pipeline_reuses_current_pool_and_nested_calls_complete`](../tests/pipeline.rs)).
 
 ### Platform-independent output
 

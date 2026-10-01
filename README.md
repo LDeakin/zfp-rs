@@ -16,8 +16,9 @@ Where it differs (see [docs/differences-from-c.md](docs/differences-from-c.md) f
 - **Panic free**: No function panics, for any argument. Invalid input and allocation failure are returned as errors; see the crate documentation for the exceptions.
 - **Performance**: Faster than the serial C reference with all data types and modes.
   See [`zfp-benchmarks`](zfp-benchmarks/README.md).
-- **Parallel compression and fixed-rate decompression**: With the `rayon` feature, compression can be parallelized across all modes.
+- **Parallel compression and decompression**: With the `rayon` feature, compression can be parallelized across all modes.
   Fixed-rate decompression is parallelized via per-thread bitstream seeking.
+  Variable-rate decompression pipelines a serial plane reader with parallel reconstruction.
   The C library does not parallelize decompression.
 - **Zero-C dependency chain**: No C compiler and no pkg-config.
 - **Runtime rounding mode**: `ZFP_ROUNDING_MODE` and `ZFP_WITH_TIGHT_ERROR` are build-time CMake options in C.

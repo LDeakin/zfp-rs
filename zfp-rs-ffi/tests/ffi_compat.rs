@@ -1046,6 +1046,66 @@ fn borrowed_stream_omp_compress_writes_parallel_output_to_caller_storage() {
     }
 }
 
+/// `zfp_stream_set_omp_chunk_size` sets the blocks per batch of the pipeline
+/// that decodes variable-rate streams, and no setting changes the output.
+#[cfg(feature = "rayon")]
+#[test]
+fn zfp_decompress_with_omp_settings_matches_serial_for_variable_rate_streams() {
+    let ty = ffi::zfp_type_zfp_type_float;
+    let dims = [20usize, 17, 9];
+    let mut data: Vec<f32> = (0..dims.iter().product())
+        .map(|i| (0.37 * i as f32).sin() * 100.0)
+        .collect();
+    for mode in [
+        Mode::FixedPrecision(16),
+        Mode::FixedAccuracy(-8),
+        Mode::Reversible,
+    ] {
+        let mut source = FfiStream::new();
+        unsafe {
+            apply_mode_ffi(source.zfp, &mode, ty, 3);
+            let field = ffi_field_from(data.as_mut_ptr().cast::<c_void>(), ty, &dims);
+            assert_ne!(ffi::zfp_compress(source.zfp, field), 0);
+            ffi::zfp_field_free(field);
+        }
+        source.flush();
+        let bytes = source.bytes();
+
+        let decode = |omp: Option<(u32, u32)>| {
+            let stream = FfiStream::with_bytes(&bytes);
+            let mut out = vec![0f32; data.len()];
+            unsafe {
+                apply_mode_ffi(stream.zfp, &mode, ty, 3);
+                if let Some((threads, chunk_size)) = omp {
+                    assert_eq!(
+                        ffi::zfp_stream_set_omp_threads(stream.zfp, threads),
+                        ffi::zfp_true
+                    );
+                    assert_eq!(
+                        ffi::zfp_stream_set_omp_chunk_size(stream.zfp, chunk_size),
+                        ffi::zfp_true
+                    );
+                }
+                let field = ffi_field_from(out.as_mut_ptr().cast::<c_void>(), ty, &dims);
+                let size = ffi::zfp_decompress(stream.zfp, field);
+                ffi::zfp_field_free(field);
+                (size, out.iter().map(|x| x.to_bits()).collect::<Vec<_>>())
+            }
+        };
+        let serial = decode(None);
+        assert_ne!(serial.0, 0);
+        for threads in [2, 4] {
+            for chunk_size in [0, 1, 7] {
+                assert_eq!(
+                    decode(Some((threads, chunk_size))),
+                    serial,
+                    "{mode:?}, threads {threads}, chunk size {chunk_size}"
+                );
+            }
+        }
+    }
+}
+
 #[test]
 fn stream_copy_reads_from_live_source_without_reparsing_bytes() {
     let mut src_words = vec![0u64; 4];

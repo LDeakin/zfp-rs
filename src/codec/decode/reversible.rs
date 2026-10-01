@@ -31,7 +31,7 @@ const TCMASK_F64: u64 = 0x7fff_ffff_ffff_ffff;
 /// one, so a C build with `ZFP_ROUND_LAST` is lossy in reversible mode. The
 /// bias centres quantization error, and a reversible block has none: its
 /// planes below the coded precision are exactly zero.
-const NO_ROUNDING: ZfpRounding = ZfpRounding::Never;
+pub(crate) const NO_ROUNDING: ZfpRounding = ZfpRounding::Never;
 
 // ---------------------------------------------------------------------------
 // rev_decode_int_block_u32 / u64: shared integer reversible-decode helpers
@@ -97,7 +97,7 @@ fn decode_bounded<B: PlaneBlock>(
 // rev_inv_reinterpret: two's-complement → sign-magnitude → float
 // ---------------------------------------------------------------------------
 
-fn rev_inv_reinterpret_f32(iblock: &[i32], fblock: &mut [f32]) {
+pub(crate) fn rev_inv_reinterpret_f32(iblock: &[i32], fblock: &mut [f32]) {
     for (&i, f) in iblock.iter().zip(fblock.iter_mut()) {
         let x = if i < 0 {
             (i as u32) ^ TCMASK_F32
@@ -108,7 +108,7 @@ fn rev_inv_reinterpret_f32(iblock: &[i32], fblock: &mut [f32]) {
     }
 }
 
-fn rev_inv_reinterpret_f64(iblock: &[i64], fblock: &mut [f64]) {
+pub(crate) fn rev_inv_reinterpret_f64(iblock: &[i64], fblock: &mut [f64]) {
     for (&i, f) in iblock.iter().zip(fblock.iter_mut()) {
         let x = if i < 0 {
             (i as u64) ^ TCMASK_F64
