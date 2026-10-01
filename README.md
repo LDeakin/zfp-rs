@@ -14,7 +14,8 @@ Where it differs (see [docs/differences-from-c.md](docs/differences-from-c.md) f
 
 - **Idiomatic and Safe API**: Safe public API with lifetime-checked borrows.
 - **Panic free**: No function panics, for any argument. Invalid input and allocation failure are returned as errors; see the crate documentation for the exceptions.
-- **Performance**: 2–4x faster than the serial C reference across all modes and types.
+- **Performance**: Faster than the serial C reference with all data types and modes.
+  See [`zfp-benchmarks`](zfp-benchmarks/README.md).
 - **Parallel compression and fixed-rate decompression**: With the `rayon` feature, compression can be parallelized across all modes.
   Fixed-rate decompression is parallelized via per-thread bitstream seeking.
   The C library does not parallelize decompression.
