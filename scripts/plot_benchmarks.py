@@ -19,31 +19,26 @@ import matplotlib.pyplot as plt
 
 SCALARS = ["i32", "i64", "f32", "f64"]
 MODES = ["fixed_rate", "fixed_precision", "fixed_accuracy", "reversible"]
-VARIANTS = [
-    "zfp-rs",
-    "zfp-rs-ffi",
-    "zfp-sys",
-    "zfp-rs-rayon2",
-    "zfp-sys-omp2",
-    "zfp-rs-ffi-omp2",
-]
 
-# Main x-axis groups: base implementation
-BASES = ["zfp-rs", "zfp-rs-ffi", "zfp-sys"]
+# `zfp-rs` and `zfp-rs-ffi` differ only by noise, so they share a base, and
+# their throughputs are averaged into one bar
+RS = "zfp-rs/zfp-rs-ffi"
+
+# Main groups: base implementation
+BASES = [RS, "zfp-sys"]
 
 # Colour per base implementation
 BASE_COLOR = {
-    "zfp-rs": "#2f6f73",
-    "zfp-rs-ffi": "#8a3d58",
+    RS: "#2f6f73",
     "zfp-sys": "#7a6b2f",
 }
 
 # Variant -> (base, thread_level)
 VARIANT_MAP: dict[str, tuple[str, str]] = {
-    "zfp-rs": ("zfp-rs", "serial"),
-    "zfp-rs-rayon2": ("zfp-rs", "2T"),
-    "zfp-rs-ffi": ("zfp-rs-ffi", "serial"),
-    "zfp-rs-ffi-omp2": ("zfp-rs-ffi", "2T"),
+    "zfp-rs": (RS, "serial"),
+    "zfp-rs-rayon2": (RS, "2T"),
+    "zfp-rs-ffi": (RS, "serial"),
+    "zfp-rs-ffi-omp2": (RS, "2T"),
     "zfp-sys": ("zfp-sys", "serial"),
     "zfp-sys-omp2": ("zfp-sys", "2T"),
 }
@@ -149,11 +144,8 @@ def write_summary(results: list[BenchResult], output_dir: Path) -> None:
     (output_dir / "api_compare.csv").write_text("\n".join(rows) + "\n")
 
 
-def _variant_for(base: str, thread: str) -> str | None:
-    for v in VARIANTS:
-        if VARIANT_MAP.get(v) == (base, thread):
-            return v
-    return None
+def _variants_for(base: str, thread: str) -> list[str]:
+    return [v for v, key in VARIANT_MAP.items() if key == (base, thread)]
 
 
 def _format_case(case: str) -> str:
@@ -173,11 +165,15 @@ def draw_group(ax, throughput: dict[str, float], top: float) -> None:
     for b_idx, base in enumerate(BASES):
         by = top + b_idx + 0.5
 
-        # Gather throughputs per layer for this base
+        # Gather throughputs per layer for this base, averaging its variants
         layer_vals: list[float] = []
         for layer_label, _hatch in STACK_LAYERS:
-            v = _variant_for(base, layer_label)
-            layer_vals.append(throughput.get(v, 0.0) if v else 0.0)
+            values = [
+                throughput[v]
+                for v in _variants_for(base, layer_label)
+                if v in throughput
+            ]
+            layer_vals.append(sum(values) / len(values) if values else 0.0)
 
         # Draw stacked segments
         start = 0.0
