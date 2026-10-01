@@ -23,9 +23,6 @@ VARIANTS = [
     "zfp-rs-rayon2",
     "zfp-sys-omp2",
     "zfp-rs-ffi-omp2",
-    "zfp-rs-rayon3",
-    "zfp-sys-omp3",
-    "zfp-rs-ffi-omp3",
 ]
 
 # Main x-axis groups: base implementation
@@ -42,13 +39,10 @@ BASE_COLOR = {
 VARIANT_MAP: dict[str, tuple[str, str]] = {
     "zfp-rs": ("zfp-rs", "serial"),
     "zfp-rs-rayon2": ("zfp-rs", "2T"),
-    "zfp-rs-rayon3": ("zfp-rs", "3T"),
     "zfp-rs-ffi": ("zfp-rs-ffi", "serial"),
     "zfp-rs-ffi-omp2": ("zfp-rs-ffi", "2T"),
-    "zfp-rs-ffi-omp3": ("zfp-rs-ffi", "3T"),
     "zfp-sys": ("zfp-sys", "serial"),
     "zfp-sys-omp2": ("zfp-sys", "2T"),
-    "zfp-sys-omp3": ("zfp-sys", "3T"),
 }
 
 
@@ -178,7 +172,7 @@ def plot_operation(
     fig, ax = plt.subplots(figsize=(fig_width, 5.5), constrained_layout=True)
 
     # Stack layers: (label, hatch)
-    stack_layers = [("serial", None), ("2T", "//"), ("3T", "xxx")]
+    stack_layers = [("serial", None), ("2T", "//")]
 
     # Legend 1: base implementations (colours)
     leg1_handles = [

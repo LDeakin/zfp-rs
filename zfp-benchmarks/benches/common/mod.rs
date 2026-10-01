@@ -85,7 +85,7 @@ pub const MODES: &[ModeKind] = &[
     ModeKind::FixedAccuracy,
     ModeKind::Reversible,
 ];
-pub const OMP_THREADS: &[u32] = &[2, 3];
+pub const OMP_THREADS: &[u32] = &[2];
 
 pub trait BenchScalar: ZfpScalar + bytemuck::Pod + Default + Copy + 'static {
     const RUST_TYPE: ZfpScalarType;
