@@ -3,10 +3,24 @@
 The `zfp-benchmarks` package compares the safe Rust API (`zfp-rs`), the FFI wrapper (`zfp-rs-ffi`), and the upstream C implementation (`zfp-sys`) across all scalar types and compression modes.
 
 ```bash
-cargo bench -p zfp-benchmarks --bench api_compare
+cargo bench -p zfp-benchmarks
 ```
 
-Generate local SVG plots from Criterion output:
+This runs two benchmark binaries that write to the same Criterion group, `api_compare`:
+
+| Binary           | Variants                                              |
+| ---------------- | ----------------------------------------------------- |
+| `api_compare`    | `zfp-rs`, `zfp-rs-rayon*`, `zfp-rs-ffi`, `zfp-rs-ffi-omp*` |
+| `api_compare_c`  | `zfp-sys`, `zfp-sys-omp*`                             |
+
+They are separate because `zfp-sys` and `zfp-rs-ffi` both define the C symbols `zfp_*` and `stream_*`.
+Linked into one binary, every `zfp-sys` call binds to the `zfp-rs-ffi` definitions and the "C" results are really the Rust implementation.
+`api_compare_c` asserts at startup that `zfp-sys` resolves into `libzfp`, and `api_compare` must stay the only binary that links `zfp-rs-ffi`.
+
+Run a single binary with `--bench`, for example `cargo bench -p zfp-benchmarks --bench api_compare_c`.
+Run them through cargo, as the C library is a shared library that is found through the `LD_LIBRARY_PATH` that cargo sets.
+
+Generate local SVG plots from Criterion output, which needs both binaries to have run:
 
 ```bash
 scripts/plot_benchmarks.py

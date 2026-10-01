@@ -4,8 +4,17 @@ version = "0.1.0"
 edition = "2024"
 publish = false
 
+# `zfp-rs` and `zfp-rs-ffi`.
 [[bench]]
 name = "api_compare"
+harness = false
+
+# The upstream C library (`zfp-sys`).
+# Separate from `api_compare` because `zfp-sys` and `zfp-rs-ffi` both define the
+# `zfp_*` and `stream_*` C symbols: linked together, every `zfp-sys` call binds to
+# `zfp-rs-ffi`, so the "C" results would be the Rust implementation.
+[[bench]]
+name = "api_compare_c"
 harness = false
 
 [dependencies]
@@ -14,3 +23,7 @@ criterion = { version = "0.8", features = ["html_reports"] }
 zfp-rs = { path = "..", features = ["ffi", "rayon"] }
 zfp-rs-ffi = { path = "../zfp-rs-ffi", features = ["rayon"] }
 zfp-sys = "0.4"
+
+# Used by `api_compare_c` to check the C library is the one being benchmarked.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
