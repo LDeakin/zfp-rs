@@ -20,6 +20,10 @@ Linked into one binary, every `zfp-sys` call binds to the `zfp-rs-ffi` definitio
 Both binaries take their Criterion settings from `common::criterion_config`, so the results are comparable.
 The settings favour stable means for charting over speed.
 
+`just bench_f32` runs only the f32 benchmarks, about a quarter of the full run.
+It passes a Criterion filter, a regex on the benchmark ID, so it applies to both binaries.
+Filter on another scalar type the same way, for example `cargo bench -p zfp-benchmarks -- '/f64_d'`.
+
 Run a single binary with `--bench`, for example `cargo bench -p zfp-benchmarks --bench api_compare_c`.
 Run them through cargo, as the C library is a shared library that is found through the `LD_LIBRARY_PATH` that cargo sets.
 

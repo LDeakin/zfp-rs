@@ -32,6 +32,20 @@ round_clippy:
 bench:
 	cargo bench -p zfp-benchmarks
 
+# Run only the f32 benchmarks
+bench_f32:
+	cargo bench -p zfp-benchmarks -- '/f32_d'
+
+# Run benchmarks pinned to the P-cores of a hybrid Intel CPU; elsewhere pass the CPU list: `just bench_p_cores 0-3`
+bench_p_cores cores=`cat /sys/devices/cpu_core/cpus`:
+	cargo bench -p zfp-benchmarks --no-run
+	taskset -c {{cores}} cargo bench -p zfp-benchmarks
+
+# Run benchmarks pinned to the P-cores of a hybrid Intel CPU; elsewhere pass the CPU list: `just bench_p_cores 0-3`
+bench_f32_p_cores cores=`cat /sys/devices/cpu_core/cpus`:
+	cargo bench -p zfp-benchmarks --no-run
+	taskset -c {{cores}} cargo bench -p zfp-benchmarks -- '/f32_d'
+
 # Generate SVG plots and CSV from existing benchmark results only
 bench_plot:
 	uv run scripts/plot_benchmarks.py
