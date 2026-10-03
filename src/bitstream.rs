@@ -92,7 +92,7 @@ mod tests {
         // `into_words` and `into_bytes` both return exactly what was written.
         let mut s = ZfpBitStream::new(64).unwrap();
         s.write_bits(0xabc, 12);
-        assert!(s.as_words().is_empty());
+        assert_eq!(s.as_words(), []);
         assert_eq!(s.into_words(), vec![0xabc]);
 
         let mut s = ZfpBitStream::from_words(vec![0; 8]);
