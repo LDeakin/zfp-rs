@@ -6,6 +6,7 @@ use std::mem::size_of;
 use zfp_rs_ffi as ffi;
 use zfp_rs_ffi::{ZFP_MAX_BITS, ZFP_MAX_PREC, ZFP_MIN_EXP};
 
+#[rustfmt::skip]
 #[allow(non_camel_case_types, non_upper_case_globals)]
 mod zfp_sys {
     use super::{c_void, ffi};
@@ -37,16 +38,8 @@ mod zfp_sys {
         zfp_decompress: unsafe extern "C" fn(*mut zfp_stream, *mut zfp_field) -> usize,
         zfp_field_1d: unsafe extern "C" fn(*mut c_void, zfp_type, usize) -> *mut zfp_field,
         zfp_field_2d: unsafe extern "C" fn(*mut c_void, zfp_type, usize, usize) -> *mut zfp_field,
-        zfp_field_3d:
-            unsafe extern "C" fn(*mut c_void, zfp_type, usize, usize, usize) -> *mut zfp_field,
-        zfp_field_4d: unsafe extern "C" fn(
-            *mut c_void,
-            zfp_type,
-            usize,
-            usize,
-            usize,
-            usize,
-        ) -> *mut zfp_field,
+        zfp_field_3d: unsafe extern "C" fn(*mut c_void, zfp_type, usize, usize, usize) -> *mut zfp_field,
+        zfp_field_4d: unsafe extern "C" fn(*mut c_void, zfp_type, usize, usize, usize, usize) -> *mut zfp_field,
         zfp_field_begin: unsafe extern "C" fn(*const zfp_field) -> *mut c_void,
         zfp_field_free: unsafe extern "C" fn(*mut zfp_field),
         zfp_field_size_bytes: unsafe extern "C" fn(*const zfp_field) -> usize,
@@ -81,110 +74,22 @@ mod zfp_sys {
         zfp_encode_block_int64_4: unsafe extern "C" fn(*mut zfp_stream, *const i64) -> usize,
         zfp_encode_block_float_4: unsafe extern "C" fn(*mut zfp_stream, *const f32) -> usize,
         zfp_encode_block_double_4: unsafe extern "C" fn(*mut zfp_stream, *const f64) -> usize,
-        zfp_decode_partial_block_strided_int32_1:
-            unsafe extern "C" fn(*mut zfp_stream, *mut i32, usize, isize) -> usize,
-        zfp_decode_partial_block_strided_int64_1:
-            unsafe extern "C" fn(*mut zfp_stream, *mut i64, usize, isize) -> usize,
-        zfp_decode_partial_block_strided_float_1:
-            unsafe extern "C" fn(*mut zfp_stream, *mut f32, usize, isize) -> usize,
-        zfp_decode_partial_block_strided_double_1:
-            unsafe extern "C" fn(*mut zfp_stream, *mut f64, usize, isize) -> usize,
-        zfp_decode_partial_block_strided_int32_2:
-            unsafe extern "C" fn(*mut zfp_stream, *mut i32, usize, usize, isize, isize) -> usize,
-        zfp_decode_partial_block_strided_int64_2:
-            unsafe extern "C" fn(*mut zfp_stream, *mut i64, usize, usize, isize, isize) -> usize,
-        zfp_decode_partial_block_strided_float_2:
-            unsafe extern "C" fn(*mut zfp_stream, *mut f32, usize, usize, isize, isize) -> usize,
-        zfp_decode_partial_block_strided_double_2:
-            unsafe extern "C" fn(*mut zfp_stream, *mut f64, usize, usize, isize, isize) -> usize,
-        zfp_decode_partial_block_strided_int32_3: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut i32,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
-        zfp_decode_partial_block_strided_int64_3: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut i64,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
-        zfp_decode_partial_block_strided_float_3: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut f32,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
-        zfp_decode_partial_block_strided_double_3: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut f64,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
-        zfp_decode_partial_block_strided_int32_4: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut i32,
-            usize,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
-        zfp_decode_partial_block_strided_int64_4: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut i64,
-            usize,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
-        zfp_decode_partial_block_strided_float_4: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut f32,
-            usize,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
-        zfp_decode_partial_block_strided_double_4: unsafe extern "C" fn(
-            *mut zfp_stream,
-            *mut f64,
-            usize,
-            usize,
-            usize,
-            usize,
-            isize,
-            isize,
-            isize,
-            isize,
-        ) -> usize,
+        zfp_decode_partial_block_strided_int32_1: unsafe extern "C" fn(*mut zfp_stream, *mut i32, usize, isize) -> usize,
+        zfp_decode_partial_block_strided_int64_1: unsafe extern "C" fn(*mut zfp_stream, *mut i64, usize, isize) -> usize,
+        zfp_decode_partial_block_strided_float_1: unsafe extern "C" fn(*mut zfp_stream, *mut f32, usize, isize) -> usize,
+        zfp_decode_partial_block_strided_double_1: unsafe extern "C" fn(*mut zfp_stream, *mut f64, usize, isize) -> usize,
+        zfp_decode_partial_block_strided_int32_2: unsafe extern "C" fn(*mut zfp_stream, *mut i32, usize, usize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_int64_2: unsafe extern "C" fn(*mut zfp_stream, *mut i64, usize, usize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_float_2: unsafe extern "C" fn(*mut zfp_stream, *mut f32, usize, usize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_double_2: unsafe extern "C" fn(*mut zfp_stream, *mut f64, usize, usize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_int32_3: unsafe extern "C" fn(*mut zfp_stream, *mut i32, usize, usize, usize, isize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_int64_3: unsafe extern "C" fn(*mut zfp_stream, *mut i64, usize, usize, usize, isize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_float_3: unsafe extern "C" fn(*mut zfp_stream, *mut f32, usize, usize, usize, isize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_double_3: unsafe extern "C" fn(*mut zfp_stream, *mut f64, usize, usize, usize, isize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_int32_4: unsafe extern "C" fn(*mut zfp_stream, *mut i32, usize, usize, usize, usize, isize, isize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_int64_4: unsafe extern "C" fn(*mut zfp_stream, *mut i64, usize, usize, usize, usize, isize, isize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_float_4: unsafe extern "C" fn(*mut zfp_stream, *mut f32, usize, usize, usize, usize, isize, isize, isize, isize) -> usize,
+        zfp_decode_partial_block_strided_double_4: unsafe extern "C" fn(*mut zfp_stream, *mut f64, usize, usize, usize, usize, isize, isize, isize, isize) -> usize,
     }
 
     static API: OnceLock<Api> = OnceLock::new();
@@ -241,70 +146,22 @@ mod zfp_sys {
                 zfp_encode_block_int64_4: sym(&lib, b"zfp_encode_block_int64_4\0"),
                 zfp_encode_block_float_4: sym(&lib, b"zfp_encode_block_float_4\0"),
                 zfp_encode_block_double_4: sym(&lib, b"zfp_encode_block_double_4\0"),
-                zfp_decode_partial_block_strided_int32_1: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int32_1\0",
-                ),
-                zfp_decode_partial_block_strided_int64_1: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int64_1\0",
-                ),
-                zfp_decode_partial_block_strided_float_1: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_float_1\0",
-                ),
-                zfp_decode_partial_block_strided_double_1: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_double_1\0",
-                ),
-                zfp_decode_partial_block_strided_int32_2: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int32_2\0",
-                ),
-                zfp_decode_partial_block_strided_int64_2: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int64_2\0",
-                ),
-                zfp_decode_partial_block_strided_float_2: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_float_2\0",
-                ),
-                zfp_decode_partial_block_strided_double_2: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_double_2\0",
-                ),
-                zfp_decode_partial_block_strided_int32_3: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int32_3\0",
-                ),
-                zfp_decode_partial_block_strided_int64_3: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int64_3\0",
-                ),
-                zfp_decode_partial_block_strided_float_3: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_float_3\0",
-                ),
-                zfp_decode_partial_block_strided_double_3: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_double_3\0",
-                ),
-                zfp_decode_partial_block_strided_int32_4: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int32_4\0",
-                ),
-                zfp_decode_partial_block_strided_int64_4: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_int64_4\0",
-                ),
-                zfp_decode_partial_block_strided_float_4: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_float_4\0",
-                ),
-                zfp_decode_partial_block_strided_double_4: sym(
-                    &lib,
-                    b"zfp_decode_partial_block_strided_double_4\0",
-                ),
+                zfp_decode_partial_block_strided_int32_1: sym(&lib, b"zfp_decode_partial_block_strided_int32_1\0"),
+                zfp_decode_partial_block_strided_int64_1: sym(&lib, b"zfp_decode_partial_block_strided_int64_1\0"),
+                zfp_decode_partial_block_strided_float_1: sym(&lib, b"zfp_decode_partial_block_strided_float_1\0"),
+                zfp_decode_partial_block_strided_double_1: sym(&lib, b"zfp_decode_partial_block_strided_double_1\0"),
+                zfp_decode_partial_block_strided_int32_2: sym(&lib, b"zfp_decode_partial_block_strided_int32_2\0"),
+                zfp_decode_partial_block_strided_int64_2: sym(&lib, b"zfp_decode_partial_block_strided_int64_2\0"),
+                zfp_decode_partial_block_strided_float_2: sym(&lib, b"zfp_decode_partial_block_strided_float_2\0"),
+                zfp_decode_partial_block_strided_double_2: sym(&lib, b"zfp_decode_partial_block_strided_double_2\0"),
+                zfp_decode_partial_block_strided_int32_3: sym(&lib, b"zfp_decode_partial_block_strided_int32_3\0"),
+                zfp_decode_partial_block_strided_int64_3: sym(&lib, b"zfp_decode_partial_block_strided_int64_3\0"),
+                zfp_decode_partial_block_strided_float_3: sym(&lib, b"zfp_decode_partial_block_strided_float_3\0"),
+                zfp_decode_partial_block_strided_double_3: sym(&lib, b"zfp_decode_partial_block_strided_double_3\0"),
+                zfp_decode_partial_block_strided_int32_4: sym(&lib, b"zfp_decode_partial_block_strided_int32_4\0"),
+                zfp_decode_partial_block_strided_int64_4: sym(&lib, b"zfp_decode_partial_block_strided_int64_4\0"),
+                zfp_decode_partial_block_strided_float_4: sym(&lib, b"zfp_decode_partial_block_strided_float_4\0"),
+                zfp_decode_partial_block_strided_double_4: sym(&lib, b"zfp_decode_partial_block_strided_double_4\0"),
                 _lib: lib,
             }
         })
