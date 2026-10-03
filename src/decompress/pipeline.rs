@@ -97,7 +97,7 @@ thread_local! {
 /// touches neither the stream nor the field, so a failure leaves them for the
 /// serial fallback; [`Self::run`] cannot fail.
 struct Pipeline<T: Scalar<N>, const N: usize> {
-    buffers: BufferPool<Block<T::Unsigned>>,
+    buffers: BufferPool<Block<T, N>>,
     /// Blocks per batch.
     batch_len: usize,
 }
@@ -117,7 +117,7 @@ where
     )]
     fn new(info: &FieldPlan, batch_size: u32) -> Option<Self> {
         let batch_len = if batch_size == 0 {
-            (BATCH_BYTES / size_of::<Block<T::Unsigned>>()).max(1)
+            (BATCH_BYTES / size_of::<Block<T, N>>()).max(1)
         } else {
             batch_size as usize
         };

@@ -26,23 +26,23 @@ use crate::types::{ZfpDimensionality, ZfpScalar};
 
 /// Values needed after reading a floating-point block's header.
 #[derive(Clone, Copy)]
-enum FloatEncoding {
+pub(crate) enum FloatEncoding {
     Zero,
     BlockFloat(i32),
     Reinterpret,
 }
 
 /// What [`read_block`] leaves for [`Scalar::reconstruct`].
-pub(crate) struct Block<B: PlaneBlock> {
-    planes: DecodedPlanes<B>,
-    float: FloatEncoding,
+pub(crate) struct Block<T: Scalar<N>, const N: usize> {
+    planes: DecodedPlanes<T::Unsigned>,
+    header: T::Header,
 }
 
-impl<B: PlaneBlock> Block<B> {
+impl<T: Scalar<N>, const N: usize> Block<T, N> {
     pub(crate) fn new() -> Self {
         Self {
             planes: DecodedPlanes::new(),
-            float: FloatEncoding::Zero,
+            header: FloatEncoding::Zero.into(),
         }
     }
 }
@@ -50,11 +50,23 @@ impl<B: PlaneBlock> Block<B> {
 /// A scalar type's blocks of `N` values, decoded in stages.
 pub(crate) trait Scalar<const N: usize>: ZfpScalar {
     type Unsigned: PlaneBlock;
+    /// What a block's header leaves for [`Self::reconstruct`]: nothing for an
+    /// integer, which has no header.
+    type Header: Copy + Send + Sync + From<FloatEncoding>;
     const FLOAT: bool;
     const EBITS: u32;
     const EBIAS: i32;
     const PBITS: u32;
-    fn reconstruct(block: &Block<Self::Unsigned>, reversible: bool, perm: &[u8; N]) -> [Self; N];
+    fn reconstruct(
+        planes: &DecodedPlanes<Self::Unsigned>,
+        header: Self::Header,
+        reversible: bool,
+        perm: &[u8; N],
+    ) -> [Self; N];
+}
+
+impl From<FloatEncoding> for () {
+    fn from(_: FloatEncoding) {}
 }
 
 macro_rules! integer {
@@ -64,17 +76,19 @@ macro_rules! integer {
             [$uint; N]: PlaneBlock,
         {
             type Unsigned = [$uint; N];
+            type Header = ();
             const FLOAT: bool = false;
             const EBITS: u32 = 0;
             const EBIAS: i32 = 0;
             const PBITS: u32 = $pbits;
             #[inline]
             fn reconstruct(
-                block: &Block<Self::Unsigned>,
+                planes: &DecodedPlanes<Self::Unsigned>,
+                (): (),
                 reversible: bool,
                 perm: &[u8; N],
             ) -> [Self; N] {
-                let (unsigned, zero) = block.planes.reconstruct();
+                let (unsigned, zero) = planes.reconstruct();
                 let mut out = [0; N];
                 if !zero {
                     $order(&unsigned, &mut out, perm);
@@ -96,28 +110,30 @@ macro_rules! float {
     ($float:ty, $int:ty, $ebits:ident, $ebias:ident, $cast:ident, $reinterpret:ident) => {
         impl<const N: usize> Scalar<N> for $float
         where
-            $int: Scalar<N>,
+            $int: Scalar<N, Header = ()>,
         {
             type Unsigned = <$int as Scalar<N>>::Unsigned;
+            type Header = FloatEncoding;
             const FLOAT: bool = true;
             const EBITS: u32 = $ebits;
             const EBIAS: i32 = $ebias;
             const PBITS: u32 = <$int as Scalar<N>>::PBITS;
             #[inline]
             fn reconstruct(
-                block: &Block<Self::Unsigned>,
+                planes: &DecodedPlanes<Self::Unsigned>,
+                header: FloatEncoding,
                 reversible: bool,
                 perm: &[u8; N],
             ) -> [Self; N] {
                 let mut out = [0.0; N];
-                match block.float {
+                match header {
                     FloatEncoding::Zero => {}
                     FloatEncoding::BlockFloat(exponent) => {
-                        let ints = <$int as Scalar<N>>::reconstruct(block, reversible, perm);
+                        let ints = <$int as Scalar<N>>::reconstruct(planes, (), reversible, perm);
                         $cast(&ints, &mut out, exponent);
                     }
                     FloatEncoding::Reinterpret => {
-                        let ints = <$int as Scalar<N>>::reconstruct(block, reversible, perm);
+                        let ints = <$int as Scalar<N>>::reconstruct(planes, (), reversible, perm);
                         $reinterpret(&ints, &mut out);
                     }
                 }
@@ -199,7 +215,7 @@ layout!(
 #[inline]
 fn read_block<T: Scalar<N>, const N: usize>(
     bs: &mut ZfpBitStreamRef<'_>,
-    block: &mut Block<T::Unsigned>,
+    block: &mut Block<T, N>,
     config: &ZfpConfig,
     dims: ZfpDimensionality,
 ) {
@@ -208,19 +224,19 @@ fn read_block<T: Scalar<N>, const N: usize>(
     let mut precision = config.max_prec();
     if T::FLOAT {
         if bs.read_bits(1) == 0 {
-            block.float = FloatEncoding::Zero;
+            block.header = FloatEncoding::Zero.into();
             skip_to(bs, bits, config.min_bits());
             return;
         }
         let reinterpret = reversible && bs.read_bits(1) != 0;
         bits += u32::from(reversible);
         if reinterpret {
-            block.float = FloatEncoding::Reinterpret;
+            block.header = FloatEncoding::Reinterpret.into();
         } else {
             #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
             let exponent = bs.read_bits(T::EBITS) as i32 - T::EBIAS;
             bits += T::EBITS;
-            block.float = FloatEncoding::BlockFloat(exponent);
+            block.header = FloatEncoding::BlockFloat(exponent).into();
             if !reversible {
                 precision = precision_f(
                     exponent,
@@ -253,7 +269,7 @@ fn read_block<T: Scalar<N>, const N: usize>(
 /// Read one block into each element of `batch`.
 pub(crate) fn read_batch<T: Scalar<N>, const N: usize>(
     bs: &mut ZfpBitStreamRef<'_>,
-    batch: &mut [Block<T::Unsigned>],
+    batch: &mut [Block<T, N>],
     config: &ZfpConfig,
     dims: ZfpDimensionality,
 ) {
@@ -270,7 +286,7 @@ pub(crate) fn read_batch<T: Scalar<N>, const N: usize>(
 /// may access the blocks `start..start + batch.len()`, which must not overlap
 /// one another, so `info`'s strides must not alias.
 pub(crate) unsafe fn reconstruct_batch<T: Scalar<N>, const N: usize>(
-    batch: &[Block<T::Unsigned>],
+    batch: &[Block<T, N>],
     start: usize,
     base: *mut u8,
     info: &FieldPlan,
@@ -280,7 +296,7 @@ pub(crate) unsafe fn reconstruct_batch<T: Scalar<N>, const N: usize>(
 {
     let reversible = config.is_reversible();
     for (block, coords) in batch.iter().zip(info.blocks(start..start + batch.len())) {
-        let values = T::reconstruct(block, reversible, &Layout::<N>::PERM);
+        let values = T::reconstruct(&block.planes, block.header, reversible, &Layout::<N>::PERM);
         let (offset, lengths) = info.block_geometry(coords);
         // SAFETY: the caller's contract.
         unsafe {
