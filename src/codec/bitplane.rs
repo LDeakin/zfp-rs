@@ -269,7 +269,7 @@ macro_rules! plane_block_lanes {
 
             #[inline(always)]
             fn top(&self) -> u32 {
-                self.iter().fold(0 as $u, |acc, &v| acc | v).bit_width()
+                <$u>::BITS - self.iter().fold(0 as $u, |acc, &v| acc | v).leading_zeros()
             }
 
             #[inline(always)]
@@ -428,7 +428,7 @@ macro_rules! plane_block_chunks {
 
             #[inline(always)]
             fn top(&self) -> u32 {
-                self.iter().fold(0 as $u, |acc, &v| acc | v).bit_width()
+                <$u>::BITS - self.iter().fold(0 as $u, |acc, &v| acc | v).leading_zeros()
             }
 
             #[inline(always)]

@@ -74,6 +74,28 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --workspace
 
+  msrv:
+    name: MSRV (Rust 1.89)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@1.89.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            zfp-round-tests
+      - run: cargo build --locked --workspace --all-targets --all-features
+      - run: cargo test --locked --workspace --features ffi,internals,rayon
+      # Test separately so workspace feature unification cannot enable `ffi`.
+      - run: cargo test --locked -p zfp-rs
+      - run: cargo test --locked -p zfp-rs --features rayon
+      # This suite has its own workspace to isolate the C rounding features.
+      - run: cargo test --locked --manifest-path zfp-round-tests/Cargo.toml
+      - run: cargo test --locked -p zfp-rs-ffi --features round-tight-error
+
   # Build rather than check: `cargo check` misses the `arithmetic_overflow`
   # lint, which caught shifting a 32-bit `usize` by 48.
   build-32bit:

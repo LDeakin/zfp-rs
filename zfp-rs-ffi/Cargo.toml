@@ -3,6 +3,7 @@ name = "zfp-rs-ffi"
 authors = ["Lachlan Deakin <ljdgit@gmail.com>"]
 version = "1.0.0"
 edition = "2024"
+rust-version.workspace = true
 description = "C ABI bindings layer around zfp-rs: mirrors the zfp-sys API"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/LDeakin/zfp-rs"

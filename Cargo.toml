@@ -13,11 +13,15 @@ members = [
 # stock-zfp suites.
 exclude = ["fuzz", "zfp-round-tests"]
 
+[workspace.package]
+rust-version = "1.89"
+
 [package]
 name = "zfp-rs"
 authors = ["Lachlan Deakin <ljdgit@gmail.com>"]
 version = "1.0.0"
 edition = "2024"
+rust-version.workspace = true
 description = "A pure-Rust implementation of the ZFP compression algorithm"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/LDeakin/zfp-rs"

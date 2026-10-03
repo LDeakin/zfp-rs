@@ -27,6 +27,8 @@ The target API is `zfp-sys` version `0.4` as generated in this workspace. This i
 
 ## Building
 
+The minimum supported Rust version (MSRV) is **1.89**.
+
 ```bash
 # Build a C-linkable static library with exact zfp.h symbol exports
 cargo build -p zfp-rs-ffi

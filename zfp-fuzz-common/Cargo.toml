@@ -2,6 +2,7 @@
 name = "zfp-fuzz-common"
 version = "0.0.0"
 edition = "2024"
+rust-version.workspace = true
 publish = false
 description = "Bounded input model and target bodies shared by the zfp-rs fuzz targets"
 
