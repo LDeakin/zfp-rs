@@ -239,6 +239,11 @@ pub(crate) trait PlaneBlock: Sized {
 
     /// A block with every plane zero, for [`Self::set_plane`].
     fn zero_planes() -> Self::Planes;
+    /// Zero the planes that a block coded down to `kmin` can store, and that
+    /// [`Self::from_planes`] can read for it, which makes `planes` fit to take
+    /// one. The rest are left as they were.
+    #[cfg(feature = "rayon")]
+    fn clear_planes(planes: &mut Self::Planes, kmin: u32);
     /// Store plane `k`, at most once, into [`Self::zero_planes`].
     fn set_plane(planes: &mut Self::Planes, k: u32, plane: Self::Plane);
     /// Transpose back, given that every plane below `kmin` is zero.
@@ -282,6 +287,12 @@ macro_rules! plane_block_lanes {
             #[inline(always)]
             fn zero_planes() -> Self::Planes {
                 [0; $n]
+            }
+
+            #[cfg(feature = "rayon")]
+            #[inline(always)]
+            fn clear_planes(planes: &mut Self::Planes, _kmin: u32) {
+                *planes = [0; $n];
             }
 
             #[inline(always)]
@@ -332,6 +343,24 @@ fn chunk_to_planes<const P: usize>(coeff: impl Fn(usize) -> u64, kmin: u32, plan
     }
 }
 
+/// How many of the top planes of a chunk of `p` [`chunk_to_planes`] and
+/// [`chunk_from_planes`] cover to reach `kmin`: 16, 32 or 64.
+///
+/// Those inline into every block coder, which a shared function perturbed, so
+/// `decoded_planes_match_decode_ints` checks that this agrees with them.
+#[cfg(feature = "rayon")]
+#[inline(always)]
+fn chunk_rows(p: usize, kmin: u32) -> usize {
+    let need = (p as u32).saturating_sub(kmin);
+    if need <= 16 {
+        16
+    } else if p == 32 || need <= 32 {
+        32
+    } else {
+        64
+    }
+}
+
 #[inline(always)]
 fn top_to_planes<const R: usize>(coeff: impl Fn(usize) -> u64, planes: &mut [u64]) {
     let shift = planes.len() - R;
@@ -344,6 +373,17 @@ fn top_to_planes<const R: usize>(coeff: impl Fn(usize) -> u64, planes: &mut [u64
     // `planes` holds at least `R` words, as the callers pick `R <= P`.
     if let Some(top) = planes.last_chunk_mut::<R>() {
         *top = rows;
+    }
+}
+
+/// Zero the top `R` planes of each chunk, with stores of a fixed size.
+#[cfg(feature = "rayon")]
+#[inline(always)]
+fn clear_top<const R: usize, const P: usize>(chunks: &mut [[u64; P]]) {
+    for chunk in chunks {
+        if let Some(top) = chunk.last_chunk_mut::<R>() {
+            *top = [0; R];
+        }
     }
 }
 
@@ -408,6 +448,16 @@ macro_rules! plane_block_chunks {
             #[inline(always)]
             fn zero_planes() -> Self::Planes {
                 [[0; <$u>::BITS as usize]; $chunks]
+            }
+
+            #[cfg(feature = "rayon")]
+            #[inline(always)]
+            fn clear_planes(planes: &mut Self::Planes, kmin: u32) {
+                match chunk_rows(<$u>::BITS as usize, kmin) {
+                    16 => clear_top::<16, { <$u>::BITS as usize }>(planes),
+                    32 if <$u>::BITS > 32 => clear_top::<32, { <$u>::BITS as usize }>(planes),
+                    _ => *planes = Self::zero_planes(),
+                }
             }
 
             #[inline(always)]
@@ -772,7 +822,7 @@ impl<B: PlaneBlock> DecodedPlanes<B> {
         let constrained = with_maxbits(maxbits, maxprec, B::SIZE);
         let budget = if constrained { maxbits } else { u32::MAX };
         let kmin = B::INTPREC.saturating_sub(maxprec);
-        self.planes = B::zero_planes();
+        B::clear_planes(&mut self.planes, kmin);
         let (bits, m, prec, low) = {
             let mut reader = BitReader::new(bs);
             decode_planes(&mut reader, budget, kmin, B::INTPREC, B::SIZE, |k, x| {
