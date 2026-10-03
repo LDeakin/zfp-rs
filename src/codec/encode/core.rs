@@ -314,6 +314,10 @@ pub(crate) const EBITS_F64: u32 = crate::types::ZfpScalarType::F64.exponent_bits
 pub(crate) const EBIAS_F32: i32 = 127;
 /// Bias of an `f64` block's exponent.
 pub(crate) const EBIAS_F64: i32 = 1023;
+/// Bits used to encode `prec - 1` for f32/i32 reversible blocks (5 bits → max prec 31).
+pub(crate) const PBITS_32: u32 = 5;
+/// Bits used to encode `prec - 1` for f64/i64 reversible blocks (6 bits → max prec 63).
+pub(crate) const PBITS_64: u32 = 6;
 
 /// The smallest `emax` whose scale `2^(30 - emax)` is finite as an `f32`.
 pub(crate) const MIN_CAST_EMAX_F32: i32 = -97;
