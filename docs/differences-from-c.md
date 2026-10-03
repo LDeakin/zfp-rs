@@ -74,7 +74,7 @@ Fixed-rate streams also decompress in parallel ([`decompress_compat`](../tests/p
 Variable-rate streams use a serial plane reader feeding parallel reconstruction workers through a bounded queue of reusable buffers, with no index or format change ([`pipeline_matches_serial_for_types_dimensions_modes_and_rounding`](../tests/pipeline.rs), [`queued_buffers_turn_over_for_all_types_and_dimensions`](../tests/pipeline.rs)).
 The C ABI's `zfp_stream_set_omp_threads` and `zfp_stream_set_omp_chunk_size` set the same `threads` and `chunk_size`, so for these streams the chunk size is the blocks per batch, and no setting changes the output ([`zfp_decompress_with_omp_settings_matches_serial_for_variable_rate_streams`](../zfp-rs-ffi/tests/ffi_compat.rs)).
 Fields whose strides may alias decompress serially ([`aliasing_strides_decompress_serially`](../src/decompress.rs) for fixed-rate streams, [`pipeline_matches_serial_for_types_dimensions_modes_and_rounding`](../tests/pipeline.rs) for the rest).
-So does a variable-rate stream decoded with fewer than two pool threads ([`pipeline_reuses_current_pool_and_nested_calls_complete`](../tests/pipeline.rs)).
+So does a variable-rate stream decoded with fewer than two pool threads ([`pipeline_reuses_current_pool_and_nested_calls_complete`](../tests/pipeline.rs)), and so do 1-D fields and fields of one batch, which the pipeline decodes more slowly ([`one_batch_and_1d_fields_are_not_pipelined`](../src/decompress/pipeline.rs)).
 
 ### Platform-independent output
 

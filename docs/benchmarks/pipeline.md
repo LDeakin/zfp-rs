@@ -6,7 +6,7 @@
 
 Variable-rate Rayon decompression now uses a bounded queue of reusable plane buffers. One reader parses headers and walks bit planes; each ready batch is dispatched immediately for transpose, rounding, reordering, inverse transform, float conversion and scatter. Finished batches return their buffers to the reader. Up to 16 buffers target about 1 MiB of plane storage by default, with no join-and-swap barrier between batches. A producer waiting for a buffer can help pending Rayon tasks.
 
-`threads` is the total pool size, including the reader. `chunk_size` sets blocks per batch for variable-rate decoding; zero targets 64 KiB per batch. Aliased strides, fewer than two pool threads, or a failed pool/buffer allocation use serial decoding. Negative strides, partial blocks, borrowed streams, rounding, and truncation retain serial behavior. Compression and fixed-rate chunk-size semantics are unchanged.
+`threads` is the total pool size, including the reader. `chunk_size` sets blocks per batch for variable-rate decoding; zero targets 64 KiB per batch. Aliased strides, fewer than two pool threads, 1-D fields, fields of one batch, or a failed pool/buffer allocation use serial decoding. Negative strides, partial blocks, borrowed streams, rounding, and truncation retain serial behavior. Compression and fixed-rate chunk-size semantics are unchanged.
 
 ```rust
 let execution = zfp_rs::ZfpExecution::Rayon {
@@ -19,6 +19,27 @@ bs.decompress_with_execution(&config, &mut field, execution)?;
 For repeated calls, install them in a caller-owned Rayon pool and pass `threads: 0`; otherwise a pool is created and destroyed on each call. `ZfpExecution::Serial` remains the library-wide default and is available for workloads where parallel decoding is slower.
 
 See the [production queue evaluation](pipeline_queue_production.md) for the replacement's performance, including regressions.
+
+## Serial fallbacks
+
+Fields of one batch and 1-D fields decode serially, because the pipeline decoded them more slowly.
+A field of one batch is read in full before any of it is reconstructed, so nothing overlaps, and 1-D blocks are too cheap to reconstruct for the hand-off to pay.
+
+Serial and pipelined decodes were interleaved in one process, pinned to CPUs 3,1,0,2, with reused two- and four-thread pools and the default batch unless stated.
+Each timing is the best of seven samples of at least 20 ms, for `i32`, `f32` and `f64` at fixed precision 16 and reversible, from 2,048 to 1,048,576 elements.
+Speedups are serial time over pipeline time, so values below 1 are slower.
+
+| Fields | Measurements | Median | Range | Slower than serial |
+|---|---:|---:|---:|---:|
+| One batch (`chunk_size` of `u32::MAX`), 1-D to 3-D, 2,048 to 16,384 elements | 288 | 0.91× | 0.67–1.08× | 92% |
+| 1-D, 2,048 to 16,384 elements | 48 | 0.93× | 0.78–1.08× | 92% |
+| 1-D, 32,768 to 262,144 elements | 36 | 0.97× | 0.82–1.15× | 72% |
+| 1-D, 1,048,576 elements | 12 | 1.02× | 0.98–1.18× | 8% |
+| 2-D, at least 65,536 elements | 36 | 1.23× | 1.05–1.76× | 0% |
+| 3-D, at least 65,536 elements | 36 | 1.67× | 1.38–2.47× | 0% |
+
+Small 2-D and 3-D fields of two or three batches can also be slower than serial, so `ZfpExecution::Serial` remains the better choice for fields that decode in under about 50 µs.
+These timings come from a scratch harness that is not kept in the repository.
 
 ## Original two-buffer measurement
 

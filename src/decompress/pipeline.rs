@@ -107,6 +107,10 @@ where
     Layout<N>: Scatter<N>,
 {
     /// `batch_size` is the blocks per batch, or 0 for [`BATCH_BYTES`] of planes.
+    ///
+    /// `None` for a field of one batch, which is read in full before any of it
+    /// is reconstructed, so that nothing overlaps and decoding is slower than
+    /// serial.
     #[expect(
         clippy::arithmetic_side_effects,
         reason = "a block is never zero-sized, and the batch count is at most num_blocks"
@@ -116,9 +120,8 @@ where
             (BATCH_BYTES / size_of::<Block<T::Unsigned>>()).max(1)
         } else {
             batch_size as usize
-        }
-        .min(info.num_blocks);
-        if batch_len == 0 {
+        };
+        if batch_len >= info.num_blocks {
             return None;
         }
         let depth = QUEUE_DEPTH.min(info.num_blocks.div_ceil(batch_len));
@@ -184,6 +187,9 @@ where
 }
 
 /// Returns None before consuming input or writing output on fallback.
+///
+/// 1-D blocks are too cheap to reconstruct for handing them to another thread
+/// to pay: it decoded between 0.8 and 1.1 times as fast as serial.
 pub(super) fn decode(
     words: &[u64],
     start: u64,
@@ -200,9 +206,7 @@ pub(super) fn decode(
     macro_rules! dispatch {
         ($t:ty) => {
             match info.dims_enum {
-                ZfpDimensionality::D1 => {
-                    pipelined::<$t, 4>(&mut bs, base, info, config, batch_size)
-                }
+                ZfpDimensionality::D1 => None,
                 ZfpDimensionality::D2 => {
                     pipelined::<$t, 16>(&mut bs, base, info, config, batch_size)
                 }
@@ -287,17 +291,18 @@ mod tests {
     #[test]
     fn allocation_failure_falls_back_to_serial() {
         let data: Vec<i32> = (0..512).map(|i| i * 127 - 19).collect();
+        let dims = [32, 16];
         let config = ZfpConfig::reversible();
         let mut stream = ZfpBitStream::new(16_384).unwrap();
         stream.write_bits(0x123, 13);
         stream
-            .compress(&config, &ZfpField::new(&data, [512]).unwrap())
+            .compress(&config, &ZfpField::new(&data, dims).unwrap())
             .unwrap();
         let mut output = vec![0i32; data.len()];
         let mut reference = ZfpBitStreamRef::from_words(stream.as_words());
         reference.seek_read(13);
         reference
-            .decompress(&config, &mut ZfpFieldMut::new(&mut output, [512]).unwrap())
+            .decompress(&config, &mut ZfpFieldMut::new(&mut output, dims).unwrap())
             .unwrap();
         let workers = rayon::ThreadPoolBuilder::new()
             .num_threads(2)
@@ -305,12 +310,9 @@ mod tests {
             .unwrap();
         workers.install(|| {
             for fail_after in [0, 2] {
-                let info = ZfpFieldMut::new(&mut output, [512])
-                    .unwrap()
-                    .plan()
-                    .unwrap();
+                let info = ZfpFieldMut::new(&mut output, dims).unwrap().plan().unwrap();
                 FAIL_BUFFER_AFTER.set(Some(fail_after));
-                assert!(Pipeline::<i32, 4>::new(&info, 1).is_none());
+                assert!(Pipeline::<i32, 16>::new(&info, 1).is_none());
                 output.fill(-1);
                 let mut reader = ZfpBitStreamRef::from_words(stream.as_words());
                 reader.seek_read(13);
@@ -318,7 +320,7 @@ mod tests {
                 reader
                     .decompress_with_execution(
                         &config,
-                        &mut ZfpFieldMut::new(&mut output, [512]).unwrap(),
+                        &mut ZfpFieldMut::new(&mut output, dims).unwrap(),
                         ZfpExecution::Rayon {
                             threads: 0,
                             chunk_size: 1,
@@ -327,7 +329,36 @@ mod tests {
                     .unwrap();
                 assert_eq!(output, data);
                 assert_eq!(reader.read_pos(), reference.read_pos());
+                // The failed pipeline consumed the injected failure.
+                assert_eq!(FAIL_BUFFER_AFTER.get(), None);
             }
+        });
+    }
+
+    #[test]
+    fn one_batch_and_1d_fields_are_not_pipelined() {
+        let workers = rayon::ThreadPoolBuilder::new()
+            .num_threads(2)
+            .build()
+            .unwrap();
+        workers.install(|| {
+            // Four blocks.
+            let mut output = vec![0i32; 64];
+            let mut field = ZfpFieldMut::new(&mut output, [8, 8]).unwrap();
+            let info = field.plan().unwrap();
+            assert!(Pipeline::<i32, 16>::new(&info, 4).is_none());
+            assert!(Pipeline::<i32, 16>::new(&info, 0).is_none());
+            assert!(Pipeline::<i32, 16>::new(&info, 3).is_some());
+
+            let config = ZfpConfig::fixed_precision(16);
+            let base = FieldPtr::new(field.data_mut().as_mut_ptr(), &info).unwrap();
+            assert!(decode(&[], 0, base, &info, &config, 1).is_some());
+
+            let mut output = vec![0i32; 64];
+            let mut field = ZfpFieldMut::new(&mut output, [64]).unwrap();
+            let info = field.plan().unwrap();
+            let base = FieldPtr::new(field.data_mut().as_mut_ptr(), &info).unwrap();
+            assert!(decode(&[], 0, base, &info, &config, 1).is_none());
         });
     }
 }

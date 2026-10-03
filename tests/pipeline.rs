@@ -198,3 +198,12 @@ fn queued_buffers_turn_over_for_all_types_and_dimensions() {
         samples.compare_floats(ZfpConfig::fixed_accuracy(0.00390625), 1);
     }
 }
+
+/// A default batch holds a few hundred blocks, so these 3,750 take several.
+#[test]
+fn default_batches_match_serial_for_a_large_field() {
+    let samples = Samples::new([300, 200, 0, 0], None);
+    samples.compare_all(ZfpConfig::fixed_precision(16), 0);
+    samples.compare_all(ZfpConfig::reversible(), 0);
+    samples.compare_floats(ZfpConfig::fixed_accuracy(0.00390625), 0);
+}

@@ -13,11 +13,11 @@ use crate::codec::decode::reversible::{
 };
 use crate::codec::decode::{
     core::{inv_cast_f32, inv_cast_f64, inv_order_i32, inv_order_i64},
-    dim1, dim2, dim3, dim4,
+    dim2, dim3, dim4,
 };
 use crate::codec::encode::core::{
-    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, PBITS_32, PBITS_64, PERM_1, PERM_2, PERM_3,
-    PERM_4, precision_f, skip_to,
+    Budget, EBIAS_F32, EBIAS_F64, EBITS_F32, EBITS_F64, PBITS_32, PBITS_64, PERM_2, PERM_3, PERM_4,
+    precision_f, skip_to,
 };
 use crate::codec::transform::{inv_xform, rev_inv_xform};
 use crate::config::ZfpConfig;
@@ -167,7 +167,6 @@ macro_rules! layout {
         }
     };
 }
-layout!(4, PERM_1, dim1, scatter_1d, scatter_partial_1d, [sx], [lx]);
 layout!(
     16,
     PERM_2,

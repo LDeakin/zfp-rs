@@ -27,7 +27,9 @@ pub enum ZfpExecution {
     ///
     /// Decompression runs serially for fields whose strides may alias (where
     /// two blocks could write the same element). The variable-rate pipeline
-    /// also runs serially with fewer than two pool threads. Fixed-rate
+    /// also runs serially with fewer than two pool threads, for 1-D fields,
+    /// and for fields of one batch, which it would read before reconstructing
+    /// any of it, and which decode slower than serial. Fixed-rate
     /// decompression falls back to serial if the pool or the chunks' buffers
     /// cannot be created, and the pipeline if the pool or its buffers cannot.
     ///
@@ -84,7 +86,8 @@ pub enum ZfpExecution {
         /// Number of blocks per chunk. For compression and fixed-rate
         /// decompression, 0 means one chunk per thread. For variable-rate
         /// decompression this sets blocks per batch; 0 selects about
-        /// 64 KiB of planes per batch. Up to 16 reusable buffers are allocated.
+        /// 64 KiB of planes per batch. Up to 16 reusable buffers are allocated, and a
+        /// field of at most one batch decodes serially.
         chunk_size: u32,
     },
 }
