@@ -597,16 +597,23 @@ pub(crate) fn decode_ints<B: PlaneBlock, const BOUNDED: bool>(
     };
     let round = matches!(rounding, ZfpRounding::Last { .. });
     if round {
-        let (m, prec) = if constrained {
-            (m, prec)
-        } else {
-            // C's `decode_ints_prec` always exits with `k == kmin - 1` and
-            // `m == 0`.
-            (0, B::INTPREC.wrapping_sub(kmin.wrapping_sub(1)))
-        };
+        let (m, prec) = round_state::<B>(constrained, m, prec, kmin);
         block.inv_round(m, prec);
     }
     (block, bits, zero && !round)
+}
+
+/// The `ZFP_ROUND_LAST` state `(m, prec)`, given the plane loop's.
+///
+/// A loop that was not constrained by `maxbits` is C's `decode_ints_prec`,
+/// which always exits with `k == kmin - 1` and `m == 0`.
+#[inline(always)]
+fn round_state<B: PlaneBlock>(constrained: bool, m: u32, prec: u32, kmin: u32) -> (u32, u32) {
+    if constrained {
+        (m, prec)
+    } else {
+        (0, B::INTPREC.wrapping_sub(kmin.wrapping_sub(1)))
+    }
 }
 
 /// The bit-plane loop of C's `decode_few_ints` and `decode_many_ints`.
@@ -773,15 +780,8 @@ impl<B: PlaneBlock> DecodedPlanes<B> {
             })
         };
         self.low = low;
-        self.round = matches!(rounding, ZfpRounding::Last { .. }).then(|| {
-            if constrained {
-                (m, prec)
-            } else {
-                // C's `decode_ints_prec` always exits with `k == kmin - 1` and
-                // `m == 0`.
-                (0, B::INTPREC.wrapping_sub(kmin.wrapping_sub(1)))
-            }
-        });
+        self.round = matches!(rounding, ZfpRounding::Last { .. })
+            .then(|| round_state::<B>(constrained, m, prec, kmin));
         bits
     }
 
