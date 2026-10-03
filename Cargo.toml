@@ -19,7 +19,7 @@ rust-version = "1.89"
 [package]
 name = "zfp-rs"
 authors = ["Lachlan Deakin <ljdgit@gmail.com>"]
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 rust-version.workspace = true
 description = "A pure-Rust implementation of the ZFP compression algorithm"
@@ -71,7 +71,7 @@ name = "proptest_internals"
 required-features = ["internals"]
 
 [workspace.dependencies.zfp-rs]
-version = "1.0.0"
+version = "1.0.1"
 path = "."
 
 [profile.dev.package.zfp-test-utils]
